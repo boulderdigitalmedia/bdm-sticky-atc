@@ -20,12 +20,20 @@ const __dirname = path.dirname(__filename);
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, "public")));
 
+// ================= Health Check =================
+app.get("/health", (req, res) => {
+  res.status(200).send("OK");
+});
+
 // ================= Shopify OAuth =================
 
 // Step 1: Redirect to Shopify for install
 app.get("/auth", (req, res) => {
   const shop = req.query.shop;
   if (!shop) return res.status(400).send("Missing shop parameter");
+
+  // Respond 200 OK first (fix for Shopify automated install check)
+  res.status(200);
 
   const redirectUri = `${HOST}/auth/callback`;
   const installUrl = `https://${shop}/admin/oauth/authorize?client_id=${API_KEY}&scope=${SCOPES}&redirect_uri=${redirectUri}&state=nonce123&grant_options[]=per-user`;
@@ -58,15 +66,16 @@ app.get("/auth/callback", async (req, res) => {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ client_id: API_KEY, client_secret: API_SECRET, code }),
   });
+
   const data = await response.json();
   const accessToken = data.access_token;
 
-  // Store accessToken in a cookie (for demo only; in production use DB)
+  // Store accessToken in a cookie (demo only; in production use DB)
   res.cookie("shop", shop, { maxAge: 900000 });
   res.cookie("accessToken", accessToken, { maxAge: 900000 });
 
   // Inject ScriptTag
-  const scriptResponse = await fetch(`https://${shop}/admin/api/2025-01/script_tags.json`, {
+  await fetch(`https://${shop}/admin/api/2025-01/script_tags.json`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -91,4 +100,5 @@ app.get("/apps", (req, res) => {
 // Root health check
 app.get("/", (req, res) => res.send("Sticky Add-to-Cart Bar app is running ✅"));
 
+// Start server
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
