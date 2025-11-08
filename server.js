@@ -14,16 +14,17 @@ const PORT = process.env.PORT || 3000;
 const API_KEY = process.env.SHOPIFY_API_KEY;
 const API_SECRET = process.env.SHOPIFY_API_SECRET;
 const SCOPES = process.env.SCOPES || "write_script_tags,read_products";
-const HOST = process.env.HOST; // e.g. https://sticky-add-to-cart-bar-pro.onrender.com
+const HOST = process.env.HOST; // e.g., https://sticky-add-to-cart-bar-pro.onrender.com
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-app.use(express.static(path.join(__dirname, "public")));
+// Serve static files from /public
+app.use('/public', express.static(path.join(__dirname, 'public')));
 app.use(cookieParser());
 app.use(express.json());
 
-// Root route - Shopify will append ?shop=...&host=...
+// Root route - Shopify app installation
 app.get("/", (req, res) => {
   const { shop } = req.query;
   if (!shop) return res.status(400).send("⚙️ Missing 'shop' parameter");
@@ -52,7 +53,7 @@ app.get("/auth/callback", async (req, res) => {
   const generated = crypto.createHmac("sha256", API_SECRET).update(message).digest("hex");
   if (generated !== hmac) return res.status(400).send("HMAC validation failed");
 
-  // Exchange code for token
+  // Exchange code for access token
   const tokenRes = await fetch(`https://${shop}/admin/oauth/access_token`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -61,7 +62,7 @@ app.get("/auth/callback", async (req, res) => {
   const tokenData = await tokenRes.json();
   const accessToken = tokenData.access_token;
 
-  // Inject ScriptTag
+  // Inject sticky-bar ScriptTag
   const scriptRes = await fetch(`https://${shop}/admin/api/2025-01/script_tags.json`, {
     method: "POST",
     headers: {
@@ -71,7 +72,7 @@ app.get("/auth/callback", async (req, res) => {
     body: JSON.stringify({
       script_tag: {
         event: "onload",
-        src: `${HOST}/sticky-bar.js`,
+        src: `${HOST}/public/sticky-bar.js`,
       },
     }),
   });
