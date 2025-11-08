@@ -1,5 +1,6 @@
 (function() {
   document.addEventListener('DOMContentLoaded', async () => {
+    // Only run on product pages
     if (!window.location.pathname.includes('/products/')) return;
 
     const pathParts = window.location.pathname.split('/products/');
@@ -10,9 +11,10 @@
       const res = await fetch(`/products/${productHandle}.js`);
       if (!res.ok) return;
       const product = await res.json();
+
       if (!product.variants || product.variants.length === 0) return;
 
-      // --- Sticky Bar ---
+      // Sticky bar container
       const bar = document.createElement('div');
       bar.id = 'sticky-bar';
       bar.style.cssText = `
@@ -55,15 +57,12 @@
         font-size: 15px;
       `;
 
-      // --- Sync with page variant selector ---
+      // Sync with theme variant selector if present
       const themeVariantSelector = document.querySelector('form[action*="/cart/add"] select');
       if (themeVariantSelector) {
-        // Update sticky bar when main selector changes
         themeVariantSelector.addEventListener('change', () => {
           variantSelect.value = themeVariantSelector.value;
         });
-
-        // Update main selector when sticky bar changes
         variantSelect.addEventListener('change', () => {
           themeVariantSelector.value = variantSelect.value;
           themeVariantSelector.dispatchEvent(new Event('change', { bubbles: true }));
@@ -74,7 +73,6 @@
         const variantId = variantSelect.value;
         const quantity = 1;
 
-        // Use Shopify AJAX API to add to cart
         const response = await fetch('/cart/add.js', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -83,14 +81,9 @@
 
         if (response.ok) {
           addBtn.textContent = 'Added!';
-          setTimeout(() => (addBtn.textContent = 'Add to Cart'), 1500);
-
-          // Optionally refresh cart drawer if theme has one
-          if (typeof window.Shopify && Shopify?.cart) {
-            Shopify.cart.update();
-          }
+          setTimeout(() => addBtn.textContent = 'Add to Cart', 1500);
         } else {
-          alert('Failed to add item to cart.');
+          alert('Failed to add to cart.');
         }
       });
 
