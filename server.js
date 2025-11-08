@@ -27,7 +27,6 @@ app.get("/health", (req, res) => {
 });
 
 // ================= Root Route =================
-// Redirect to /auth for embedded app
 app.get("/", (req, res) => {
   const { shop, host } = req.query;
   if (!shop || !host)
@@ -35,14 +34,13 @@ app.get("/", (req, res) => {
       .status(400)
       .send("Missing shop or host query parameters in request");
 
-  // Redirect to /auth with shop and host
   const redirectUrl = `/auth?shop=${shop}&host=${encodeURIComponent(host)}`;
   res.redirect(redirectUrl);
 });
 
 // ================= Shopify OAuth =================
 
-// Step 1: Redirect merchant to Shopify for install
+// Step 1: Redirect to Shopify for install
 app.get("/auth", (req, res) => {
   const { shop, host } = req.query;
   if (!shop || !host) return res.status(400).send("Missing shop or host");
@@ -55,12 +53,12 @@ app.get("/auth", (req, res) => {
 
 // Step 2: OAuth callback
 app.get("/auth/callback", async (req, res) => {
-  const { shop, code, hmac, state, host } = req.query;
+  const { shop, code, hmac, host } = req.query;
 
   if (!shop || !code || !hmac)
-    return res.status(400).send("Required parameters missing");
+    return res.status(400).send("Missing required parameters");
 
-  // --- Validate HMAC ---
+  // Validate HMAC
   const map = { ...req.query };
   delete map.hmac;
   const message = Object.keys(map)
@@ -77,26 +75,25 @@ app.get("/auth/callback", async (req, res) => {
     return res.status(400).send("HMAC validation failed");
 
   try {
-    // --- Exchange code for access token ---
-    const tokenResponse = await fetch(`https://${shop}/admin/oauth/access_token`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        client_id: API_KEY,
-        client_secret: API_SECRET,
-        code,
-      }),
-    });
+    // Exchange code for access token
+    const tokenResponse = await fetch(
+      `https://${shop}/admin/oauth/access_token`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          client_id: API_KEY,
+          client_secret: API_SECRET,
+          code,
+        }),
+      }
+    );
 
     const tokenData = await tokenResponse.json();
     const accessToken = tokenData.access_token;
     if (!accessToken) throw new Error("Missing access token");
 
-    // --- Store token (demo only; use DB for production) ---
-    res.cookie("shop", shop, { maxAge: 900000 });
-    res.cookie("accessToken", accessToken, { maxAge: 900000 });
-
-    // --- Inject Sticky Bar ScriptTag ---
+    // Inject Sticky Bar ScriptTag
     await fetch(`https://${shop}/admin/api/2025-01/script_tags.json`, {
       method: "POST",
       headers: {
@@ -111,20 +108,22 @@ app.get("/auth/callback", async (req, res) => {
       }),
     });
 
-    // --- Redirect back into embedded app inside Shopify ---
-    const redirectUrl = `https://admin.shopify.com/store/${shop.replace(
-      ".myshopify.com",
-      ""
-    )}/apps/sticky-add-to-cart-bar-pro?host=${encodeURIComponent(host)}`;
-
-    res.redirect(redirectUrl);
+    // Embedded redirect (fix session expired)
+    const embeddedRedirect = `
+      <script type="text/javascript">
+        const host = "${host}";
+        const redirectUrl = "/apps?shop=${shop}&host=" + encodeURIComponent(host);
+        window.top.location.href = redirectUrl;
+      </script>
+    `;
+    res.send(embeddedRedirect);
   } catch (error) {
     console.error("OAuth callback error:", error);
-    res.status(500).send("App installation failed. Check your server logs.");
+    res.status(500).send("App installation failed. Check server logs.");
   }
 });
 
-// ================= Embedded App Home =================
+// ================= Embedded Admin =================
 app.get("/apps", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
