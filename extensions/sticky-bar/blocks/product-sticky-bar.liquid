@@ -1,0 +1,6 @@
+{% comment %}
+  Inject sticky-bar.js on product pages automatically.
+{% endcomment %}
+{% if template.name contains 'product' %}
+  <script src="{{ 'sticky-bar.js' | asset_url }}" defer></script>
+{% endif %}
