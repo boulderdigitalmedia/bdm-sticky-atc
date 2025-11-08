@@ -1,74 +1,66 @@
-(async function() {
-  // Get product JSON
-  const jsonScript = document.querySelector('script[type="application/json"][id^="ProductJson"]');
-  if (!jsonScript) return;
+(function() {
+  if (!window.Shopify || !window.meta || !window.meta.product) return;
 
-  const product = JSON.parse(jsonScript.innerHTML);
-  if (!product || !product.variants) return;
+  const product = window.meta.product;
+  const variants = product.variants;
 
   const bar = document.createElement("div");
-  bar.id = "sticky-add-to-cart";
-  bar.style = `
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    width: 100%;
-    background: #333;
-    color: #fff;
-    padding: 15px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 10px;
-    z-index: 9999;
-    font-family: sans-serif;
+  bar.id = "sticky-bar";
+  bar.innerHTML = `
+    <style>
+      #sticky-bar {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: white;
+        border-top: 1px solid #ddd;
+        box-shadow: 0 -2px 6px rgba(0,0,0,0.1);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px;
+        font-family: inherit;
+        z-index: 9999;
+      }
+      #sticky-bar select, #sticky-bar button {
+        padding: 10px;
+        font-size: 16px;
+      }
+      #sticky-bar button {
+        background: #1a73e8;
+        color: white;
+        border: none;
+        cursor: pointer;
+        border-radius: 4px;
+      }
+      #sticky-bar button:hover {
+        background: #155ab6;
+      }
+    </style>
+    <div>
+      <strong>${product.title}</strong><br>
+      <select id="variantSelect">
+        ${variants.map(v => `<option value="${v.id}">${v.title}</option>`).join("")}
+      </select>
+    </div>
+    <button id="addToCart">Add to Cart</button>
   `;
-
-  const variantSelect = document.createElement("select");
-  product.variants.forEach(v => {
-    const option = document.createElement("option");
-    option.value = v.id;
-    option.textContent = v.title + (v.available ? "" : " (Sold Out)");
-    option.disabled = !v.available;
-    variantSelect.appendChild(option);
-  });
-  bar.appendChild(variantSelect);
-
-  const qtyInput = document.createElement("input");
-  qtyInput.type = "number";
-  qtyInput.min = 1;
-  qtyInput.value = 1;
-  qtyInput.style.width = "50px";
-  bar.appendChild(qtyInput);
-
-  const addButton = document.createElement("button");
-  addButton.textContent = "Add to Cart";
-  addButton.style = "background:#ff6f61;color:#fff;border:none;padding:8px 15px;cursor:pointer;";
-  bar.appendChild(addButton);
-
   document.body.appendChild(bar);
 
-  const cartIndicator = document.createElement("span");
-  cartIndicator.style.marginLeft = "10px";
-  bar.appendChild(cartIndicator);
+  document.getElementById("addToCart").addEventListener("click", async () => {
+    const variantId = document.getElementById("variantSelect").value;
 
-  async function updateCart() {
-    const res = await fetch("/cart.js");
-    const data = await res.json();
-    cartIndicator.textContent = `Cart: ${data.item_count} item${data.item_count !== 1 ? "s" : ""}`;
-  }
-
-  await updateCart();
-
-  addButton.addEventListener("click", async () => {
-    const variantId = variantSelect.value;
-    const quantity = parseInt(qtyInput.value, 10) || 1;
-    await fetch("/cart/add.js", {
+    const res = await fetch("/cart/add.js", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: variantId, quantity })
+      body: JSON.stringify({ id: variantId, quantity: 1 }),
     });
-    await updateCart();
-    alert(`Added ${quantity} item${quantity !== 1 ? "s" : ""} to cart`);
+
+    if (res.ok) {
+      window.location.reload(); // auto-refresh cart data
+    } else {
+      alert("Failed to add item");
+    }
   });
 })();
