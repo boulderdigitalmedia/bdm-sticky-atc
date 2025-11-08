@@ -1,24 +1,23 @@
-(function() {
-  let product;
+(async function() {
+  // 1️⃣ Get product handle from URL
+  const pathParts = window.location.pathname.split('/');
+  const handleIndex = pathParts.indexOf('products') + 1;
+  const productHandle = pathParts[handleIndex];
+  if (!productHandle) return;
 
-  // 1️⃣ Try window.meta
-  if (window.meta && window.meta.product) {
-    product = window.meta.product;
-  } else {
-    // 2️⃣ Fallback: look for JSON script tag
-    const jsonScript = document.querySelector('script[type="application/json"][id^="ProductJson"]');
-    if (jsonScript) {
-      try {
-        product = JSON.parse(jsonScript.innerHTML);
-      } catch (err) {
-        console.error("Failed to parse product JSON:", err);
-      }
-    }
+  // 2️⃣ Fetch product JSON via Shopify’s JSON endpoint
+  let product;
+  try {
+    const res = await fetch(`/products/${productHandle}.js`);
+    product = await res.json();
+  } catch (err) {
+    console.error("Failed to fetch product JSON:", err);
+    return;
   }
 
-  if (!product) return; // cannot find product, stop script
+  if (!product || !product.variants || product.variants.length === 0) return;
 
-  // Create sticky bar container
+  // 3️⃣ Build sticky bar
   const bar = document.createElement("div");
   bar.id = "sticky-add-to-cart";
   bar.style = `
@@ -40,15 +39,13 @@
   // Variant selector
   const variantSelect = document.createElement("select");
   variantSelect.style.padding = "5px";
-  if (product.variants && product.variants.length) {
-    product.variants.forEach(variant => {
-      const option = document.createElement("option");
-      option.value = variant.id;
-      option.textContent = variant.title + (variant.available ? "" : " (Sold Out)");
-      option.disabled = !variant.available;
-      variantSelect.appendChild(option);
-    });
-  }
+  product.variants.forEach(v => {
+    const option = document.createElement("option");
+    option.value = v.id;
+    option.textContent = `${v.title}${v.available ? '' : ' (Sold Out)'}`;
+    option.disabled = !v.available;
+    variantSelect.appendChild(option);
+  });
   bar.appendChild(variantSelect);
 
   // Quantity input
@@ -75,23 +72,22 @@
 
   document.body.appendChild(bar);
 
-  // Add-to-cart click
+  // Add-to-cart handler
   addButton.addEventListener("click", async () => {
     const variantId = variantSelect.value;
     const quantity = parseInt(qtyInput.value, 10) || 1;
 
     try {
-      const response = await fetch("/cart/add.js", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: variantId, quantity }),
+      const res = await fetch('/cart/add.js', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: variantId, quantity })
       });
-
-      const data = await response.json();
+      const data = await res.json();
       alert(`Added to cart: ${data.title} x${quantity}`);
     } catch (err) {
-      console.error("Add-to-cart failed", err);
-      alert("Failed to add to cart");
+      console.error('Add-to-cart failed', err);
+      alert('Failed to add to cart');
     }
   });
 })();
