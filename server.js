@@ -20,7 +20,7 @@ const __dirname = path.dirname(__filename);
 
 app.use(cookieParser());
 
-// Serve all files in public folder at root path
+// Serve all static files in /public at root path
 app.use(express.static(path.join(__dirname, "public")));
 
 // ================= Health Check =================
