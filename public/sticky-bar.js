@@ -5,7 +5,7 @@
   const productHandle = pathParts[handleIndex];
   if (!productHandle) return;
 
-  // 2️⃣ Fetch product JSON via Shopify’s JSON endpoint
+  // 2️⃣ Fetch product JSON
   let product;
   try {
     const res = await fetch(`/products/${productHandle}.js`);
@@ -70,21 +70,44 @@
   `;
   bar.appendChild(addButton);
 
+  // Cart indicator
+  const cartIndicator = document.createElement("span");
+  cartIndicator.style.marginLeft = "10px";
+  cartIndicator.style.fontWeight = "bold";
+  cartIndicator.textContent = "Cart: 0 items";
+  bar.appendChild(cartIndicator);
+
   document.body.appendChild(bar);
 
-  // Add-to-cart handler
+  // Helper: update cart count
+  async function updateCartCount() {
+    try {
+      const res = await fetch("/cart.js");
+      const data = await res.json();
+      cartIndicator.textContent = `Cart: ${data.item_count} item${data.item_count !== 1 ? 's' : ''}`;
+    } catch (err) {
+      console.error("Failed to fetch cart:", err);
+    }
+  }
+
+  // Initialize cart count
+  updateCartCount();
+
+  // Add-to-cart click
   addButton.addEventListener("click", async () => {
     const variantId = variantSelect.value;
     const quantity = parseInt(qtyInput.value, 10) || 1;
 
     try {
-      const res = await fetch('/cart/add.js', {
+      await fetch('/cart/add.js', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: variantId, quantity })
       });
-      const data = await res.json();
-      alert(`Added to cart: ${data.title} x${quantity}`);
+
+      // Update cart immediately
+      await updateCartCount();
+      alert(`Added ${quantity} item${quantity !== 1 ? 's' : ''} to cart`);
     } catch (err) {
       console.error('Add-to-cart failed', err);
       alert('Failed to add to cart');
