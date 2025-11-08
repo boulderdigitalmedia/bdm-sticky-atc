@@ -1,90 +1,82 @@
-(async () => {
-  // Only run on product pages
-  if (!window.location.pathname.includes('/products/')) return;
+(function() {
+  // Check if we are on a product page
+  if (!window.meta || !window.meta.product) return;
 
-  // Get product handle from URL
-  const handle = window.location.pathname.split('/products/')[1].split('/')[0];
+  const product = window.meta.product;
 
-  try {
-    // Fetch product JSON data
-    const res = await fetch(`/products/${handle}.js`);
-    const product = await res.json();
+  // Create sticky bar container
+  const bar = document.createElement("div");
+  bar.id = "sticky-add-to-cart";
+  bar.style = `
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: #333;
+    color: #fff;
+    padding: 15px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    z-index: 9999;
+    font-family: sans-serif;
+  `;
 
-    // Create sticky bar container
-    const bar = document.createElement('div');
-    bar.id = 'sticky-bar';
-    bar.innerHTML = `
-      <div id="sticky-bar-content">
-        <div id="sticky-bar-info">
-          <img src="${product.images[0]}" alt="${product.title}" style="height:40px;border-radius:4px;margin-right:10px;">
-          <span>${product.title}</span>
-        </div>
-        <select id="variant-select" style="margin-right:10px;"></select>
-        <input type="number" id="qty" min="1" value="1" style="width:50px;margin-right:10px;">
-        <button id="sticky-add" style="background:#2c6ecb;color:white;padding:8px 14px;border:none;border-radius:6px;">Add to Cart</button>
-      </div>
-    `;
-    document.body.appendChild(bar);
+  // Variant selector
+  const variantSelect = document.createElement("select");
+  variantSelect.style.padding = "5px";
+  product.variants.forEach(variant => {
+    const option = document.createElement("option");
+    option.value = variant.id;
+    option.textContent = variant.title + (variant.available ? "" : " (Sold Out)");
+    option.disabled = !variant.available;
+    variantSelect.appendChild(option);
+  });
+  bar.appendChild(variantSelect);
 
-    // Inject styles
-    const style = document.createElement('style');
-    style.textContent = `
-      #sticky-bar {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        width: 100%;
-        background: white;
-        border-top: 1px solid #ddd;
-        box-shadow: 0 -2px 5px rgba(0,0,0,0.05);
-        padding: 10px;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        z-index: 9999;
-      }
-      #sticky-bar-content {
-        display: flex;
-        align-items: center;
-        max-width: 800px;
-        width: 100%;
-        justify-content: space-between;
-      }
-      #sticky-bar-info {
-        display: flex;
-        align-items: center;
-        font-weight: 500;
-      }
-    `;
-    document.head.appendChild(style);
+  // Quantity input
+  const qtyInput = document.createElement("input");
+  qtyInput.type = "number";
+  qtyInput.min = 1;
+  qtyInput.value = 1;
+  qtyInput.style.width = "50px";
+  qtyInput.style.padding = "5px";
+  bar.appendChild(qtyInput);
 
-    // Populate variants
-    const variantSelect = document.getElementById('variant-select');
-    product.variants.forEach(v => {
-      const opt = document.createElement('option');
-      opt.value = v.id;
-      opt.textContent = `${v.title} - ${Shopify.formatMoney(v.price)}`;
-      variantSelect.appendChild(opt);
-    });
+  // Add-to-cart button
+  const addButton = document.createElement("button");
+  addButton.textContent = "Add to Cart";
+  addButton.style = `
+    background: #ff6f61;
+    color: #fff;
+    border: none;
+    padding: 8px 15px;
+    cursor: pointer;
+    font-size: 16px;
+  `;
+  bar.appendChild(addButton);
 
-    // Add to cart logic
-    document.getElementById('sticky-add').addEventListener('click', async () => {
-      const variantId = variantSelect.value;
-      const qty = parseInt(document.getElementById('qty').value);
+  // Append the bar to the body
+  document.body.appendChild(bar);
 
-      const res = await fetch('/cart/add.js', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: variantId, quantity: qty })
+  // Add-to-cart click handler
+  addButton.addEventListener("click", async () => {
+    const variantId = variantSelect.value;
+    const quantity = parseInt(qtyInput.value, 10) || 1;
+
+    try {
+      const response = await fetch("/cart/add.js", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: variantId, quantity }),
       });
 
-      if (res.ok) {
-        alert('Added to cart!');
-      } else {
-        alert('Failed to add item');
-      }
-    });
-  } catch (err) {
-    console.error('Sticky bar error:', err);
-  }
+      const data = await response.json();
+      alert(`Added to cart: ${data.title} x${quantity}`);
+    } catch (err) {
+      console.error("Add-to-cart failed", err);
+      alert("Something went wrong adding the product to the cart.");
+    }
+  });
 })();
