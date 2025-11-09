@@ -1,14 +1,14 @@
 {% comment %}
-  Sticky Add to Cart Bar – injected via app block on product pages
+  Sticky Add To Cart Bar – product page app block
 {% endcomment %}
 
 <div id="sticky-add-to-cart-bar-container"></div>
 
-<script src="{{ shop.metafields.sticky_bar.host }}/sticky-bar.js" defer></script>
+<script src="{{ app.metafields.sticky_bar.host }}/sticky-bar.js" defer></script>
 
 {% schema %}
 {
-  "name": "Sticky Add to Cart Bar",
+  "name": "Sticky Add To Cart Bar",
   "target": "section",
   "templates": ["product"],
   "settings": []
