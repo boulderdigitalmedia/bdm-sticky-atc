@@ -4,7 +4,7 @@
 
 <div id="sticky-add-to-cart-bar-container"></div>
 
-<script src="{{ app.metafields.sticky_bar.host }}/sticky-bar.js" defer></script>
+{{ 'sticky-bar.js' | asset_url | script_tag }}
 
 {% schema %}
 {
