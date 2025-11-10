@@ -1,0 +1,20 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "624b866762bfee0ffea282573cfc8539"
+name = "Sticky Add-to-Cart Bar Pro"
+application_url = "https://sticky-add-to-cart-bar-pro.onrender.com"
+embedded = true
+
+[webhooks]
+api_version = "2025-10"
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "read_products,read_script_tags,write_script_tags,read_themes,write_themes"
+optional_scopes = [ ]
+use_legacy_install_flow = true
+
+[auth]
+redirect_urls = [
+  "https://sticky-add-to-cart-bar-pro.onrender.com/auth/callback"
+]
