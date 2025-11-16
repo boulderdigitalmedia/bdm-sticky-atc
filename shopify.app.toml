@@ -1,13 +1,13 @@
 name = "BDM Sticky Add to Cart Bar"
-client_id = "YOUR_SHOPIFY_APP_API_KEY"
+client_id = "624b866762bfee0ffea282573cfc8539"
 
-application_url = "https://YOUR_DEPLOYED_URL"
+application_url = "https://sticky-add-to-cart-bar-pro.onrender.com"
 embedded = true
 
 [auth]
 redirect_urls = [
-  "https://YOUR_DEPLOYED_URL/auth/callback",
-  "https://YOUR_DEPLOYED_URL/auth/shopify/callback"
+  "https://sticky-add-to-cart-bar-pro.onrender.com/auth/callback",
+  "https://sticky-add-to-cart-bar-pro.onrender.com/auth/shopify/callback"
 ]
 
 [webhooks]
