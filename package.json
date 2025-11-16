@@ -1,11 +1,16 @@
 {
-  "name": "sticky-add-to-cart-bar-pro",
+  "name": "bdm-sticky-atc",
   "version": "1.0.0",
+  "private": true,
   "scripts": {
-    "build": "shopify app build",
-    "deploy": "shopify app deploy"
+    "build": "echo 'No build step needed'",
+    "start": "node web/index.js",
+    "migrate": "npx prisma migrate deploy"
   },
-  "engines": {
-    "node": ">=20"
+  "dependencies": {
+    "@prisma/client": "^5.0.0",
+    "@shopify/shopify-api": "^11.0.0",
+    "@shopify/shopify-app-express": "^2.0.0",
+    "express": "^4.18.2"
   }
 }
