@@ -27,7 +27,15 @@ const shopify = shopifyApp({
 });
 
 app.get("/auth", shopify.auth.begin());
-app.get("/auth/callback", shopify.auth.callback(), shopify.redirectToShopify());
+app.get(
+  "/auth/callback",
+  shopify.auth.callback(),
+  async (req, res) => {
+    const { shop } = req.query;
+    res.redirect(`/?shop=${shop}`);
+  }
+);
+
 
 app.use("/apps/bdm-sticky-atc", stickyAnalytics);
 app.use("/api/sticky", stickyMetrics);
