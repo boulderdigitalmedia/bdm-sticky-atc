@@ -1,8 +1,8 @@
 {
   "name": "bdm-sticky-atc",
   "version": "1.0.0",
-  "type": "module",
   "private": true,
+  "type": "module",
   "scripts": {
     "start": "node web/index.js",
     "migrate": "npx prisma migrate deploy"
