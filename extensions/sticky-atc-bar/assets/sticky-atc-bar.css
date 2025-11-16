@@ -1,0 +1,125 @@
+#bdm-sticky-atc-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2147483646;
+  font-family: inherit;
+}
+
+.bdm-sticky-atc-bar__inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 1rem;
+  box-sizing: border-box;
+}
+
+.bdm-sticky-atc-bar__info {
+  min-width: 0;
+}
+
+.bdm-sticky-atc-bar__title {
+  font-size: 0.9rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bdm-sticky-atc-price__current {
+  font-weight: 600;
+  margin-right: 0.4rem;
+}
+
+.bdm-sticky-atc-price__compare {
+  font-size: 0.8rem;
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+.bdm-sticky-atc-bar__controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.bdm-sticky-atc-variants {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.bdm-sticky-atc-variant {
+  display: flex;
+  flex-direction: column;
+}
+
+.bdm-sticky-atc-variant__label {
+  font-size: 0.7rem;
+  margin-bottom: 0.1rem;
+}
+
+.bdm-sticky-atc-variant__select {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8rem;
+}
+
+.bdm-sticky-atc-qty {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid rgba(0,0,0,0.12);
+}
+
+.bdm-sticky-atc-qty__btn {
+  border: none;
+  background: transparent;
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.bdm-sticky-atc-qty__input {
+  width: 2.5rem;
+  border: none;
+  text-align: center;
+  font-size: 0.8rem;
+}
+
+.bdm-sticky-atc-button {
+  border: none;
+  padding: 0.5rem 1.25rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.bdm-sticky-atc-branding {
+  font-size: 0.7rem;
+  text-align: center;
+  padding: 0 0 0.25rem;
+}
+
+/* Mobile layout */
+@media (max-width: 768px) {
+  .bdm-sticky-atc-bar__inner {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .bdm-sticky-atc-bar__controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .bdm-sticky-atc-button {
+    flex: 1;
+    text-align: center;
+  }
+}
