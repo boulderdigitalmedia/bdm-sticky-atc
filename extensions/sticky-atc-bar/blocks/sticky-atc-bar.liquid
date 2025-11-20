@@ -1,16 +1,35 @@
-{% comment %}
-  Sticky Add to Cart Bar – App Block
-{% endcomment %}
+{% comment %} Sticky Add to Cart Bar App Block {% endcomment %}
 
-<div id="sticky-atc-bar-app"></div>
-
-<script defer src="{{ 'sticky-atc-bar.js' | asset_url }}"></script>
-<link rel="stylesheet" href="{{ 'sticky-atc-bar.css' | asset_url }}">
+<div>
+  {% render 'sticky-atc-bar' %}
+</div>
 
 {% schema %}
 {
   "name": "Sticky Add to Cart Bar",
-  "target": "section",
-  "settings": []
+  "target": "body",
+  "settings": [
+    {
+      "type": "checkbox",
+      "id": "show_on_desktop",
+      "label": "Show on desktop",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_on_mobile",
+      "label": "Show on mobile",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "free_footer_text",
+      "label": "Free plan footer text",
+      "default": "Powered by Boulder Digital Media"
+    }
+  ],
+  "enabled_on": {
+    "templates": ["product"]
+  }
 }
 {% endschema %}
