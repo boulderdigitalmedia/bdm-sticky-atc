@@ -1,0 +1,34 @@
+name: Deploy Shopify App
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: 18
+
+    - name: Install Shopify CLI
+      run: |
+        npm install -g @shopify/cli @shopify/app
+
+    - name: Authenticate Shopify CLI
+      env:
+        SHOPIFY_CLI_TOKEN: ${{ secrets.SHOPIFY_CLI_TOKEN }}
+      run: |
+        shopify login --token $SHOPIFY_CLI_TOKEN
+
+    - name: Deploy App + Extensions
+      env:
+        SHOPIFY_FLAG_STORE: ${{ secrets.SHOPIFY_FLAG_STORE }}
+      run: |
+        shopify app deploy --no-interaction
