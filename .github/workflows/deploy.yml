@@ -21,14 +21,9 @@ jobs:
       run: |
         npm install -g @shopify/cli @shopify/app
 
-    - name: Authenticate Shopify CLI
-      env:
-        SHOPIFY_CLI_TOKEN: ${{ secrets.SHOPIFY_CLI_TOKEN }}
-      run: |
-        shopify login --token $SHOPIFY_CLI_TOKEN
-
     - name: Deploy App + Extensions
       env:
-        SHOPIFY_FLAG_STORE: ${{ secrets.SHOPIFY_FLAG_STORE }}
+        SHOPIFY_CLI_PARTNERS_TOKEN: ${{ secrets.SHOPIFY_CLI_PARTNERS_TOKEN }}
+        SHOPIFY_FLAG_STORE: ${{ secrets.SHOPIFY_FLAG_STORE }}  # bdm-staging.myshopify.com
       run: |
         shopify app deploy --no-interaction
