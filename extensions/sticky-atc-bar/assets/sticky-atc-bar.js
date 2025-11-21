@@ -1,53 +1,51 @@
-// Sticky Add to Cart Bar – Desktop Version A + Compact Mobile + Full Cart Sync
+// Sticky Add To Cart Bar — Full Version With Cart Drawer + Icon auto-refresh + Safe z-index
 (function () {
-  /* -------------------------------------------------------
-     UNIVERSAL CART UPDATE (New Version – fixes all themes)
-  ---------------------------------------------------------*/
-  function updateCartIconAndDrawer() {
-    fetch("/cart.js")
-      .then((res) => res.json())
-      .then((cart) => {
-        const count = cart.item_count;
 
-        // Update all cart counter elements
-        const countEls = document.querySelectorAll(
-          ".cart-count, .cart-count-bubble, [data-cart-count]"
-        );
-        countEls.forEach((el) => {
-          el.textContent = count;
-          el.dataset.cartCount = count;
-          el.classList.toggle("hidden", count === 0);
-        });
+  /* ---------------------------------------------
+      UNIVERSAL CART UPDATE HANDLER
+  ---------------------------------------------- */
+  async function refreshCartUI() {
+    // 1. Update the cart bubble/icon (even when cart is empty)
+    try {
+      const cart = await fetch("/cart.js").then(r => r.json());
 
-        // Trigger theme events
-        document.dispatchEvent(new CustomEvent("cart:refresh"));
-        document.dispatchEvent(new CustomEvent("ajaxProduct:added"));
-        document.dispatchEvent(
-          new CustomEvent("cartcount:update", { detail: { count } })
-        );
+      const countEls = document.querySelectorAll(
+        ".cart-count, .cart-count-bubble, [data-cart-count]"
+      );
 
-        // Dawn 7.0+ Drawer update
-        const drawer = document.querySelector("cart-drawer");
-        if (drawer?.renderContents) {
-          drawer.renderContents(cart);
+      countEls.forEach(el => {
+        el.textContent = cart.item_count;
+        el.dataset.cartCount = cart.item_count;
+      });
+
+      // Dawn theme triggers cart bubble refresh event
+      document.dispatchEvent(
+        new CustomEvent("cart:refresh", { detail: { cart } })
+      );
+    } catch (e) {
+      console.warn("Cart icon refresh error:", e);
+    }
+
+    // 2. Update AJAX cart drawer (Dawn + most themes)
+    const drawer = document.querySelector("cart-drawer, .cart-drawer, #CartDrawer");
+    if (drawer) {
+      try {
+        // Dawn uses this method
+        if (drawer.renderContents) {
+          const sections = await fetch("/?sections=cart-drawer");
+          const html = await sections.json();
+          drawer.renderContents(html["cart-drawer"]);
         }
-
-        // Older dawn themes
-        if (window.fetchCart) window.fetchCart();
-        if (window.updateCart) window.updateCart();
-
-        // Trigger drawer open (covers most themes)
-        const drawerToggle = document.querySelector(
-          "[data-cart-toggle], [data-drawer-toggle], .js-cart-toggle, [aria-controls='CartDrawer']"
-        );
-        if (drawerToggle) drawerToggle.click();
-      })
-      .catch((err) => console.error("Cart update failed:", err));
+      } catch (e) {
+        console.warn("Cart drawer refresh failed:", e);
+      }
+    }
   }
 
-  /* -------------------------------------------------------
-     INIT STICKY BAR
-  ---------------------------------------------------------*/
+
+  /* ---------------------------------------------
+      INITIALIZATION
+  ---------------------------------------------- */
   function initStickyBar() {
     const root = document.getElementById("bdm-sticky-atc-bar-root");
     if (!root) return;
@@ -55,111 +53,80 @@
     const productForm = document.querySelector('form[action*="/cart/add"]');
     if (!productForm) return;
 
-    const isMobile = window.matchMedia("(max-width: 768px)").matches;
     const productTitle = root.dataset.productTitle;
-
-    // Variant handling
     let variants = window.ShopifyAnalytics?.meta?.product?.variants || [];
-    const hasVariants = variants.length > 1;
 
-    const variantSelectForm = productForm.querySelector("select[name='id']");
-    let currentVariantId = variantSelectForm
-      ? variantSelectForm.value
-      : variants[0]?.id;
+    const variantSelect = productForm.querySelector("select[name='id']");
+    let currentVariantId = variantSelect ? variantSelect.value : variants[0]?.id;
 
-    if (!currentVariantId) {
-      const fallback = productForm.querySelector("[name='id']");
-      if (fallback) currentVariantId = fallback.value;
-    }
+    const findVariantById = id =>
+      variants.find(v => String(v.id) === String(id));
 
-    const findVariantById = (id) =>
-      variants.find((v) => String(v.id) === String(id));
-
-    const formatMoney = (cents) =>
+    const formatMoney = cents =>
       (cents / 100).toLocaleString(undefined, {
         style: "currency",
-        currency: Shopify.currency.active,
+        currency: Shopify.currency.active
       });
 
     let currentPrice = findVariantById(currentVariantId)?.price;
 
-    /* -------------------------------------------------------
-       BAR & STRUCTURE
-    ---------------------------------------------------------*/
+    /* ---------------------------------------------
+        BUILD BAR HTML
+    ---------------------------------------------- */
     const bar = document.createElement("div");
     bar.className = "bdm-sticky-atc-bar-container";
 
     const inner = document.createElement("div");
     inner.className = "bdm-sticky-atc-bar-inner";
 
-    /* -------------------------------------------------------
-       PRODUCT INFO: Title + Price
-    ---------------------------------------------------------*/
+    /* TITLE + PRICE */
     const productInfo = document.createElement("div");
     productInfo.className = "bdm-sticky-atc-product";
+    productInfo.innerHTML = `
+      <div class="bdm-sticky-atc-title">${productTitle}</div>
+      <div class="bdm-sticky-atc-price">${formatMoney(currentPrice)}</div>
+    `;
 
-    const titleEl = document.createElement("div");
-    titleEl.className = "bdm-sticky-atc-title";
-    titleEl.textContent = productTitle;
+    /* CONTROLS WRAPPER */
+    const controls = document.createElement("div");
+    controls.className = "bdm-sticky-atc-controls";
 
-    const priceEl = document.createElement("div");
-    priceEl.className = "bdm-sticky-atc-price";
-    priceEl.textContent = formatMoney(currentPrice);
-
-    productInfo.append(titleEl, priceEl);
-
-    /* -------------------------------------------------------
-       VARIANT SELECTOR
-    ---------------------------------------------------------*/
+    /* VARIANT SELECTOR */
     const variantWrapper = document.createElement("div");
     variantWrapper.className = "bdm-sticky-atc-variant";
 
-    if (hasVariants) {
+    if (variants.length > 1) {
       const select = document.createElement("select");
       select.className = "bdm-sticky-atc-variant-select";
 
-      variants.forEach((v) => {
+      variants.forEach(v => {
         const opt = document.createElement("option");
         opt.value = v.id;
         opt.textContent = v.public_title || v.title;
+        if (String(v.id) === String(currentVariantId)) opt.selected = true;
         select.appendChild(opt);
       });
 
-      select.value = currentVariantId;
-
       select.addEventListener("change", () => {
         currentVariantId = select.value;
-        const v = findVariantById(currentVariantId);
-        if (v) priceEl.textContent = formatMoney(v.price);
+        let v = findVariantById(currentVariantId);
+        currentPrice = v.price;
+        productInfo.querySelector(".bdm-sticky-atc-price").textContent =
+          formatMoney(currentPrice);
 
-        if (variantSelectForm) {
-          variantSelectForm.value = currentVariantId;
-          variantSelectForm.dispatchEvent(
-            new Event("change", { bubbles: true })
-          );
+        if (variantSelect) {
+          variantSelect.value = currentVariantId;
+          variantSelect.dispatchEvent(new Event("change", { bubbles: true }));
         }
+
+        // Hide title on mobile when variants exist
+        document.body.classList.add("bdm-hide-title-mobile");
       });
 
-      // MOBILE: Variant replaces title
-      if (isMobile) {
-        titleEl.style.display = "none";
-
-        const mobileVariantRow = document.createElement("div");
-        mobileVariantRow.className = "bdm-variant-mobile-row";
-        mobileVariantRow.append(select);
-
-        productInfo.insertBefore(mobileVariantRow, priceEl);
-      }
-
-      // DESKTOP: Variant stays in the controls row
-      if (!isMobile) {
-        variantWrapper.append(select);
-      }
+      variantWrapper.appendChild(select);
     }
 
-    /* -------------------------------------------------------
-       QUANTITY CONTROLS
-    ---------------------------------------------------------*/
+    /* QUANTITY */
     const qtyWrapper = document.createElement("div");
     qtyWrapper.className = "bdm-sticky-atc-qty";
 
@@ -177,63 +144,46 @@
     plusBtn.className = "bdm-qty-btn";
     plusBtn.textContent = "+";
 
-    minusBtn.onclick = () =>
-      (qtyInput.value = Math.max(1, Number(qtyInput.value) - 1));
-
-    plusBtn.onclick = () =>
-      (qtyInput.value = Number(qtyInput.value) + 1);
+    minusBtn.onclick = () => qtyInput.value = Math.max(1, qtyInput.value - 1);
+    plusBtn.onclick = () => qtyInput.value = Number(qtyInput.value) + 1;
 
     qtyWrapper.append(minusBtn, qtyInput, plusBtn);
 
-    /* -------------------------------------------------------
-       ADD TO CART BUTTON
-    ---------------------------------------------------------*/
+    /* ADD TO CART BUTTON */
     const atcButton = document.createElement("button");
     atcButton.className = "bdm-sticky-atc-button";
     atcButton.textContent = "Add to cart";
 
     atcButton.addEventListener("click", async () => {
-      const quantity = Math.max(1, Number(qtyInput.value) || 1);
+      const payload = {
+        id: currentVariantId,
+        quantity: Number(qtyInput.value)
+      };
 
       const res = await fetch("/cart/add.js", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({ id: currentVariantId, quantity }),
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(payload)
       });
 
-      if (res.ok) updateCartIconAndDrawer();
-      else alert("Unable to add to cart. Try again.");
+      if (!res.ok) return alert("Could not add to cart");
+
+      refreshCartUI();
     });
 
-    /* -------------------------------------------------------
-       CONTROLS LAYOUT
-    ---------------------------------------------------------*/
-    const controls = document.createElement("div");
-    controls.className = "bdm-sticky-atc-controls";
-
-    // Desktop Version A = variant + qty + ATC
-    if (!isMobile && hasVariants) {
-      controls.append(variantWrapper, qtyWrapper, atcButton);
-    } else {
-      // Mobile = variant moved up, so only qty + ATC here
-      controls.append(qtyWrapper, atcButton);
-    }
-
-    /* -------------------------------------------------------
-       BUILD STRUCTURE
-    ---------------------------------------------------------*/
+    controls.append(variantWrapper, qtyWrapper, atcButton);
     inner.append(productInfo, controls);
-    bar.append(inner);
-    document.body.append(bar);
+    bar.appendChild(inner);
+    document.body.appendChild(bar);
+
+    // Apply mobile title hiding if variants exist
+    if (variants.length > 1) {
+      document.body.classList.add("bdm-hide-title-mobile");
+    }
   }
 
-  // Initialize
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initStickyBar);
-  } else {
-    initStickyBar();
-  }
+  document.readyState === "loading"
+    ? document.addEventListener("DOMContentLoaded", initStickyBar)
+    : initStickyBar();
+
 })();
