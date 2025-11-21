@@ -1,246 +1,129 @@
+// Sticky Add to Cart Bar JS with universal cart update
 (function () {
+  function updateCartIconAndDrawer() {
+    document.dispatchEvent(new CustomEvent('cart:refresh'));
+    if (window.fetchCart) window.fetchCart();
+    if (window.updateCart) window.updateCart();
+    fetch('/cart.js')
+      .then(res => res.json())
+      .then(cart => {
+        const cartCountEls = document.querySelectorAll('.cart-count, .cart-count-bubble, [data-cart-count]');
+        cartCountEls.forEach(el => {
+          el.textContent = cart.item_count;
+          el.dataset.cartCount = cart.item_count;
+        });
+        document.dispatchEvent(new CustomEvent('cartcount:update', { detail: { count: cart.item_count } }));
+      })
+      .catch(err => console.error('Error updating cart count', err));
+    const toggles = document.querySelectorAll('[data-cart-toggle], [data-drawer-toggle], [aria-controls="CartDrawer"], .js-cart-toggle');
+    if (toggles.length) toggles[0].click();
+  }
+
   function initStickyBar() {
-    const root = document.getElementById("bdm-sticky-atc-bar-root");
+    const root = document.getElementById('bdm-sticky-atc-bar-root');
     if (!root) return;
 
-    // Only show on product pages with a product form
     const productForm = document.querySelector('form[action*="/cart/add"]');
     if (!productForm) return;
 
-    const productTitle =
-      root.dataset.productTitle ||
-      (window.ShopifyAnalytics &&
-        window.ShopifyAnalytics.meta &&
-        window.ShopifyAnalytics.meta.product &&
-        window.ShopifyAnalytics.meta.product.name) ||
-      document.title;
-
-    // Try to get variants from ShopifyAnalytics
-    let variants =
-      (window.ShopifyAnalytics &&
-        window.ShopifyAnalytics.meta &&
-        window.ShopifyAnalytics.meta.product &&
-        window.ShopifyAnalytics.meta.product.variants) ||
-      [];
-
-    // Try to detect the "main" product variant select
+    const productTitle = root.dataset.productTitle || document.title;
+    let variants = (window.ShopifyAnalytics?.meta?.product?.variants) || [];
     const variantSelect = productForm.querySelector('select[name="id"]');
-    let currentVariantId = variantSelect ? variantSelect.value : null;
+    let currentVariantId = variantSelect ? variantSelect.value : variants[0]?.id;
 
-    if (!currentVariantId && variants.length) {
-      currentVariantId = String(variants[0].id);
-    }
+    const findVariantById = id => variants.find(v => String(v.id) === String(id));
+    const getCurrency = () => Shopify?.currency?.active || 'USD';
+    const formatMoney = cents => ((cents || 0) / 100).toLocaleString(undefined, { style: 'currency', currency: getCurrency() });
 
-    function findVariantById(id) {
-      return variants.find((v) => String(v.id) === String(id));
-    }
+    let currentPrice = findVariantById(currentVariantId)?.price;
 
-    function getCurrency() {
-      try {
-        if (window.Shopify && Shopify.currency && Shopify.currency.active) {
-          return Shopify.currency.active;
-        }
-      } catch (e) {
-        // ignore
-      }
-      return "USD";
-    }
+    const bar = document.createElement('div');
+    bar.className = 'bdm-sticky-atc-bar-container';
 
-    function formatMoney(cents) {
-      if (typeof cents === "string") cents = parseInt(cents, 10);
-      const value = (cents || 0) / 100;
-      return value.toLocaleString(undefined, {
-        style: "currency",
-        currency: getCurrency(),
-      });
-    }
+    const inner = document.createElement('div');
+    inner.className = 'bdm-sticky-atc-bar-inner';
 
-    let currentPrice = null;
-    if (variants.length && currentVariantId) {
-      const v = findVariantById(currentVariantId);
-      if (v) currentPrice = v.price;
-    }
+    const productInfo = document.createElement('div');
+    productInfo.className = 'bdm-sticky-atc-product';
+    productInfo.innerHTML = `<div class="bdm-sticky-atc-title">${productTitle}</div>
+      <div class="bdm-sticky-atc-price">${currentPrice ? formatMoney(currentPrice) : ''}</div>`;
 
-    // Build sticky bar DOM
-    const bar = document.createElement("div");
-    bar.className = "bdm-sticky-atc-bar-container";
+    const controls = document.createElement('div');
+    controls.className = 'bdm-sticky-atc-controls';
 
-    const inner = document.createElement("div");
-    inner.className = "bdm-sticky-atc-bar-inner";
-
-    const productInfo = document.createElement("div");
-    productInfo.className = "bdm-sticky-atc-product";
-    productInfo.innerHTML = `
-      <div class="bdm-sticky-atc-title">${productTitle}</div>
-      <div class="bdm-sticky-atc-price">${
-        currentPrice ? formatMoney(currentPrice) : ""
-      }</div>
-    `;
-
-    const controls = document.createElement("div");
-    controls.className = "bdm-sticky-atc-controls";
-
-    // Variant selector (simple)
-    const variantWrapper = document.createElement("div");
-    variantWrapper.className = "bdm-sticky-atc-variant";
+    const variantWrapper = document.createElement('div');
+    variantWrapper.className = 'bdm-sticky-atc-variant';
 
     if (variants.length > 1) {
-      const label = document.createElement("span");
-      label.textContent = "Variant";
-
-      const select = document.createElement("select");
-
-      variants.forEach((v) => {
-        const opt = document.createElement("option");
+      const select = document.createElement('select');
+      variants.forEach(v => {
+        const opt = document.createElement('option');
         opt.value = v.id;
-        opt.textContent =
-          v.public_title || v.title || v.name || `Variant ${v.id}`;
+        opt.textContent = v.public_title || v.title || `Variant ${v.id}`;
         if (String(v.id) === String(currentVariantId)) opt.selected = true;
         select.appendChild(opt);
       });
 
-      select.addEventListener("change", () => {
+      select.addEventListener('change', () => {
         currentVariantId = select.value;
         const v = findVariantById(currentVariantId);
-        if (v) {
-          currentPrice = v.price;
-          const priceEl = productInfo.querySelector(".bdm-sticky-atc-price");
-          if (priceEl) priceEl.textContent = formatMoney(v.price);
-        }
-
-        // Sync with the main product form if possible
+        currentPrice = v?.price;
+        const priceEl = productInfo.querySelector('.bdm-sticky-atc-price');
+        if (priceEl) priceEl.textContent = formatMoney(v.price);
         if (variantSelect) {
           variantSelect.value = currentVariantId;
-          variantSelect.dispatchEvent(
-            new Event("change", { bubbles: true, cancelable: true })
-          );
+          variantSelect.dispatchEvent(new Event('change', { bubbles: true }));
         }
       });
 
-      variantWrapper.appendChild(label);
       variantWrapper.appendChild(select);
     }
 
-    // Quantity controls
-    const qtyWrapper = document.createElement("div");
-    qtyWrapper.className = "bdm-sticky-atc-qty";
+    const qtyWrapper = document.createElement('div');
+    qtyWrapper.className = 'bdm-sticky-atc-qty';
 
-    const minusBtn = document.createElement("button");
-    minusBtn.type = "button";
-    minusBtn.textContent = "−";
+    const minusBtn = document.createElement('button');
+    minusBtn.textContent = '−';
+    const qtyInput = document.createElement('input');
+    qtyInput.type = 'number'; qtyInput.min = '1'; qtyInput.value = '1';
+    const plusBtn = document.createElement('button'); plusBtn.textContent = '+';
 
-    const qtyInput = document.createElement("input");
-    qtyInput.type = "number";
-    qtyInput.min = "1";
-    qtyInput.value = "1";
-    qtyInput.inputMode = "numeric";
+    minusBtn.onclick = () => qtyInput.value = Math.max(1, qtyInput.value - 1);
+    plusBtn.onclick = () => qtyInput.value = Math.max(1, Number(qtyInput.value) + 1);
 
-    const plusBtn = document.createElement("button");
-    plusBtn.type = "button";
-    plusBtn.textContent = "+";
+    qtyWrapper.append(minusBtn, qtyInput, plusBtn);
 
-    minusBtn.addEventListener("click", () => {
-      const value = Math.max(1, parseInt(qtyInput.value || "1", 10) - 1);
-      qtyInput.value = String(value);
-    });
+    const atcButton = document.createElement('button');
+    atcButton.className = 'bdm-sticky-atc-button';
+    atcButton.textContent = 'Add to cart';
 
-    plusBtn.addEventListener("click", () => {
-      const value = Math.max(1, parseInt(qtyInput.value || "1", 10) + 1);
-      qtyInput.value = String(value);
-    });
+    atcButton.addEventListener('click', async () => {
+      const quantity = Math.max(1, parseInt(qtyInput.value, 10));
+      const variantIdToUse = currentVariantId || variantSelect?.value;
 
-    qtyWrapper.appendChild(minusBtn);
-    qtyWrapper.appendChild(qtyInput);
-    qtyWrapper.appendChild(plusBtn);
+      const res = await fetch('/cart/add.js', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ id: variantIdToUse, quantity })
+      });
 
-    // Add to cart button
-    const atcButton = document.createElement("button");
-    atcButton.type = "button";
-    atcButton.className = "bdm-sticky-atc-button";
-    atcButton.textContent = "Add to cart";
-
-    atcButton.addEventListener("click", async () => {
-      const quantity = Math.max(1, parseInt(qtyInput.value || "1", 10));
-
-      const variantIdToUse =
-        currentVariantId ||
-        (variantSelect && variantSelect.value) ||
-        (productForm.querySelector('[name="id"]') &&
-          productForm.querySelector('[name="id"]').value);
-
-      if (!variantIdToUse) {
-        alert("Please select a variant");
+      if (!res.ok) {
+        alert('Could not add to cart');
         return;
       }
 
-      try {
-        const res = await fetch("/cart/add.js", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
-          body: JSON.stringify({
-            id: variantIdToUse,
-            quantity,
-          }),
-        });
-
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          console.error("Add to cart failed", data);
-          alert("Could not add to cart. Please try again.");
-          return;
-        }
-
-        // TODO later: send analytics ping to your backend
-
-        // Try to open cart drawer if theme has one
-        const drawer =
-          document.querySelector("[data-cart-drawer]") ||
-          document.querySelector(".cart-drawer") ||
-          document.querySelector("#CartDrawer");
-
-        if (drawer) {
-          // Try clicking anything that looks like a cart toggle
-          const triggers = document.querySelectorAll(
-            '[data-cart-toggle], [href*="/cart"], .js-cart-toggle'
-          );
-          if (triggers.length) {
-            triggers[0].dispatchEvent(
-              new Event("click", { bubbles: true, cancelable: true })
-            );
-          } else {
-            window.location.href = "/cart";
-          }
-        } else {
-          window.location.href = "/cart";
-        }
-      } catch (err) {
-        console.error("Error adding to cart", err);
-        alert("There was an error. Please try again.");
-      }
+      updateCartIconAndDrawer();
     });
 
-    controls.appendChild(variantWrapper);
-    controls.appendChild(qtyWrapper);
-    controls.appendChild(atcButton);
+    controls.append(variantWrapper, qtyWrapper, atcButton);
 
-    // Footer (for free plan watermark)
-    const footer = document.createElement("div");
-    footer.className = "bdm-sticky-atc-footer";
-    footer.textContent = "Powered by Boulder Digital Media";
-
-    inner.appendChild(productInfo);
-    inner.appendChild(controls);
-    inner.appendChild(footer);
-
+    inner.append(productInfo, controls);
     bar.appendChild(inner);
     document.body.appendChild(bar);
   }
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initStickyBar);
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initStickyBar);
   } else {
     initStickyBar();
   }
