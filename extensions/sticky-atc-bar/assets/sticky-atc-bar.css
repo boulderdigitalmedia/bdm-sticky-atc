@@ -1,181 +1,120 @@
-/* ====== BASE BAR ====== */
 .bdm-sticky-atc-bar-container {
   position: fixed;
   bottom: 0;
-  left: 0;
   width: 100%;
   background: #111;
-  border-top: 1px solid #333;
-  z-index: 9999;
+  z-index: 999999;
+  padding: 12px 16px;
+  box-shadow: 0 -2px 10px rgba(0,0,0,0.3);
 }
 
 .bdm-sticky-atc-bar-inner {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 12px 16px;
   display: flex;
-  align-items: center;
   justify-content: space-between;
+  align-items: center;
   gap: 16px;
 }
 
-/* ====== PRODUCT INFO ====== */
 .bdm-sticky-atc-product {
+  color: white;
   display: flex;
   flex-direction: column;
-  color: #fff;
+  gap: 4px;
 }
 
 .bdm-sticky-atc-title {
-  font-size: 16px;
+  font-size: 20px;
+  font-weight: bold;
+}
+
+.bdm-sticky-atc-price {
+  font-size: 18px;
   font-weight: 600;
 }
 
-/* ====== CONTROLS WRAPPER ====== */
 .bdm-sticky-atc-controls {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  align-items: flex-end;
-}
-
-/* Top row: variant + price */
-.bdm-sticky-atc-top-row {
-  display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 14px;
 }
 
-/* Bottom row: qty + button */
-.bdm-sticky-atc-bottom-row {
+.bdm-sticky-atc-variant-select {
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid #555;
+  background: #222;
+  color: white;
+  font-size: 16px;
+}
+
+.bdm-sticky-atc-qty {
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
-/* Variant selector */
-.bdm-sticky-atc-variant-select {
-  padding: 6px 10px;
-  font-size: 14px;
-  border-radius: 6px;
-  border: 1px solid #444;
-  background: #1a1a1a;
-  color: #fff;
-}
-
-/* Price (right of select) */
-.bdm-sticky-atc-price {
-  font-size: 14px;
-  font-weight: 600;
-  color: #fff;
-  white-space: nowrap;
-}
-
-/* Qty wrapper */
-.bdm-sticky-atc-qty {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-/* Round +/- buttons */
 .bdm-qty-btn {
-  width: 34px;
-  height: 34px;
+  width: 42px;
+  height: 42px;
   border-radius: 50%;
-  border: 1px solid #fff;
+  border: 2px solid white;
   background: transparent;
-  color: #fff;
-  font-size: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
+  color: white;
+  font-size: 24px;
 }
 
-/* Qty input */
 .bdm-qty-input {
-  width: 40px;
-  height: 34px;
+  width: 60px;
+  padding: 8px;
+  font-size: 20px;
   text-align: center;
-  font-size: 16px;
-  border-radius: 8px;
-  border: 1px solid #fff;
-  background: #fff;
-  color: #000;
-  -moz-appearance: textfield;
-}
-
-.bdm-qty-input::-webkit-inner-spin-button,
-.bdm-qty-input::-webkit-outer-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
+  background: white;
+  border-radius: 14px;
+  border: none;
 }
 
 /* Add to cart button */
 .bdm-sticky-atc-button {
-  background: #4caf50;
-  color: #000;
+  padding: 16px 28px;
+  font-size: 20px;
+  font-weight: 700;
+  background: #74d47b;
+  color: black;
+  border-radius: 40px;
   border: none;
-  border-radius: 999px;
-  padding: 10px 18px;
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
 }
 
-/* ====== MOBILE TWEAKS ====== */
-@media (max-width: 749px) {
+/* ———————————————— MOBILE ———————————————— */
+@media (max-width: 768px) {
   .bdm-sticky-atc-bar-inner {
     flex-direction: column;
     align-items: stretch;
-    gap: 6px;
-    padding: 8px 12px;
+    gap: 10px;
   }
 
-  .bdm-sticky-atc-controls {
-    align-items: stretch;
-    gap: 6px;
-  }
-
-  .bdm-sticky-atc-top-row {
+  .bdm-sticky-atc-product {
+    flex-direction: row;
     justify-content: space-between;
-  }
-
-  .bdm-sticky-atc-variant-select {
-    flex: 1;
-    font-size: 13px;
-    padding: 6px 8px;
+    align-items: center;
   }
 
   .bdm-sticky-atc-price {
-    font-size: 13px;
-  }
-
-  .bdm-sticky-atc-bottom-row {
-    justify-content: space-between;
-  }
-
-  .bdm-sticky-atc-qty {
-    gap: 4px;
-  }
-
-  .bdm-qty-btn {
-    width: 30px;
-    height: 30px;
     font-size: 18px;
   }
 
-  .bdm-qty-input {
-    width: 34px;
-    height: 30px;
-    font-size: 14px;
+  .bdm-sticky-atc-variant-select {
+    width: 100%;
+    margin-bottom: 6px;
+  }
+
+  .bdm-sticky-atc-controls {
+    width: 100%;
+    justify-content: space-between;
   }
 
   .bdm-sticky-atc-button {
-    padding: 8px 14px;
-    font-size: 14px;
-    border-radius: 20px;
+    width: 100%;
+    padding: 18px;
+    font-size: 20px;
   }
 }
