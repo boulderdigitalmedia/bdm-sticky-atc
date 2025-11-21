@@ -1,133 +1,181 @@
-/* === CONTAINER === */
+/* ====== BASE BAR ====== */
 .bdm-sticky-atc-bar-container {
   position: fixed;
   bottom: 0;
   left: 0;
   width: 100%;
   background: #111;
-  z-index: 99999;
   border-top: 1px solid #333;
-  padding: 12px 14px;
+  z-index: 9999;
 }
 
-/* MOBILE: smaller vertical footprint */
-@media (max-width: 768px) {
-  .bdm-sticky-atc-bar-container {
-    padding: 8px 10px;
-  }
-}
-
-/* === INNER FLEX === */
 .bdm-sticky-atc-bar-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 12px 16px;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 14px;
+  justify-content: space-between;
+  gap: 16px;
 }
 
-/* MOBILE STACK */
-@media (max-width: 768px) {
-  .bdm-sticky-atc-bar-inner {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 6px;
-  }
-}
-
-/* === PRODUCT INFO === */
+/* ====== PRODUCT INFO ====== */
 .bdm-sticky-atc-product {
   display: flex;
   flex-direction: column;
-  line-height: 1.2;
+  color: #fff;
 }
 
 .bdm-sticky-atc-title {
-  font-size: 1.3rem;
-  font-weight: bold;
-  color: white;
+  font-size: 16px;
+  font-weight: 600;
 }
 
-.bdm-sticky-atc-price {
-  font-size: 1.2rem;
-  color: white;
+/* ====== CONTROLS WRAPPER ====== */
+.bdm-sticky-atc-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
 }
 
-/* MOBILE: tighter spacing */
-@media (max-width: 768px) {
-  .bdm-sticky-atc-title {
-    font-size: 1rem;
-  }
-  .bdm-sticky-atc-price {
-    font-size: 1rem;
-  }
+/* Top row: variant + price */
+.bdm-sticky-atc-top-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-/* === VARIANT SELECTOR === */
-.bdm-sticky-atc-variant-select {
-  width: 100%;
-  padding: 10px;
-  font-size: 1rem;
-  border-radius: 8px;
-  border: 1px solid #444;
-  background: #1a1a1a;
-  color: white;
-}
-
-/* === QUANTITY CONTROLS === */
-.bdm-sticky-atc-qty {
+/* Bottom row: qty + button */
+.bdm-sticky-atc-bottom-row {
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
+/* Variant selector */
+.bdm-sticky-atc-variant-select {
+  padding: 6px 10px;
+  font-size: 14px;
+  border-radius: 6px;
+  border: 1px solid #444;
+  background: #1a1a1a;
+  color: #fff;
+}
+
+/* Price (right of select) */
+.bdm-sticky-atc-price {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+}
+
+/* Qty wrapper */
+.bdm-sticky-atc-qty {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Round +/- buttons */
 .bdm-qty-btn {
-  width: 44px;
-  height: 44px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
-  font-size: 28px;
-  border: 2px solid white;
+  border: 1px solid #fff;
   background: transparent;
-  color: white;
-  cursor: pointer;
+  color: #fff;
+  font-size: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
+  cursor: pointer;
 }
 
+/* Qty input */
 .bdm-qty-input {
-  width: 60px;
-  height: 44px;
-  font-size: 1.3rem;
+  width: 40px;
+  height: 34px;
   text-align: center;
-  border-radius: 10px;
-  border: 2px solid white;
-  background: white;
-  color: black;
-
-  /* REMOVE SPINNERS */
-  -webkit-appearance: none;
+  font-size: 16px;
+  border-radius: 8px;
+  border: 1px solid #fff;
+  background: #fff;
+  color: #000;
   -moz-appearance: textfield;
 }
 
-/* === ADD TO CART BUTTON === */
-.bdm-sticky-atc-button {
-  background: #65d06e;
-  color: black;
-  padding: 12px 24px;
-  font-size: 1.4rem;
-  font-weight: bold;
-  border-radius: 50px;
-  border: none;
-  cursor: pointer;
-  flex-shrink: 0;
+.bdm-qty-input::-webkit-inner-spin-button,
+.bdm-qty-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
-/* MOBILE: reduce padding */
-@media (max-width: 768px) {
+/* Add to cart button */
+.bdm-sticky-atc-button {
+  background: #4caf50;
+  color: #000;
+  border: none;
+  border-radius: 999px;
+  padding: 10px 18px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* ====== MOBILE TWEAKS ====== */
+@media (max-width: 749px) {
+  .bdm-sticky-atc-bar-inner {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    padding: 8px 12px;
+  }
+
+  .bdm-sticky-atc-controls {
+    align-items: stretch;
+    gap: 6px;
+  }
+
+  .bdm-sticky-atc-top-row {
+    justify-content: space-between;
+  }
+
+  .bdm-sticky-atc-variant-select {
+    flex: 1;
+    font-size: 13px;
+    padding: 6px 8px;
+  }
+
+  .bdm-sticky-atc-price {
+    font-size: 13px;
+  }
+
+  .bdm-sticky-atc-bottom-row {
+    justify-content: space-between;
+  }
+
+  .bdm-sticky-atc-qty {
+    gap: 4px;
+  }
+
+  .bdm-qty-btn {
+    width: 30px;
+    height: 30px;
+    font-size: 18px;
+  }
+
+  .bdm-qty-input {
+    width: 34px;
+    height: 30px;
+    font-size: 14px;
+  }
+
   .bdm-sticky-atc-button {
-    width: 100%;
-    padding: 10px;
-    font-size: 1.2rem;
-    border-radius: 40px;
+    padding: 8px 14px;
+    font-size: 14px;
+    border-radius: 20px;
   }
 }
