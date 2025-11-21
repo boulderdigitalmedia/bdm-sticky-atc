@@ -1,133 +1,145 @@
-/* ----------------------------------------
-   STICKY ATC BAR WRAPPER
----------------------------------------- */
+/* =========================================
+   Sticky Add-to-Cart Bar – Full CSS
+   ========================================= */
+
+/* ----- Container ----- */
 .bdm-sticky-atc-bar-container {
   position: fixed;
   bottom: 0;
   left: 0;
-  right: 0;
+  width: 100%;
   background: #111;
   color: #fff;
-  padding: 14px 16px;
   z-index: 9999;
-  border-top: 1px solid #222;
+  padding: 12px 16px;
+  border-top: 1px solid #333;
 }
 
 .bdm-sticky-atc-bar-inner {
+  max-width: 1200px;
+  margin: 0 auto;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 14px;
+  justify-content: space-between;
+  gap: 18px;
 }
 
-/* ----------------------------------------
-   PRODUCT TITLE + PRICE
----------------------------------------- */
+/* ----- Product Info ----- */
 .bdm-sticky-atc-product {
-  flex: 1;
   display: flex;
   flex-direction: column;
+  gap: 4px;
 }
 
 .bdm-sticky-atc-title {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
+  color: #fff;
 }
 
 .bdm-sticky-atc-price {
   font-size: 15px;
-  color: #8ad96f;
-  margin-top: 2px;
+  color: #9fef9f; /* light green */
+  font-weight: 600;
 }
 
-/* ----------------------------------------
-   VARIANT SELECT
----------------------------------------- */
+/* ----- Controls Wrapper ----- */
+.bdm-sticky-atc-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ----- Variant Selector ----- */
 .bdm-sticky-atc-variant select {
-  padding: 8px 10px;
-  border-radius: 6px;
-  border: 1px solid #333;
   background: #222;
   color: #fff;
+  border: 1px solid #444;
+  padding: 8px 10px;
+  border-radius: 6px;
   font-size: 14px;
 }
 
-/* ----------------------------------------
-   QUANTITY WRAPPER
----------------------------------------- */
-.bdm-sticky-atc-qty,
-.bdm-qty-wrapper {
+/* ----- Quantity Wrapper ----- */
+.bdm-sticky-atc-qty {
   display: flex;
   align-items: center;
   gap: 6px;
-  background: #000;
-  padding: 6px 10px;
-  border-radius: 30px;
 }
 
-/* ----------------------------------------
-   REMOVE ARROWS
----------------------------------------- */
-.bdm-qty-input {
-  -webkit-appearance: none;
-  -moz-appearance: textfield;
-  appearance: none;
-  width: 42px;
-  height: 32px;
-  background: #111;
-  border: 1px solid #444;
-  border-radius: 6px;
-  color: #fff;
-  text-align: center;
-  font-size: 15px;
-  outline: none;
-}
-
-.bdm-qty-input::-webkit-inner-spin-button,
-.bdm-qty-input::-webkit-outer-spin-button {
+/* Remove spinner arrows */
+.bdm-sticky-atc-qty input[type="number"]::-webkit-inner-spin-button,
+.bdm-sticky-atc-qty input[type="number"]::-webkit-outer-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
 
-/* ----------------------------------------
-   +/- BUTTONS
----------------------------------------- */
-.bdm-qty-btn {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  border: none;
+.bdm-sticky-atc-qty input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* Quantity Input Styling */
+.bdm-sticky-atc-qty input[type="number"] {
+  width: 45px;
+  text-align: center;
+  padding: 6px;
+  font-size: 16px;
+  border-radius: 6px;
+  border: 1px solid #444;
+  background: #1e1e1e;
+  color: #fff;
+}
+
+/* + / – buttons */
+.bdm-sticky-atc-qty button {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid #444;
   background: #222;
   color: #fff;
   font-size: 20px;
-  font-weight: 500;
-  cursor: pointer;
+  line-height: 0;
   display: flex;
-  justify-content: center;
   align-items: center;
+  justify-content: center;
+  cursor: pointer;
 }
 
-.bdm-qty-btn:hover {
+.bdm-sticky-atc-qty button:hover {
   background: #333;
 }
 
-/* ----------------------------------------
-   ADD TO CART BUTTON
----------------------------------------- */
-.bdm-sticky-atc-button,
-.bdm-atc-btn {
-  background: #4CAF50;
-  color: #fff;
-  flex-shrink: 0;
-  padding: 12px 22px;
-  border-radius: 40px;
-  font-size: 16px;
-  font-weight: 600;
+/* ----- Add to Cart Button ----- */
+.bdm-sticky-atc-button {
+  background: #38c267; /* Shopify green */
+  color: #000;
   border: none;
+  font-size: 16px;
+  padding: 12px 20px;
+  border-radius: 50px;
   cursor: pointer;
+  font-weight: 600;
+  min-width: 140px;
 }
 
-.bdm-sticky-atc-button:hover,
-.bdm-atc-btn:hover {
-  background: #43a047;
+.bdm-sticky-atc-button:hover {
+  background: #2fb85e;
+}
+
+/* ----- Mobile Adjustments ----- */
+@media (max-width: 600px) {
+  .bdm-sticky-atc-bar-inner {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .bdm-sticky-atc-controls {
+    justify-content: space-between;
+  }
+
+  .bdm-sticky-atc-button {
+    width: 100%;
+  }
 }
