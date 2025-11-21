@@ -1,23 +1,32 @@
-/* Base Bar */
+/* --------------------------------------------
+   Sticky Add to Cart Bar – Base Layout 
+---------------------------------------------*/
+
 .bdm-sticky-atc-bar-container {
   position: fixed;
   bottom: 0;
   left: 0;
-  width: 100%;
+  right: 0;
   background: #111;
+  color: #fff;
   padding: 14px 16px;
-  border-top: 1px solid #333;
+  border-top: 1px solid #222;
   z-index: 9999;
+  box-shadow: 0 -4px 10px rgba(0,0,0,0.3);
+  font-family: inherit;
 }
 
 .bdm-sticky-atc-bar-inner {
   display: flex;
-  justify-content: space-between;
+  flex-direction: row;
   align-items: center;
+  justify-content: space-between;
   gap: 16px;
 }
 
-/* Product Info */
+/* --------------------------------------------
+   Product Info (Desktop Default)
+---------------------------------------------*/
 .bdm-sticky-atc-product {
   display: flex;
   flex-direction: column;
@@ -25,83 +34,112 @@
 }
 
 .bdm-sticky-atc-title {
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 700;
-  color: white;
+  line-height: 1.2;
 }
 
 .bdm-sticky-atc-price {
   font-size: 18px;
   font-weight: 600;
-  color: white;
 }
 
-/* Controls */
+/* --------------------------------------------
+   Controls Row
+---------------------------------------------*/
 .bdm-sticky-atc-controls {
   display: flex;
+  flex-direction: row;
   align-items: center;
-  gap: 14px;
+  justify-content: flex-end;
+  gap: 12px;
+  flex: 1;
 }
 
-/* Variant Selector */
+/* --------------------------------------------
+   Variant Selector
+---------------------------------------------*/
 .bdm-sticky-atc-variant-select {
-  padding: 10px 14px;
-  border-radius: 10px;
-  border: 1px solid #555;
-  background: #222;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #444;
+  background: #1a1a1a;
   color: #fff;
-  font-size: 16px;
+  font-size: 15px;
+  width: 200px;
 }
 
-/* Quantity Selector */
+.bdm-sticky-atc-variant {
+  display: flex;
+  flex-direction: column;
+}
+
+/* --------------------------------------------
+   Quantity Buttons
+---------------------------------------------*/
 .bdm-sticky-atc-qty {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .bdm-qty-btn {
-  width: 46px;
-  height: 46px;
+  width: 48px;
+  height: 48px;
+  border: 2px solid #666;
   border-radius: 50%;
-  border: 2px solid #555;
-  background: none;
-  color: white;
+  background: transparent;
+  color: #fff;
   font-size: 26px;
-  line-height: 1;
+  font-weight: 400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .bdm-qty-input {
-  width: 70px;
-  height: 50px;
+  width: 60px;
+  height: 48px;
   border-radius: 12px;
+  border: 2px solid #444;
   background: #fff;
-  font-size: 24px;
   text-align: center;
-  border: none;
-  -moz-appearance: textfield;
+  font-size: 22px;
+  color: #000;
+  font-weight: 600;
 }
 
+/* Remove arrows from number input */
 .bdm-qty-input::-webkit-outer-spin-button,
 .bdm-qty-input::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
 
-/* Add to Cart Button */
-.bdm-sticky-atc-button {
-  padding: 16px 28px;
-  border-radius: 40px;
-  background: #74d47b;
-  border: none;
-  font-size: 22px;
-  font-weight: 700;
+.bdm-qty-input[type="number"] {
+  -moz-appearance: textfield;
 }
 
-/* -------------------------
-     MOBILE — 25% SMALLER
---------------------------- */
+/* --------------------------------------------
+   Add to Cart Button
+---------------------------------------------*/
+.bdm-sticky-atc-button {
+  background: #78d67f;
+  color: #000;
+  border: none;
+  font-size: 22px;
+  padding: 16px 28px;
+  border-radius: 50px;
+  font-weight: 700;
+  white-space: nowrap;
+  min-width: 180px;
+}
+
+/* --------------------------------------------
+   MOBILE OPTIMIZATION (smaller, flatter)
+---------------------------------------------*/
 @media (max-width: 768px) {
+
   .bdm-sticky-atc-bar-container {
     padding: 10px 12px;
   }
@@ -112,32 +150,55 @@
     gap: 10px;
   }
 
-  /* Smaller sizes */
-  .bdm-sticky-atc-price {
-    font-size: 16px;
+  /* If variants exist → hide product title completely */
+  body.bdm-has-variants .bdm-sticky-atc-title {
+    display: none;
   }
 
+  /* Variant selector moves to the top */
   .bdm-sticky-atc-variant-select {
-    font-size: 14px;
-    padding: 8px 12px;
+    width: 100%;
+    font-size: 17px;
+    padding: 10px;
   }
 
+  /* Product info collapses */
+  .bdm-sticky-atc-product {
+    width: 100%;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .bdm-sticky-atc-price {
+    font-size: 20px;
+    font-weight: 700;
+  }
+
+  /* Controls become compact */
+  .bdm-sticky-atc-controls {
+    width: 100%;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  /* Smaller qty buttons */
   .bdm-qty-btn {
-    width: 36px;
-    height: 36px;
+    width: 42px;
+    height: 42px;
     font-size: 22px;
   }
 
   .bdm-qty-input {
     width: 55px;
-    height: 40px;
+    height: 42px;
     font-size: 20px;
   }
 
+  /* Smaller ATC button on mobile */
   .bdm-sticky-atc-button {
-    width: 100%;
-    padding: 14px 20px;
+    padding: 12px 20px;
     font-size: 20px;
-    align-self: stretch;
+    min-width: 140px;
   }
 }
