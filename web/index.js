@@ -10,9 +10,9 @@ const app = express();
 
 app.use(express.json());
 
-/* ============================================
-   SHOPIFY APP + BILLING CONFIG (Correct Format)
-   ============================================ */
+/* ============================
+   SHOPIFY APP + BILLING CONFIG
+   ============================ */
 
 const shopify = shopifyApp({
   api: {
@@ -32,73 +32,98 @@ const shopify = shopifyApp({
     path: "/webhooks"
   },
 
-  // ⭐ CORRECT BILLING FORMAT (1 paid plan, 14-day trial)
+  // ⭐ Billing plan definition
   billing: {
-    required: true,
-    plans: [
-      {
-        id: "sticky_atc_pro",          // must be lowercase & no spaces
-        price: 4.99,
-        trialDays: 14,
-        currencyCode: "USD",
-        interval: BillingInterval.Every30Days
-      }
-    ]
+    "Sticky Add-to-Cart Bar Pro": {
+      amount: 4.99,
+      currencyCode: "USD",
+      interval: BillingInterval.Every30Days,
+      trialDays: 14
+    }
   }
 });
 
-/* ============================================
+/* ============================
+   BILLING MIDDLEWARE
+   ============================ */
+
+async function requireBilling(req, res, next) {
+  try {
+    const session = res.locals.shopify.session;
+
+    // Check if merchant already subscribed
+    const hasPayment = await shopify.billing.check({
+      session,
+      plans: ["Sticky Add-to-Cart Bar Pro"],
+      isTest: process.env.SHOPIFY_BILLING_TEST === "true"
+    });
+
+    if (hasPayment) {
+      return next();
+    }
+
+    // Send merchant to billing page
+    const confirmationUrl = await shopify.billing.request({
+      session,
+      plan: "Sticky Add-to-Cart Bar Pro",
+      isTest: process.env.SHOPIFY_BILLING_TEST === "true"
+    });
+
+    return res.redirect(confirmationUrl);
+
+  } catch (err) {
+    console.error("Billing check error:", err);
+    return res.status(500).send("Billing error");
+  }
+}
+
+/* ============================
    AUTH ROUTES
-   ============================================ */
+   ============================ */
 
 app.get("/auth", shopify.auth.begin());
 
 app.get(
   "/auth/callback",
   shopify.auth.callback(),
-
-  // ⭐ Require billing immediately after authentication
-  shopify.billing.require({
-    plans: ["sticky_atc_pro"],
-  }),
-
+  requireBilling,
   async (req, res) => {
     const { shop } = req.query;
     res.redirect(`/?shop=${shop}`);
   }
 );
 
-/* ============================================
+/* ============================
    PROTECTED API ROUTES
-   ============================================ */
+   ============================ */
 
 app.use(
   "/api/sticky",
   shopify.validateAuthenticatedSession(),
-  shopify.billing.require({ plans: ["sticky_atc_pro"] }),
+  requireBilling,
   stickyMetrics
 );
 
-/* ============================================
-   ANALYTICS ROUTES (public)
-   ============================================ */
+/* ============================
+   PUBLIC ANALYTICS ROUTES
+   ============================ */
 
 app.use("/apps/bdm-sticky-atc", stickyAnalytics);
 
-/* ============================================
-   ROOT PAGE (Admin Dashboard)
-   ============================================ */
+/* ============================
+   ROOT DASHBOARD
+   ============================ */
 
 app.get(
   "/",
   shopify.validateAuthenticatedSession(),
-  shopify.billing.require({ plans: ["sticky_atc_pro"] }),
+  requireBilling,
   (_req, res) => res.send("BDM Sticky ATC App Running 🎉")
 );
 
-/* ============================================
+/* ============================
    START SERVER
-   ============================================ */
+   ============================ */
 
 app.listen(process.env.PORT || 3000, () => {
   console.log("App running on port 3000");
