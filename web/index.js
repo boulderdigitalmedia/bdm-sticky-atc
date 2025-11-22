@@ -2,6 +2,7 @@ import express from "express";
 import { shopifyApp } from "@shopify/shopify-app-express";
 import { BillingInterval } from "@shopify/shopify-api";
 import { PrismaClient } from "@prisma/client";
+
 import stickyAnalytics from "./routes/stickyAnalytics.js";
 import stickyMetrics from "./routes/stickyMetrics.js";
 
@@ -10,9 +11,23 @@ const app = express();
 
 app.use(express.json());
 
-/* ============================
+/* ===========================================================
+   REQUIRED: EXIT IFRAME ROUTE FOR OAUTH + BILLING
+   =========================================================== */
+app.get("/exitiframe", (req, res) => {
+  const shop = req.query.shop || "";
+  const host = req.query.host || "";
+
+  return res.send(`
+    <script>
+      window.top.location.href = "/?shop=${shop}&host=${host}";
+    </script>
+  `);
+});
+
+/* ===========================================================
    SHOPIFY APP + BILLING CONFIG
-   ============================ */
+   =========================================================== */
 
 const shopify = shopifyApp({
   api: {
@@ -32,7 +47,7 @@ const shopify = shopifyApp({
     path: "/webhooks"
   },
 
-  // ⭐ Billing plan definition
+  //  ⭐ Billing: $4.99 every 30 days, 14-day trial
   billing: {
     "Sticky Add-to-Cart Bar Pro": {
       amount: 4.99,
@@ -43,9 +58,9 @@ const shopify = shopifyApp({
   }
 });
 
-/* ============================
+/* ===========================================================
    BILLING MIDDLEWARE
-   ============================ */
+   =========================================================== */
 
 async function requireBilling(req, res, next) {
   try {
@@ -59,43 +74,46 @@ async function requireBilling(req, res, next) {
     });
 
     if (hasPayment) {
+      console.log("✅ Billing active for:", session.shop);
       return next();
     }
 
-    // Send merchant to billing page
+    // Create new subscription session
     const confirmationUrl = await shopify.billing.request({
       session,
       plan: "Sticky Add-to-Cart Bar Pro",
       isTest: process.env.SHOPIFY_BILLING_TEST === "true"
     });
 
+    console.log("➡️ Redirecting to Shopify billing page:", confirmationUrl);
     return res.redirect(confirmationUrl);
-
-  } catch (err) {
-    console.error("Billing check error:", err);
+  } catch (error) {
+    console.error("❌ Billing check error:", error);
     return res.status(500).send("Billing error");
   }
 }
 
-/* ============================
+/* ===========================================================
    AUTH ROUTES
-   ============================ */
+   =========================================================== */
 
 app.get("/auth", shopify.auth.begin());
 
 app.get(
   "/auth/callback",
   shopify.auth.callback(),
-  requireBilling,
+  requireBilling, // billing required after login
   async (req, res) => {
-    const { shop } = req.query;
-    res.redirect(`/?shop=${shop}`);
+    const { shop, host } = req.query;
+
+    // Shopify requires apps to re-enter the iframe via exitiframe
+    return res.redirect(`/exitiframe?shop=${shop}&host=${host}`);
   }
 );
 
-/* ============================
-   PROTECTED API ROUTES
-   ============================ */
+/* ===========================================================
+   PROTECTED API ROUTES (require auth + billing)
+   =========================================================== */
 
 app.use(
   "/api/sticky",
@@ -104,27 +122,29 @@ app.use(
   stickyMetrics
 );
 
-/* ============================
-   PUBLIC ANALYTICS ROUTES
-   ============================ */
+/* ===========================================================
+   ANALYTICS ROUTES
+   =========================================================== */
 
 app.use("/apps/bdm-sticky-atc", stickyAnalytics);
 
-/* ============================
-   ROOT DASHBOARD
-   ============================ */
+/* ===========================================================
+   ROOT APP DASHBOARD (protected)
+   =========================================================== */
 
 app.get(
   "/",
   shopify.validateAuthenticatedSession(),
   requireBilling,
-  (_req, res) => res.send("BDM Sticky ATC App Running 🎉")
+  (_req, res) => {
+    res.send("BDM Sticky ATC App Running 🎉");
+  }
 );
 
-/* ============================
+/* ===========================================================
    START SERVER
-   ============================ */
+   =========================================================== */
 
 app.listen(process.env.PORT || 3000, () => {
-  console.log("App running on port 3000");
+  console.log("🚀 App running on port 3000");
 });
