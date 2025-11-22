@@ -43,7 +43,7 @@ const shopify = shopifyApp({
 
   // Single recurring plan: $4.99 / 30 days with 14-day free trial
   billing: {
-    [BILLING_PLAN_NAME]: {
+    "Sticky Add-to-Cart Bar Pro": {
       amount: 4.99,
       currencyCode: "USD",
       interval: BillingInterval.Every30Days,
