@@ -1,55 +1,41 @@
 // Sticky Add to Cart Bar – Desktop vA + Compact Mobile
 (function () {
   /* =========================================
-     CART REFRESH: bubble + theme hooks
+     CART REFRESH: use theme's CartDrawer
      ========================================= */
-  function updateCartIconAndDrawer() {
-    // Always fetch the latest cart
-    fetch("/cart.js")
-      .then((res) => res.json())
-      .then((cart) => {
-        const count = cart.item_count;
+  async function updateCartIconAndDrawer() {
+    try {
+      const rootPath = (window.Shopify && window.Shopify.routes && window.Shopify.routes.root) || '/';
 
-        // 1) Update all header/cart bubbles
-        const els = document.querySelectorAll(
-          ".cart-count, .cart-count-bubble, [data-cart-count]"
-        );
+      // Fetch updated HTML for cart drawer + header cart icon section
+      const sectionsRes = await fetch(
+        `${rootPath}?sections=cart-drawer,cart-icon-bubble`
+      );
+      const sections = await sectionsRes.json();
 
-        els.forEach((el) => {
-          el.textContent = count;
-          el.dataset.cartCount = count;
+      const parsedState = {
+        id: Date.now(), // not really used by your CartDrawer, but required property
+        sections
+      };
 
-          // Many themes hide bubble when 0 via aria/hidden/class
-          if (count > 0) {
-            el.removeAttribute("hidden");
-            el.setAttribute("aria-hidden", "false");
-            if (el.classList.contains("is-empty")) {
-              el.classList.remove("is-empty");
-            }
-          } else {
-            el.setAttribute("aria-hidden", "true");
-          }
-        });
+      const cartDrawer = document.querySelector('cart-drawer');
 
-        // 2) Fire common theme events so the AJAX cart/drawer can
-        //    listen and re-render itself if it has handlers.
-        document.dispatchEvent(
-          new CustomEvent("cart:refresh", { detail: { cart } })
-        );
-        document.dispatchEvent(
-          new CustomEvent("cartcount:update", { detail: { count } })
-        );
-        document.dispatchEvent(
-          new CustomEvent("ajaxProduct:added", { detail: { cart } })
-        );
-
-        // 3) Call any global helpers the theme exposes
-        if (typeof window.fetchCart === "function") window.fetchCart();
-        if (typeof window.updateCart === "function") window.updateCart();
-      })
-      .catch(() => {
-        // Fail silently; the item IS in the cart already.
-      });
+      if (cartDrawer && typeof cartDrawer.renderContents === 'function') {
+        // This will update #CartDrawer and #cart-icon-bubble and then open the drawer
+        cartDrawer.renderContents(parsedState);
+      } else {
+        // Fallback: at least update the cart icon bubble HTML
+        const bubbleContainer = document.getElementById('cart-icon-bubble');
+        if (bubbleContainer && sections['cart-icon-bubble']) {
+          const temp = document.createElement('div');
+          temp.innerHTML = sections['cart-icon-bubble'];
+          const newBubble = temp.querySelector('#cart-icon-bubble');
+          if (newBubble) bubbleContainer.replaceWith(newBubble);
+        }
+      }
+    } catch (err) {
+      console.error('Error updating cart drawer/icon from sticky bar:', err);
+    }
   }
 
   /* =========================================
@@ -224,6 +210,7 @@
         return;
       }
 
+      // Now refresh drawer + icon via theme's own CartDrawer
       updateCartIconAndDrawer();
     });
 
