@@ -1,0 +1,31 @@
+<script>
+(function() {
+  try {
+    const eventData = sessionStorage.getItem("bdm_sticky_atc_last_event");
+
+    if (!eventData) return;
+
+    const parsed = JSON.parse(eventData);
+
+    fetch("/apps/bdm-sticky-atc/conversion", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        event: "checkout_conversion",
+        shop: Shopify.shop,
+        product: parsed.product,
+        variant: parsed.variant,
+        added_at: parsed.time,
+        order_status: "{{ checkout.status }}",
+        order_id: "{{ checkout.order_id }}",
+      })
+    });
+
+    // clear so it's only reported once
+    sessionStorage.removeItem("bdm_sticky_atc_last_event");
+
+  } catch(err) {
+    console.warn("Sticky ATC checkout script failed:", err);
+  }
+})();
+</script>
