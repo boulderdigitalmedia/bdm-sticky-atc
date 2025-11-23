@@ -31,4 +31,26 @@ router.post("/track", async (req, res) => {
   }
 });
 
+router.post("/conversion", async (req, res) => {
+  try {
+    const { shop, product, variant, added_at, order_id, order_status } = req.body;
+
+    await prisma.stickyConversion.create({
+      data: {
+        shop,
+        product,
+        variant,
+        addedAt: new Date(added_at),
+        orderId: order_id?.toString() || null,
+        status: order_status || "unknown"
+      }
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Conversion save error:", err);
+    res.status(500).json({ error: "Failed to save conversion" });
+  }
+});
+
 export default router;
