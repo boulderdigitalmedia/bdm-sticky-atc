@@ -12,6 +12,17 @@ const app = express();
 
 app.use(express.json());
 
+// Allow storefront JS to POST analytics to this app
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Headers", "Content-Type");
+  res.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
 const BILLING_PLAN_NAME = "Sticky Add-to-Cart Bar Pro";
 const BILLING_TEST_MODE = process.env.SHOPIFY_BILLING_TEST === "true";
 
