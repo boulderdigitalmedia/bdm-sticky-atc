@@ -36,3 +36,22 @@ model StickyMetricsDaily {
   @@index([shop])
   @@index([date])
 }
+
+model StickyAttribution {
+  id            Int      @id @default(autoincrement())
+  shop          String
+  checkoutToken String   @unique
+  productId     String
+  variantId     String
+  timestamp     BigInt
+}
+
+model StickyConversion {
+  id        Int      @id @default(autoincrement())
+  shop      String
+  orderId   String
+  productId String
+  variantId String
+  revenue   Float
+  timestamp BigInt
+}
