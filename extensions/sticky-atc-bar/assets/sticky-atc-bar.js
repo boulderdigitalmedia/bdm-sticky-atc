@@ -1,51 +1,12 @@
-// Sticky Add to Cart Bar – Desktop vA + Compact Mobile (Universal-Compatible + Analytics)
+// Sticky Add to Cart Bar – Desktop vA + Compact Mobile (Universal-Compatible)
 (function () {
-  // 🔗 CHANGE THIS if you move hosts
-  const APP_BASE_URL = "https://sticky-add-to-cart-bar-pro.onrender.com";
-
-  /* =========================================
-     ANALYTICS TRACKING HELPER
-     ========================================= */
-  function trackStickyEvent(type, extra = {}) {
-    try {
-      const root = document.getElementById("bdm-sticky-atc-bar-root");
-      if (!root) return;
-
-      const shopDomain =
-        root.dataset.shopDomain ||
-        (window.Shopify && window.Shopify.shop) ||
-        window.location.hostname;
-
-      const payload = {
-        type,
-        shopDomain,
-        productId: root.dataset.productId || null,
-        variantId: extra.variantId || null,
-        quantity:
-          extra.quantity != null && !Number.isNaN(Number(extra.quantity))
-            ? Number(extra.quantity)
-            : null,
-      };
-
-      fetch(`${APP_BASE_URL}/apps/bdm-sticky-atc/track`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-        // keepalive helps if user navigates quickly after add_to_cart / impression
-        keepalive: type === "impression" || type === "add_to_cart",
-      }).catch(() => {});
-    } catch (err) {
-      console.warn("Sticky analytics track failed:", err);
-    }
-  }
-
   /* =========================================
      CART REFRESH: theme-aware + universal fallback
      ========================================= */
   async function updateCartIconAndDrawer() {
     let handledByThemeDrawer = false;
 
-    // ----- TIER 1: Dawn-style section refresh -----
+    // ----- TIER 1: Dawn-style theme with sections (cart-drawer + cart-icon-bubble) -----
     try {
       const rootPath =
         (window.Shopify &&
@@ -65,43 +26,60 @@
       }
 
       if (sections) {
-        const parsedState = {
-          id: Date.now(),
-          sections,
-        };
+        /* -----------------------------
+           Detect EMPTY CART case
+        ----------------------------- */
+        const isEmpty =
+          sections["cart-drawer"] &&
+          sections["cart-drawer"].includes("is-empty");
 
-        const cartDrawer = document.querySelector("cart-drawer");
-
-        if (
-          cartDrawer &&
-          typeof cartDrawer.renderContents === "function" &&
-          sections["cart-drawer"]
-        ) {
-          cartDrawer.renderContents(parsedState);
-          handledByThemeDrawer = true;
-        }
-
+        /* -----------------------------
+           Update cart bubble
+        ----------------------------- */
         const bubbleContainer = document.getElementById("cart-icon-bubble");
         if (bubbleContainer && sections["cart-icon-bubble"]) {
           const temp = document.createElement("div");
           temp.innerHTML = sections["cart-icon-bubble"];
           const newBubble = temp.querySelector("#cart-icon-bubble");
           if (newBubble) bubbleContainer.replaceWith(newBubble);
-          handledByThemeDrawer = true;
+        }
+
+        /* -----------------------------
+           If EMPTY CART → DO NOT open drawer
+        ----------------------------- */
+        if (!isEmpty) {
+          const cartDrawer = document.querySelector("cart-drawer");
+
+          if (
+            cartDrawer &&
+            typeof cartDrawer.renderContents === "function" &&
+            sections["cart-drawer"]
+          ) {
+            cartDrawer.renderContents({
+              id: Date.now(),
+              sections,
+            });
+            handledByThemeDrawer = true;
+          }
         }
       }
     } catch (err) {
-      console.warn("Theme drawer refresh failed:", err);
+      console.warn(
+        "Theme-specific cart drawer refresh via sections failed:",
+        err
+      );
     }
 
-    // ----- TIER 2: Universal cart refresh -----
+    // ----- TIER 2: Universal fallback (any theme) -----
     try {
       const cart = await fetch("/cart.js").then((r) => r.json());
       const count = cart.item_count;
 
+      // Update cart counters
       const countEls = document.querySelectorAll(
         ".cart-count, .cart-count-bubble, [data-cart-count]"
       );
+
       countEls.forEach((el) => {
         el.textContent = count;
         el.dataset.cartCount = count;
@@ -114,26 +92,24 @@
         }
       });
 
+      // Trigger theme events many themes hook into
       document.dispatchEvent(
         new CustomEvent("cart:refresh", { detail: { cart } })
-      );
-      document.dispatchEvent(
-        new CustomEvent("cartcount:update", { detail: { count } })
-      );
-      document.dispatchEvent(
-        new CustomEvent("ajaxProduct:added", { detail: { cart } })
       );
 
       if (typeof window.fetchCart === "function") window.fetchCart();
       if (typeof window.updateCart === "function") window.updateCart();
-      if (typeof window.refreshCart === "function") window.refreshCart();
     } catch (err) {
       console.warn("Universal cart refresh failed:", err);
     }
 
-    // ----- TIER 3: Open the mini-cart / drawer for other themes -----
+    // If theme drawer already handled → done
+    if (handledByThemeDrawer) return;
+
+    /* ----- TIER 3: Non-Dawn themes → open mini-cart IF NOT empty ----- */
     try {
-      if (handledByThemeDrawer) return;
+      const cart = await fetch("/cart.js").then((r) => r.json());
+      if (cart.item_count === 0) return; // Prevent blank drawer on mobile
 
       const toggle =
         document.querySelector('[data-cart-toggle]') ||
@@ -147,7 +123,7 @@
         toggle.dispatchEvent(new Event("click", { bubbles: true }));
       }
     } catch (err) {
-      console.warn("Mini-cart open failed:", err);
+      console.warn("Fallback drawer open failed:", err);
     }
   }
 
@@ -162,6 +138,7 @@
     if (!productForm) return;
 
     const isMobile = window.matchMedia("(max-width: 768px)").matches;
+
     const productTitle = root.dataset.productTitle || document.title;
 
     let variants = window.ShopifyAnalytics?.meta?.product?.variants || [];
@@ -190,12 +167,14 @@
 
     let currentPrice = findVariantById(currentVariantId)?.price;
 
+    // ========= BAR CONTAINER =========
     const bar = document.createElement("div");
     bar.className = "bdm-sticky-atc-bar-container";
 
     const inner = document.createElement("div");
     inner.className = "bdm-sticky-atc-bar-inner";
 
+    // ========= PRODUCT INFO (Title + Price) =========
     const productInfo = document.createElement("div");
     productInfo.className = "bdm-sticky-atc-product";
 
@@ -210,7 +189,7 @@
     productInfo.appendChild(titleEl);
     productInfo.appendChild(priceEl);
 
-    // VARIANT SELECTOR
+    // ========= VARIANT SELECTOR =========
     const variantWrapper = document.createElement("div");
     variantWrapper.className = "bdm-sticky-atc-variant";
 
@@ -241,22 +220,20 @@
             new Event("change", { bubbles: true })
           );
         }
-
-        trackStickyEvent("variant_change", { variantId: currentVariantId });
       });
 
       if (isMobile) {
         titleEl.style.display = "none";
-        const mobileRow = document.createElement("div");
-        mobileRow.className = "bdm-variant-mobile-row";
-        mobileRow.appendChild(select);
-        productInfo.insertBefore(mobileRow, priceEl);
+        const mobileVariantRow = document.createElement("div");
+        mobileVariantRow.className = "bdm-variant-mobile-row";
+        mobileVariantRow.appendChild(select);
+        productInfo.insertBefore(mobileVariantRow, priceEl);
       } else {
         variantWrapper.appendChild(select);
       }
     }
 
-    // QUANTITY CONTROLS
+    // ========= QUANTITY CONTROLS =========
     const qtyWrapper = document.createElement("div");
     qtyWrapper.className = "bdm-sticky-atc-qty";
 
@@ -274,34 +251,22 @@
     plusBtn.className = "bdm-qty-btn";
     plusBtn.textContent = "+";
 
-    const trackQty = () =>
-      trackStickyEvent("qty_change", { quantity: Number(qtyInput.value) || 1 });
-
     minusBtn.addEventListener("click", () => {
       qtyInput.value = Math.max(1, Number(qtyInput.value) - 1);
-      trackQty();
     });
 
     plusBtn.addEventListener("click", () => {
       qtyInput.value = Number(qtyInput.value) + 1;
-      trackQty();
     });
-
-    qtyInput.addEventListener("change", trackQty);
 
     qtyWrapper.append(minusBtn, qtyInput, plusBtn);
 
-    // ADD TO CART
+    // ========= ADD TO CART BUTTON =========
     const atcButton = document.createElement("button");
     atcButton.className = "bdm-sticky-atc-button";
     atcButton.textContent = "Add to cart";
 
     atcButton.addEventListener("click", async () => {
-      trackStickyEvent("atc_click", {
-        variantId: currentVariantId,
-        quantity: Number(qtyInput.value) || 1,
-      });
-
       if (!currentVariantId) {
         const fallback = productForm.querySelector("[name='id']");
         if (fallback) currentVariantId = fallback.value;
@@ -315,7 +280,6 @@
 
       const res = await fetch("/cart/add.js", {
         method: "POST",
-        credentials: "same-origin",
         headers: {
           "Content-Type": "application/json",
           Accept: "application/json",
@@ -329,14 +293,10 @@
         return;
       }
 
-      trackStickyEvent("add_to_cart", {
-        variantId: currentVariantId,
-        quantity,
-      });
-
       updateCartIconAndDrawer();
     });
 
+    // ========= CONTROLS LAYOUT =========
     const controls = document.createElement("div");
     controls.className = "bdm-sticky-atc-controls";
 
@@ -349,9 +309,6 @@
     inner.append(productInfo, controls);
     bar.appendChild(inner);
     document.body.appendChild(bar);
-
-    // Track impression once bar is mounted
-    trackStickyEvent("impression");
   }
 
   if (document.readyState === "loading") {
