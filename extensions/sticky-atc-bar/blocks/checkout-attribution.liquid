@@ -1,0 +1,18 @@
+<script>
+(function(){
+    const stickyTime = sessionStorage.getItem("bdm_sticky_last_atc");
+    if (!stickyTime) return;
+
+    fetch("/api/attribution/checkout-attribution", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+           shop: "{{ shop.permanent_domain }}",
+           checkoutToken: Shopify.checkout?.token,
+           productId: sessionStorage.getItem("bdm_sticky_product"),
+           variantId: sessionStorage.getItem("bdm_sticky_variant"),
+           timestamp: stickyTime
+        })
+    });
+})();
+</script>
