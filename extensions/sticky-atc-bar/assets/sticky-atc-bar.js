@@ -1,12 +1,14 @@
 // Sticky Add to Cart Bar – Desktop vA + Compact Mobile (Universal-Compatible)
 (function () {
   /* =========================================
-     CART REFRESH: theme-aware + universal fallback
-     ========================================= */
+       CART REFRESH: theme-aware + universal fallback
+       ========================================= */
   async function updateCartIconAndDrawer() {
     let handledByThemeDrawer = false;
 
-    // ----- TIER 1: Dawn-style theme with sections (cart-drawer + cart-icon-bubble) -----
+    let isEmpty = false;
+
+    // ----- TIER 1: Dawn-style theme refresh (cart drawer + icon bubble) -----
     try {
       const rootPath =
         (window.Shopify &&
@@ -26,92 +28,82 @@
       }
 
       if (sections) {
-        /* -----------------------------
-           Detect EMPTY CART case
-        ----------------------------- */
-        const isEmpty =
-          sections["cart-drawer"] &&
-          sections["cart-drawer"].includes("is-empty");
+        // Determine empty status
+        try {
+          const cart = await fetch("/cart.js").then((r) => r.json());
+          isEmpty = cart.item_count === 0;
+        } catch (e) {}
 
-        /* -----------------------------
-           Update cart bubble
-        ----------------------------- */
+        // === Always render drawer contents (important!) ===
+        const cartDrawer = document.querySelector("cart-drawer");
+
+        if (
+          cartDrawer &&
+          typeof cartDrawer.renderContents === "function" &&
+          sections["cart-drawer"]
+        ) {
+          cartDrawer.renderContents({
+            id: Date.now(),
+            sections,
+          });
+          handledByThemeDrawer = true;
+        }
+
+        // === Cart icon bubble ===
         const bubbleContainer = document.getElementById("cart-icon-bubble");
         if (bubbleContainer && sections["cart-icon-bubble"]) {
           const temp = document.createElement("div");
           temp.innerHTML = sections["cart-icon-bubble"];
           const newBubble = temp.querySelector("#cart-icon-bubble");
           if (newBubble) bubbleContainer.replaceWith(newBubble);
+          handledByThemeDrawer = true;
         }
 
-        /* -----------------------------
-           If EMPTY CART → DO NOT open drawer
-        ----------------------------- */
-        if (!isEmpty) {
-          const cartDrawer = document.querySelector("cart-drawer");
-
-          if (
-            cartDrawer &&
-            typeof cartDrawer.renderContents === "function" &&
-            sections["cart-drawer"]
-          ) {
-            cartDrawer.renderContents({
-              id: Date.now(),
-              sections,
-            });
-            handledByThemeDrawer = true;
-          }
+        // === NEW FIX: Do not auto-open on mobile if empty ===
+        if (isEmpty && window.matchMedia("(max-width: 768px)").matches) {
+          return; // drawer updated, but do NOT open it
         }
       }
     } catch (err) {
-      console.warn(
-        "Theme-specific cart drawer refresh via sections failed:",
-        err
-      );
+      console.warn("Theme drawer refresh failed:", err);
     }
 
-    // ----- TIER 2: Universal fallback (any theme) -----
+    // ----- TIER 2: Universal fallback cart counters -----
     try {
       const cart = await fetch("/cart.js").then((r) => r.json());
       const count = cart.item_count;
 
-      // Update cart counters
       const countEls = document.querySelectorAll(
         ".cart-count, .cart-count-bubble, [data-cart-count]"
       );
-
       countEls.forEach((el) => {
         el.textContent = count;
         el.dataset.cartCount = count;
 
         if (count > 0) {
           el.removeAttribute("hidden");
+          el.setAttribute("aria-hidden", "false");
           el.classList.remove("is-empty");
         } else {
+          el.setAttribute("aria-hidden", "true");
           el.classList.add("is-empty");
         }
       });
 
-      // Trigger theme events many themes hook into
       document.dispatchEvent(
         new CustomEvent("cart:refresh", { detail: { cart } })
       );
-
-      if (typeof window.fetchCart === "function") window.fetchCart();
       if (typeof window.updateCart === "function") window.updateCart();
+      if (typeof window.refreshCart === "function") window.refreshCart();
     } catch (err) {
       console.warn("Universal cart refresh failed:", err);
     }
 
-    // If theme drawer already handled → done
-    if (handledByThemeDrawer) return;
-
-    /* ----- TIER 3: Non-Dawn themes → open mini-cart IF NOT empty ----- */
+    // ----- TIER 3: Non-Dawn fallback (mini-cart/drawer) -----
     try {
-      const cart = await fetch("/cart.js").then((r) => r.json());
-      if (cart.item_count === 0) return; // Prevent blank drawer on mobile
+      if (handledByThemeDrawer) return;
 
-      const toggle =
+      const drawerToggle =
         document.querySelector('[data-cart-toggle]') ||
         document.querySelector('[data-drawer-toggle]') ||
         document.querySelector(".js-cart-toggle") ||
@@ -119,17 +111,19 @@
         document.querySelector('[aria-controls="CartDrawer"]') ||
         document.querySelector("#cart-icon-bubble");
 
-      if (toggle) {
-        toggle.dispatchEvent(new Event("click", { bubbles: true }));
+      if (drawerToggle) {
+        drawerToggle.dispatchEvent(
+          new Event("click", { bubbles: true, cancelable: true })
+        );
       }
     } catch (err) {
-      console.warn("Fallback drawer open failed:", err);
+      console.warn("Mini-cart open failed:", err);
     }
   }
 
   /* =========================================
-     STICKY BAR INITIALISATION
-     ========================================= */
+       STICKY BAR INITIALIZATION
+       ========================================= */
   function initStickyBar() {
     const root = document.getElementById("bdm-sticky-atc-bar-root");
     if (!root) return;
@@ -138,7 +132,6 @@
     if (!productForm) return;
 
     const isMobile = window.matchMedia("(max-width: 768px)").matches;
-
     const productTitle = root.dataset.productTitle || document.title;
 
     let variants = window.ShopifyAnalytics?.meta?.product?.variants || [];
@@ -149,6 +142,7 @@
       ? variantSelectOnPage.value
       : variants[0]?.id;
 
+    // Fallback for single variant
     if (!currentVariantId) {
       const fallback = productForm.querySelector("[name='id']");
       if (fallback) currentVariantId = fallback.value;
@@ -157,24 +151,25 @@
     const findVariantById = (id) =>
       variants.find((v) => String(v.id) === String(id));
 
-    const formatMoney = (cents) => {
-      const safe = typeof cents === "number" ? cents : 0;
-      return (safe / 100).toLocaleString(undefined, {
-        style: "currency",
-        currency: Shopify?.currency?.active || "USD",
-      });
-    };
+    const formatMoney = (cents) =>
+      ((typeof cents === "number" ? cents : 0) / 100).toLocaleString(
+        undefined,
+        {
+          style: "currency",
+          currency: Shopify?.currency?.active || "USD",
+        }
+      );
 
     let currentPrice = findVariantById(currentVariantId)?.price;
 
-    // ========= BAR CONTAINER =========
+    // ========= Bar container =========
     const bar = document.createElement("div");
     bar.className = "bdm-sticky-atc-bar-container";
 
     const inner = document.createElement("div");
     inner.className = "bdm-sticky-atc-bar-inner";
 
-    // ========= PRODUCT INFO (Title + Price) =========
+    // ========= Product info =========
     const productInfo = document.createElement("div");
     productInfo.className = "bdm-sticky-atc-product";
 
@@ -189,7 +184,7 @@
     productInfo.appendChild(titleEl);
     productInfo.appendChild(priceEl);
 
-    // ========= VARIANT SELECTOR =========
+    // ========= Variant selector =========
     const variantWrapper = document.createElement("div");
     variantWrapper.className = "bdm-sticky-atc-variant";
 
@@ -233,7 +228,7 @@
       }
     }
 
-    // ========= QUANTITY CONTROLS =========
+    // ========= Quantity controls =========
     const qtyWrapper = document.createElement("div");
     qtyWrapper.className = "bdm-sticky-atc-qty";
 
@@ -261,7 +256,7 @@
 
     qtyWrapper.append(minusBtn, qtyInput, plusBtn);
 
-    // ========= ADD TO CART BUTTON =========
+    // ========= Add to cart =========
     const atcButton = document.createElement("button");
     atcButton.className = "bdm-sticky-atc-button";
     atcButton.textContent = "Add to cart";
@@ -271,10 +266,7 @@
         const fallback = productForm.querySelector("[name='id']");
         if (fallback) currentVariantId = fallback.value;
       }
-      if (!currentVariantId) {
-        alert("Unable to determine variant.");
-        return;
-      }
+      if (!currentVariantId) return alert("Unable to determine variant.");
 
       const quantity = Math.max(1, Number(qtyInput.value) || 1);
 
@@ -288,15 +280,14 @@
       });
 
       if (!res.ok) {
-        console.error("Cart add error", await res.text());
-        alert("Could not add to cart. Please try again.");
-        return;
+        console.error("ATC error:", await res.text());
+        return alert("Could not add to cart.");
       }
 
       updateCartIconAndDrawer();
     });
 
-    // ========= CONTROLS LAYOUT =========
+    // ========= Layout =========
     const controls = document.createElement("div");
     controls.className = "bdm-sticky-atc-controls";
 
