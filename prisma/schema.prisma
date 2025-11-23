@@ -10,15 +10,6 @@ datasource db {
 }
 
 model StickyEvent {
-  id         Int      @id @default(autoincrement())
-  shopDomain String
-  type       String
-  productId  String
-  variantId  String
-  quantity   Int
-  createdAt  DateTime @default(now())
-}
-model StickyEvent {
   id        String   @id @default(cuid())
   shop      String
   event     String                // page_view, add_to_cart, variant_change
