@@ -49,6 +49,20 @@ router.get("/summary", async (req, res) => {
       }),
     ]);
 
+    router.get("/daily", async (req, res) => {
+  try {
+    const data = await prisma.stickyDailySummary.findMany({
+      orderBy: { date: "asc" },
+    });
+
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch daily analytics", err);
+    res.status(500).json({ error: true });
+  }
+});
+
+    
     const totalQty = qtyAgg._sum.quantity || 0;
     const conversionRate =
       impressions > 0 ? addToCartEvents / impressions : null;
