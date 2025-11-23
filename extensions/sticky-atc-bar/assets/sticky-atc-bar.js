@@ -13,8 +13,8 @@
           shop: Shopify?.shop,
           product: window.ShopifyAnalytics?.meta?.product?.id,
           timestamp: Date.now(),
-          ...payload
-        })
+          ...payload,
+        }),
       });
     } catch (err) {
       console.warn("Analytics error:", err);
@@ -65,11 +65,13 @@
         ) {
           cartDrawer.renderContents(parsedState);
 
-          // ⭐ Important empty-cart flag
-          const cart = await fetch("/cart.js").then((r) => r.json());
-          const drawerInner = cartDrawer.querySelector(".drawer__inner");
-          if (drawerInner) {
-            drawerInner.classList.toggle("is-empty", cart.item_count === 0);
+          // ⭐ IMPORTANT: fix empty→non-empty state on Dawn-style themes
+          try {
+            const cart = await fetch("/cart.js").then((r) => r.json());
+            // Dawn’s CartDrawer.open() checks this.classList.contains('is-empty')
+            cartDrawer.classList.toggle("is-empty", cart.item_count === 0);
+          } catch (e) {
+            console.warn("Error toggling cart-drawer empty state:", e);
           }
 
           handledByThemeDrawer = true;
@@ -105,6 +107,7 @@
           if (count > 0) {
             el.removeAttribute("hidden");
             el.classList.remove("is-empty");
+            el.setAttribute("aria-hidden", "false");
           } else {
             el.classList.add("is-empty");
             el.setAttribute("aria-hidden", "true");
@@ -120,21 +123,25 @@
       document.dispatchEvent(
         new CustomEvent("ajaxProduct:added", { detail: { cart } })
       );
+
+      // If themes expose helpers, call them
+      if (typeof window.fetchCart === "function") window.fetchCart();
+      if (typeof window.updateCart === "function") window.updateCart();
+      if (typeof window.refreshCart === "function") window.refreshCart();
     } catch (err) {
       console.warn("Universal cart update failed:", err);
     }
 
     // TIER 3: UNIVERSAL CART DRAWER OPENING FOR NON-DAWN
     try {
-      if (handledByThemeDrawer) return;
-
+      // Even if Dawn handled it, re-clicking the bubble is safe (open is idempotent)
       const drawerToggle =
         document.querySelector('[data-cart-toggle]') ||
         document.querySelector('[data-drawer-toggle]') ||
-        document.querySelector('.js-cart-toggle') ||
-        document.querySelector('.js-drawer-open-cart') ||
+        document.querySelector(".js-cart-toggle") ||
+        document.querySelector(".js-drawer-open-cart") ||
         document.querySelector('[aria-controls="CartDrawer"]') ||
-        document.querySelector('#cart-icon-bubble');
+        document.querySelector("#cart-icon-bubble");
 
       if (drawerToggle) {
         drawerToggle.dispatchEvent(
@@ -247,6 +254,7 @@
         }
       });
 
+      // Mobile: move variant selector where the title was
       if (isMobile) {
         titleEl.style.display = "none";
         const mobileVariantRow = document.createElement("div");
@@ -254,6 +262,7 @@
         mobileVariantRow.appendChild(select);
         productInfo.insertBefore(mobileVariantRow, priceEl);
       } else {
+        // Desktop: keep it in the controls row
         variantWrapper.appendChild(select);
       }
     }
