@@ -7,12 +7,17 @@ import {
   DeliveryMethod,
 } from "@shopify/shopify-api";
 import { PrismaClient } from "@prisma/client";
+import crypto from "crypto";
 
 import stickyAnalytics from "./routes/stickyAnalytics.js";
 import stickyMetrics from "./routes/stickyMetrics.js";
 
 const prisma = new PrismaClient(); // reserved for analytics, etc.
 const app = express();
+
+/* ----------------------------------------
+   BASIC MIDDLEWARE
+----------------------------------------- */
 
 app.use(express.json());
 
@@ -21,9 +26,7 @@ app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
   res.header("Access-Control-Allow-Headers", "Content-Type");
   res.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  if (req.method === "OPTIONS") {
-    return res.sendStatus(200);
-  }
+  if (req.method === "OPTIONS") return res.sendStatus(200);
   next();
 });
 
@@ -57,7 +60,7 @@ const shopify = shopifyApp({
       .map((s) => s.trim()),
     hostName: (process.env.HOST || "").replace(/^https?:\/\//, "").trim(),
 
-    // ⬅️ billing config for v10
+    // Billing config for v10
     billing: billingConfig,
   },
 
@@ -66,15 +69,9 @@ const shopify = shopifyApp({
     callbackPath: "/auth/callback",
   },
 
+  // We still declare the webhooks path here (topics handled manually below)
   webhooks: {
     path: "/webhooks",
-    // These topics will be registered automatically
-    topics: [
-      "CHECKOUTS_CREATE",
-      "ORDERS_PAID",
-      "APP_UNINSTALLED",
-      "THEMES_PUBLISH",
-    ],
   },
 });
 
@@ -98,8 +95,7 @@ async function injectStickyForShop(shop) {
     // 1) Get themes, find main theme
     const themesRes = await client.get({ path: "themes" });
     const themes = themesRes.body.themes || [];
-    const mainTheme =
-      themes.find((t) => t.role === "main") || themes[0];
+    const mainTheme = themes.find((t) => t.role === "main") || themes[0];
 
     if (!mainTheme) {
       console.warn("⚠️ No main theme found for", shop);
@@ -134,10 +130,7 @@ async function injectStickyForShop(shop) {
     let updated;
 
     if (layout.includes("</body>")) {
-      updated = layout.replace(
-        "</body>",
-        `  ${snippetTag}\n</body>`
-      );
+      updated = layout.replace("</body>", `  ${snippetTag}\n</body>`);
     } else {
       // Fallback: just append at end
       updated = `${layout}\n${snippetTag}\n`;
@@ -163,23 +156,134 @@ async function injectStickyForShop(shop) {
 }
 
 /* ----------------------------------------
-   WEBHOOK HANDLERS (uninstall + theme publish)
------------------------------------------ */
-/* ----------------------------------------
-   WEBHOOK PROCESSOR (v8-compatible)
+   (Optional) THEME CLEANUP ON UNINSTALL
+   NOTE: After APP_UNINSTALLED, the access token is revoked,
+   so you usually *cannot* call the Admin API here.
+   We'll focus on DB cleanup + logging.
 ----------------------------------------- */
 
-// Shopify sends all webhook events to this endpoint
-app.post("/webhooks", async (req, res) => {
+async function handleAppUninstalled(shop, payload) {
+  console.log("🧹 App uninstalled for shop:", shop);
+
+  // OPTIONAL: clean up any per-shop analytics data you store
+  // This is wrapped in try/catch so it won't break if models differ.
   try {
-    await shopify.webhooks.process(req, res);
+    // Example (adjust model/field names as needed):
+    // await prisma.stickyEvent.deleteMany({ where: { shopDomain: shop } });
+    // await prisma.stickyDailyStat.deleteMany({ where: { shopDomain: shop } });
   } catch (err) {
-    console.error("❌ Webhook processing failed:", err);
-    res.status(500).send("Webhook error");
+    console.warn("Prisma cleanup skipped / failed:", err);
   }
-});
+}
 
+/* ----------------------------------------
+   WEBHOOK REGISTRATION PER SHOP
+----------------------------------------- */
 
+async function registerWebhooksForShop(session) {
+  try {
+    const result = await shopify.api.webhooks.register({
+      session,
+      deliveries: [
+        {
+          topic: "CHECKOUTS_CREATE",
+          deliveryMethod: DeliveryMethod.Http,
+          callbackUrl: "/webhooks",
+        },
+        {
+          topic: "ORDERS_PAID",
+          deliveryMethod: DeliveryMethod.Http,
+          callbackUrl: "/webhooks",
+        },
+        {
+          topic: "APP_UNINSTALLED",
+          deliveryMethod: DeliveryMethod.Http,
+          callbackUrl: "/webhooks",
+        },
+        {
+          topic: "THEMES_PUBLISH",
+          deliveryMethod: DeliveryMethod.Http,
+          callbackUrl: "/webhooks",
+        },
+      ],
+    });
+
+    console.log("🔔 Webhook registration result:", JSON.stringify(result));
+  } catch (err) {
+    console.error("❌ Webhook registration error:", err);
+  }
+}
+
+/* ----------------------------------------
+   WEBHOOK ENDPOINT (manual HMAC + topic handling)
+----------------------------------------- */
+
+function verifyShopifyWebhook(req) {
+  const hmacHeader = req.get("X-Shopify-Hmac-Sha256");
+  if (!hmacHeader) return false;
+
+  const rawBody = req.body; // Buffer from express.raw
+  const generatedHmac = crypto
+    .createHmac("sha256", process.env.SHOPIFY_API_SECRET)
+    .update(rawBody)
+    .digest("base64");
+
+  // Simple equality is OK for our purposes here
+  return generatedHmac === hmacHeader;
+}
+
+// NOTE: route-level raw body parser so HMAC works, even though we use express.json() globally
+app.post(
+  "/webhooks",
+  express.raw({ type: "application/json" }),
+  async (req, res) => {
+    const topic = req.get("X-Shopify-Topic");
+    const shop = req.get("X-Shopify-Shop-Domain");
+
+    if (!verifyShopifyWebhook(req)) {
+      console.error("❌ Invalid webhook HMAC for topic:", topic, "shop:", shop);
+      return res.status(401).send("Invalid webhook");
+    }
+
+    let payload = {};
+    try {
+      payload = JSON.parse(req.body.toString("utf8") || "{}");
+    } catch (err) {
+      console.warn("⚠️ Failed to parse webhook body JSON");
+    }
+
+    try {
+      switch (topic) {
+        case "app/uninstalled":
+          await handleAppUninstalled(shop, payload);
+          break;
+
+        case "themes/publish":
+          // Theme published → re-inject snippet into new main theme
+          await injectStickyForShop(shop);
+          break;
+
+        case "checkouts/create":
+          // Place to do sticky attribution based on checkout data if you want
+          console.log("🧾 CHECKOUTS_CREATE webhook for", shop);
+          break;
+
+        case "orders/paid":
+          // Place to finalize attribution on paid orders
+          console.log("✅ ORDERS_PAID webhook for", shop);
+          break;
+
+        default:
+          console.log("ℹ️ Unhandled webhook topic:", topic, "for shop:", shop);
+      }
+
+      return res.status(200).send("OK");
+    } catch (err) {
+      console.error("❌ Webhook handler error:", err);
+      return res.status(500).send("Webhook handler error");
+    }
+  }
+);
 
 /* ----------------------------------------
    BILLING MIDDLEWARE (uses shopify.api.billing)
@@ -212,9 +316,7 @@ async function requireBilling(req, res, next) {
     // 2️⃣ No active billing – request subscription
     const appUrl =
       process.env.SHOPIFY_APP_URL || `https://${process.env.HOST}`;
-    const returnUrl = `${appUrl}/?shop=${encodeURIComponent(
-      session.shop
-    )}`;
+    const returnUrl = `${appUrl}/?shop=${encodeURIComponent(session.shop)}`;
 
     const confirmationUrl = await shopify.api.billing.request({
       session,
@@ -250,9 +352,10 @@ app.get(
     const session = res.locals.shopify?.session;
     const shop = session?.shop || req.query.shop;
 
-    // Optional: inject snippet on first successful install / auth
+    // Inject snippet on successful auth
     if (shop) {
       await injectStickyForShop(shop);
+      await registerWebhooksForShop(session);
     }
 
     return res.redirect(`/?shop=${encodeURIComponent(shop)}`);
@@ -265,12 +368,6 @@ app.get("/exitiframe", (req, res) => {
   if (!shop) return res.status(400).send("Missing shop parameter");
   return res.redirect(`/auth?shop=${encodeURIComponent(shop)}`);
 });
-
-/* ----------------------------------------
-   WEBHOOK ENDPOINT (Shopify → your app)
------------------------------------------ */
-
-app.post("/webhooks", shopify.webhooks.process());
 
 /* ----------------------------------------
    PROTECTED API (requires auth + billing)
@@ -306,8 +403,9 @@ app.get(
   "/analytics",
   shopify.validateAuthenticatedSession(),
   requireBilling,
-  (req, res) => {
-    return res.render("index"); // loads React UI
+  (_req, res) => {
+    // You can swap this to a real template / React mount later
+    return res.send("Sticky ATC Analytics Dashboard Coming Soon 📈");
   }
 );
 
