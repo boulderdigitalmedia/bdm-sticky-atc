@@ -166,37 +166,35 @@ async function injectStickyForShop(shop) {
    WEBHOOK HANDLERS (uninstall + theme publish)
 ----------------------------------------- */
 
-shopify.webhooks.addHandlers({
-  APP_UNINSTALLED: {
-    deliveryMethod: DeliveryMethod.Http,
-    callbackUrl: "/webhooks",
-    callback: async (topic, shop, body) => {
-      console.log("🧹 APP_UNINSTALLED for", shop);
-      try {
-        // Clean up analytics for this shop (if using shopDomain in model)
-        await prisma.stickyEvent.deleteMany({
-          where: { shopDomain: shop },
-        });
-      } catch (err) {
-        console.warn(
-          "⚠️ Error cleaning StickyEvent for",
-          shop,
-          err
-        );
-      }
-    },
-  },
+/* ----------------------------------------
+   WEBHOOK HANDLERS (v8 syntax)
+----------------------------------------- */
 
-  THEMES_PUBLISH: {
-    deliveryMethod: DeliveryMethod.Http,
-    callbackUrl: "/webhooks",
-    callback: async (topic, shop, body) => {
-      console.log("🧩 THEMES_PUBLISH for", shop);
-      // Re-inject snippet whenever a theme is published
-      await injectStickyForShop(shop);
-    },
-  },
+app.post("/webhooks", async (req, res) => {
+  try {
+    await shopify.webhooks.process(req, res);
+  } catch (err) {
+    console.error("❌ Webhook processing failed:", err);
+    res.status(500).send("Webhook error");
+  }
 });
+
+// Register APP_UNINSTALLED webhook
+shopify.webhooks.register({
+  session: null,
+  topic: "APP_UNINSTALLED",
+  deliveryMethod: "http",
+  address: `${process.env.SHOPIFY_APP_URL}/webhooks`,
+});
+
+// Register THEMES_PUBLISH webhook
+shopify.webhooks.register({
+  session: null,
+  topic: "THEMES_PUBLISH",
+  deliveryMethod: "http",
+  address: `${process.env.SHOPIFY_APP_URL}/webhooks`,
+});
+
 
 /* ----------------------------------------
    BILLING MIDDLEWARE (uses shopify.api.billing)
