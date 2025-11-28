@@ -257,8 +257,8 @@ app.get(
   "/",
   shopify.validateAuthenticatedSession(),
   requireBilling,
-  (_req, res) => {
-    res.send("BDM Sticky ATC App Running 🎉");
+  (req, res) => {
+    res.render("index"); // ← load React embedded app
   }
 );
 
