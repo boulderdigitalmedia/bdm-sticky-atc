@@ -1,5 +1,6 @@
 import AnalyticsPage from "./pages/Analytics";
 
 export const pages = {
-  "/analytics": AnalyticsPage,
+  "/": AnalyticsPage,         // root page (Shopify loads this)
+  "/analytics": AnalyticsPage // optional alias
 };
