@@ -155,9 +155,8 @@ app.post("/webhooks", async (req, res) => {
 -------------------------------------------------- */
 app.get("/billing/complete", async (req, res) => {
   const shop = req.query.shop;
-
-  // Try to get host from query or session
   let host = req.query.host;
+
   if (!host && shop) {
     const offlineId = shopify.api.session.getOfflineId(shop);
     const session =
@@ -165,12 +164,7 @@ app.get("/billing/complete", async (req, res) => {
     host = session?.host;
   }
 
-  const qs = new URLSearchParams({
-    shop,
-    ...(host ? { host } : {}),
-  }).toString();
-
-  return res.redirect(`/?${qs}`);
+  return res.redirect(`/?shop=${shop}&host=${host}`);
 });
 
 /* --------------------------------------------------
@@ -181,7 +175,6 @@ async function requireBilling(req, res, next) {
     const session = res.locals.shopify?.session;
 
     if (!session) {
-      // Let ensureInstalledOnShop kick in
       return res.redirect(`/exitiframe?shop=${req.query.shop}`);
     }
 
@@ -220,7 +213,6 @@ app.get(
   "/auth/callback",
   shopify.auth.callback(),
 
-  // Save host in the session so we can use it after billing
   async (req, res, next) => {
     const session = res.locals.shopify.session;
 
@@ -239,13 +231,12 @@ app.get(
 
     await injectAnalyticsScript(shop);
 
-    const qs = new URLSearchParams({ shop, host }).toString();
-    return res.redirect(`/?${qs}`);
+    return res.redirect(`/?shop=${shop}&host=${host}`);
   }
 );
 
 /* --------------------------------------------------
-   exitiframe → Fix Chrome/Safari cookie blocking
+   exitiframe (cookie issues)
 -------------------------------------------------- */
 app.get("/exitiframe", (req, res) => {
   const shop = req.query.shop;
@@ -257,7 +248,7 @@ app.get("/exitiframe", (req, res) => {
 });
 
 /* --------------------------------------------------
-   Protected Admin API
+   Protect ONLY APIs
 -------------------------------------------------- */
 app.use(
   "/api/sticky",
@@ -267,27 +258,18 @@ app.use(
 );
 
 /* --------------------------------------------------
-   Public Storefront Analytics Endpoint
+   Public Storefront Analytics
 -------------------------------------------------- */
 app.use("/apps/bdm-sticky-atc", stickyAnalytics);
 
 /* --------------------------------------------------
-   Serve static assets for the frontend (unprotected)
-   (JS/CSS/etc from Vite's dist folder)
+   🔥 Serve FRONTEND ALWAYS — NO SHOPIFY CHECKS
 -------------------------------------------------- */
 app.use(express.static(frontendDist));
 
-/* --------------------------------------------------
-   Catch-All → Embedded App Entry (protected)
-   Only the HTML shell is gated by ensureInstalledOnShop
--------------------------------------------------- */
-app.get(
-  "/*",
-  shopify.ensureInstalledOnShop(),
-  (req, res) => {
-    res.sendFile(path.join(frontendDist, "index.html"));
-  }
-);
+app.get("/*", (req, res) => {
+  res.sendFile(path.join(frontendDist, "index.html"));
+});
 
 /* --------------------------------------------------
    Start Server
