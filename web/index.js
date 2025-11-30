@@ -151,7 +151,7 @@ app.post("/webhooks", async (req, res) => {
 });
 
 /* --------------------------------------------------
-   Fix: Billing Completion Redirect (adds host)
+   Billing Complete (Fix: include host)
 -------------------------------------------------- */
 app.get("/billing/complete", async (req, res) => {
   const shop = req.query.shop;
@@ -189,7 +189,6 @@ async function requireBilling(req, res, next) {
     const appUrl =
       process.env.SHOPIFY_APP_URL || `https://${process.env.HOST}`;
 
-    // Fix: include host in return URL
     const confirmUrl = await shopify.api.billing.request({
       session,
       plan: BILLING_PLAN_NAME,
@@ -206,7 +205,7 @@ async function requireBilling(req, res, next) {
 }
 
 /* --------------------------------------------------
-   OAuth Routes w/ Host Persistence
+   OAuth (Fix: persist host)
 -------------------------------------------------- */
 app.get("/auth", shopify.auth.begin());
 
@@ -214,7 +213,6 @@ app.get(
   "/auth/callback",
   shopify.auth.callback(),
 
-  // Fix: save host to session
   async (req, res, next) => {
     const session = res.locals.shopify.session;
 
@@ -250,6 +248,16 @@ app.get("/exitiframe", (req, res) => {
 });
 
 /* --------------------------------------------------
+   Fix #1 — Shopify Admin iframe loads WITHOUT ?shop=
+-------------------------------------------------- */
+app.get("/", (req, res) => {
+  if (!req.query.shop) {
+    return res.redirect(`/auth?shop=bdm-sandbox.myshopify.com`);
+  }
+  res.sendFile(path.join(frontendDist, "index.html"));
+});
+
+/* --------------------------------------------------
    Protected Admin API
 -------------------------------------------------- */
 app.use(
@@ -265,15 +273,7 @@ app.use(
 app.use("/apps/bdm-sticky-atc", stickyAnalytics);
 
 /* --------------------------------------------------
-   Serve React Admin UI (dist)
--------------------------------------------------- */
-app.use(
-  shopify.ensureInstalledOnShop(),
-  express.static(frontendDist)
-);
-
-/* --------------------------------------------------
-   Catch-All → Embedded App Entry
+   Catch-All → MUST COME AFTER root redirect
 -------------------------------------------------- */
 app.get(
   "/*",
