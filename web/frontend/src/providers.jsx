@@ -1,6 +1,6 @@
 import React from "react";
 import { AppProvider as PolarisProvider } from "@shopify/polaris";
-import { Provider as AppBridgeProvider } from "@shopify/app-bridge-react";
+import AppBridgeProvider from "@shopify/app-bridge-react";
 import { BrowserRouter } from "react-router-dom";
 
 export default function Providers({ children }) {
