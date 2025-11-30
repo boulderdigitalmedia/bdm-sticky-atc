@@ -1,28 +1,21 @@
-import {
-  AppProvider as ShopifyAppProvider,
-  useAppBridge,
-} from "@shopify/app-bridge-react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { AppProvider as PolarisAppProvider } from "@shopify/polaris";
+import React from "react";
+import { AppProvider as PolarisProvider } from "@shopify/polaris";
+import { AppBridgeProvider } from "@shopify/app-bridge-react";
+import { BrowserRouter } from "@shopify/react-router";
 
-const queryClient = new QueryClient();
+export default function Providers({ children }) {
+  const host = new URLSearchParams(location.search).get("host");
+  const shop = new URLSearchParams(location.search).get("shop");
 
-export function AppBridgeProvider({ children }) {
+  const appBridgeConfig = {
+    apiKey: import.meta.env.VITE_SHOPIFY_API_KEY,
+    host,
+    forceRedirect: true,
+  };
+
   return (
-    <ShopifyAppProvider>
-      {children}
-    </ShopifyAppProvider>
-  );
-}
-
-export function PolarisProvider({ children }) {
-  return <PolarisAppProvider>{children}</PolarisAppProvider>;
-}
-
-export function QueryProvider({ children }) {
-  return (
-    <QueryClientProvider client={queryClient}>
-      {children}
-    </QueryClientProvider>
+    <AppBridgeProvider config={appBridgeConfig}>
+      <PolarisProvider>{children}</PolarisProvider>
+    </AppBridgeProvider>
   );
 }
