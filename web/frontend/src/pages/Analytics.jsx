@@ -1,11 +1,15 @@
-import { Card, Page, Text } from "@shopify/polaris";
+import { Card, Text } from "@shopify/polaris";
+import React from "react";
 
-export default function AnalyticsPage() {
+export default function Analytics() {
   return (
-    <Page title="Sticky ATC Analytics">
-      <Card>
-        <Text variant="headingMd">Your analytics will appear here.</Text>
-      </Card>
-    </Page>
+    <Card>
+      <Card.Section>
+        <Text as="h2" variant="headingLg">
+          Analytics
+        </Text>
+        <Text as="p">Your sticky ATC analytics will appear here.</Text>
+      </Card.Section>
+    </Card>
   );
 }
