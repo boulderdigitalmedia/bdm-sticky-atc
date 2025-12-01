@@ -3,7 +3,7 @@ import React from "react";
 
 export default function Home() {
   return (
-    <page>
+    <page title="Dashboard">
     <Card>
       <Card.Section>
         <Text as="h2" variant="headingLg">
