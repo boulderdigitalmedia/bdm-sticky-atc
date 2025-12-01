@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@shopify/app-bridge": "^3.7.11",
+    "@shopify/app-bridge-react": "^4.2.8",
     "@shopify/polaris": "12.2.0",
     "@shopify/polaris-icons": "7.0.0",
     "react": "^18.3.1",
