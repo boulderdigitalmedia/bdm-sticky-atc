@@ -1,21 +1,16 @@
-// web/frontend/src/App.jsx
+// frontend/src/App.jsx
 import React from "react";
-import { Page, Card, Text } from "@shopify/polaris";
+import { Frame, Page } from "@shopify/polaris";
+
+import AppNavigation from "./navigation.jsx";
+import AppRouter from "./router.jsx";
 
 export default function App() {
   return (
-    <Page title="Sticky Add-to-Cart Bar Pro">
-      <Card>
-        <Card.Section>
-          <Text as="h2" variant="headingLg">
-            It works! 🎉
-          </Text>
-          <Text as="p">
-            Your Shopify embedded app UI is loading correctly. From here we can
-            wire up navigation, routing, and analytics.
-          </Text>
-        </Card.Section>
-      </Card>
-    </Page>
+    <Frame navigation={<AppNavigation />}>
+      <Page fullWidth>
+        <AppRouter />
+      </Page>
+    </Frame>
   );
 }
