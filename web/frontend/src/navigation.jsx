@@ -1,5 +1,6 @@
+// web/frontend/src/navigation.jsx
 import { Navigation } from "@shopify/polaris";
-import { HomeIcon } from "@shopify/polaris-icons";
+import { HomeFilledIcon } from "@shopify/polaris-icons";
 
 export default function AppNavigation() {
   return (
@@ -8,14 +9,14 @@ export default function AppNavigation() {
         items={[
           {
             label: "Dashboard",
-            icon: HomeIcon,
+            icon: HomeFilledIcon,
             url: "/",
           },
           {
             label: "Analytics",
-            icon: HomeIcon,
+            icon: HomeFilledIcon, // replace with a different icon later if you want
             url: "/analytics",
-          },
+          }
         ]}
       />
     </Navigation>
