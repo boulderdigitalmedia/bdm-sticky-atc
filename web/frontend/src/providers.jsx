@@ -1,35 +1,29 @@
 // web/frontend/src/providers.jsx
 import React from "react";
 import { AppProvider as PolarisProvider } from "@shopify/polaris";
+import { Provider as AppBridgeProvider } from "@shopify/app-bridge-react";
 import enTranslations from "@shopify/polaris/locales/en.json";
-
-import {
-  Provider as AppBridgeProvider,
-  useAppBridge,
-} from "@shopify/app-bridge-react";
-
 import { BrowserRouter } from "react-router-dom";
 
-// Read host parameter from URL
-function getHost() {
-  const params = new URLSearchParams(window.location.search);
-  return params.get("host");
-}
-
 export default function Providers({ children }) {
-  const host = getHost();
+  const params = new URLSearchParams(window.location.search);
+  const host = params.get("host");
 
-  const appBridgeConfig = {
-    apiKey: import.meta.env.VITE_SHOPIFY_API_KEY,
-    host,
-    forceRedirect: true,
-  };
+  if (!host) {
+    return <div>Missing Shopify host parameter</div>;
+  }
 
   return (
-    <AppBridgeProvider config={appBridgeConfig}>
-      <PolarisProvider i18n={enTranslations}>
+    <PolarisProvider i18n={enTranslations}>
+      <AppBridgeProvider
+        config={{
+          apiKey: import.meta.env.VITE_SHOPIFY_API_KEY,
+          host,
+          forceRedirect: true,
+        }}
+      >
         <BrowserRouter>{children}</BrowserRouter>
-      </PolarisProvider>
-    </AppBridgeProvider>
+      </AppBridgeProvider>
+    </PolarisProvider>
   );
 }
