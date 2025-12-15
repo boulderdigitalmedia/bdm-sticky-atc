@@ -1,20 +1,14 @@
-import { Page, Card, Text } from "@shopify/polaris";
 import React from "react";
+import { Page, Card, Text } from "@shopify/polaris";
 
 export default function Home() {
   return (
-    
-    <Card>
-      <Card.Section>
+    <Page title="Sticky Add-to-Cart Bar Pro">
+      <Card>
         <Text as="h2" variant="headingLg">
-          Sticky Add-to-Cart Bar Pro
+          Dashboard
         </Text>
-        <Text as="p">
-          Welcome to your app dashboard. Use the sidebar to explore analytics &
-          settings.
-        </Text>
-      </Card.Section>
-    </Card>
-      
+      </Card>
+    </Page>
   );
 }
