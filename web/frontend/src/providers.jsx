@@ -6,7 +6,10 @@ import { BrowserRouter } from "react-router-dom";
 
 export default function Providers({ children }) {
   return (
-    <PolarisProvider i18n={enTranslations}>
+    <PolarisProvider
+      i18n={enTranslations}
+      features={{ newDesignLanguage: true }}
+    >
       <BrowserRouter>{children}</BrowserRouter>
     </PolarisProvider>
   );
