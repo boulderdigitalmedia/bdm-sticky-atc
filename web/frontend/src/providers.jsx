@@ -1,7 +1,7 @@
 // web/frontend/src/providers.jsx
 import React from "react";
 import { AppProvider as PolarisProvider } from "@shopify/polaris";
-import { Provider as AppBridgeProvider } from "@shopify/app-bridge-react";
+import { AppBridgeProvider } from "@shopify/app-bridge-react";
 import enTranslations from "@shopify/polaris/locales/en.json";
 import { BrowserRouter } from "react-router-dom";
 
