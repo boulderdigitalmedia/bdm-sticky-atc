@@ -6,7 +6,8 @@ import AppNavigation from "./AppNavigation.jsx";
 
 export default function App() {
   return (
-    <Frame navigation={<AppNavigation />}>
+    <Frame>
+      <AppNavigation />
       <AppRouter />
     </Frame>
   );
