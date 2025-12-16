@@ -1,30 +1,29 @@
-import { PrismaClient } from "@prisma/client";
-const prisma = new PrismaClient();
+export async function ordersPaidHandler(shop, body) {
+  const order = JSON.parse(body);
 
-export default async function ordersPaid(topic, shop, body) {
-  const payload = JSON.parse(body);
+  const usedSticky =
+    order.note_attributes?.some(
+      (a) => a.name === "sticky_atc_clicked" && a.value === "true"
+    ) ||
+    order.note_attributes?.some(
+      (a) => a.name === "sticky_atc_checkout"
+    );
 
-  const token = payload.checkout_id || payload.checkout?.token;
-  if (!token) return;
+  if (!usedSticky) return;
 
-  // Find attribution record
-  const attribution = await prisma.stickyAttribution.findFirst({
-    where: { checkoutToken: token }
-  });
-
-  if (!attribution) return;
-
-  // Save conversion
-  await prisma.stickyConversion.create({
-    data: {
-      shop,
-      orderId: payload.id,
-      productId: attribution.productId,
-      variantId: attribution.variantId,
-      revenue: payload.total_price,
-      timestamp: Date.now()
+  await fetch(
+    "https://sticky-add-to-cart-bar-pro.onrender.com/apps/bdm-sticky-atc/track",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        event: "purchase_attributed",
+        shop,
+        order_id: order.id,
+        revenue: Number(order.total_price),
+        currency: order.currency,
+        timestamp: Date.now(),
+      }),
     }
-  });
-
-  return true;
+  );
 }
