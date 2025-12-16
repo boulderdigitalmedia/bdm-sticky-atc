@@ -47,12 +47,14 @@ model StickyAttribution {
 }
 
 model StickyConversion {
-  id        Int      @id @default(autoincrement())
-  shop      String
-  product   String?
-  variant   String?
-  addedAt   DateTime
-  orderId   String?
-  status    String?
-  createdAt DateTime @default(now())
+  id          String   @id @default(cuid())
+  shop        String
+  orderId     String
+  revenue     Float
+  currency    String
+  occurredAt  DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([shop])
 }
+
