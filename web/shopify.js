@@ -1,5 +1,5 @@
 // web/shopify.js
-import "@shopify/shopify-api/adapters/node"; // 👈 IMPORTANT: runtime adapter
+import "@shopify/shopify-api/adapters/node"; // 👈 REQUIRED runtime adapter
 import { shopifyApi, LATEST_API_VERSION } from "@shopify/shopify-api";
 import pkg from "@shopify/shopify-app-express";
 const { shopifyApp } = pkg;
@@ -27,6 +27,23 @@ const shopify = shopifyApp({
   },
 
   billing: billingConfig,
+
+  /* ---------------------------------------------------
+     STEP 5: AFTER AUTH SETUP + EMBEDDED REDIRECT
+  --------------------------------------------------- */
+  hooks: {
+    afterAuth: async ({ session, redirect }) => {
+      const { shop, host } = session;
+
+      // (Optional) Register webhooks here later if needed
+      // await shopify.registerWebhooks({ session });
+
+      // Redirect back into embedded app with host preserved
+      redirect(
+        `/apps/bdm-sticky-atc?shop=${shop}&host=${host}`
+      );
+    },
+  },
 });
 
 export default shopify;
