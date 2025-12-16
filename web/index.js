@@ -4,6 +4,9 @@ import path from "path";
 import { fileURLToPath } from "url";
 import shopify from "./shopify.js";
 import { billingConfig } from "./billing.js";
+import analyticsRoutes from "./routes/stickyAnalytics.js";
+app.use("/api/analytics", analyticsRoutes);
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
