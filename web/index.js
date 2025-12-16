@@ -6,6 +6,15 @@ import shopify from "./shopify.js";
 import { billingConfig } from "./billing.js";
 import analyticsRoutes from "./routes/stickyAnalytics.js";
 app.use("/api/analytics", analyticsRoutes);
+import { ordersPaidHandler } from "./webhooks/ordersPaid.js";
+
+app.post("/webhooks/orders/paid", async (req, res) => {
+  await ordersPaidHandler(
+    req.headers["x-shopify-shop-domain"],
+    req.body
+  );
+  res.status(200).send("OK");
+});
 
 
 const __filename = fileURLToPath(import.meta.url);
