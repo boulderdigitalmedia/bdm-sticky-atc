@@ -2,6 +2,7 @@
 import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
+
 import shopify from "./shopify.js";
 import { billingConfig } from "./billing.js";
 import analyticsRoutes from "./routes/stickyAnalytics.js";
@@ -13,28 +14,52 @@ const __dirname = path.dirname(__filename);
 const PORT = process.env.PORT || 10000;
 const app = express();
 
-// If you need raw webhook body later, we can do express.raw() on that route only.
-// For now keep it simple:
+// ──────────────────────────────────────────────
+// MIDDLEWARE
+// ──────────────────────────────────────────────
 app.use(express.json());
 
-// API routes
+// ──────────────────────────────────────────────
+// ANALYTICS API
+// ──────────────────────────────────────────────
 app.use("/api/analytics", analyticsRoutes);
 
+// ──────────────────────────────────────────────
+// WEBHOOKS
+// ──────────────────────────────────────────────
 app.post("/webhooks/orders/paid", async (req, res) => {
-  await ordersPaidHandler(req.headers["x-shopify-shop-domain"], req.body);
+  await ordersPaidHandler(
+    req.headers["x-shopify-shop-domain"],
+    req.body
+  );
   res.status(200).send("OK");
 });
 
 // ──────────────────────────────────────────────
-// STATIC FRONTEND (must be before any catch-all)
+// STATIC FRONTEND (VITE BUILD OUTPUT)
 // ──────────────────────────────────────────────
-const frontendDir = path.join(__dirname, "frontend/dist");
+const frontendDir = path.join(__dirname, "frontend", "dist");
 app.use(express.static(frontendDir));
+
+// ──────────────────────────────────────────────
+// ROOT URL
+// Shopify always loads apps with shop + host
+// ──────────────────────────────────────────────
+app.get("/", async (req, res) => {
+  const { shop, host } = req.query;
+
+  if (!shop || !host) {
+    return res.redirect(`/auth?shop=${process.env.DEFAULT_SHOP}`);
+  }
+
+  return res.sendFile(path.join(frontendDir, "index.html"));
+});
 
 // ──────────────────────────────────────────────
 // AUTH + BILLING
 // ──────────────────────────────────────────────
 app.get("/auth", shopify.auth.begin());
+
 app.get(
   "/auth/callback",
   shopify.auth.callback(),
@@ -42,7 +67,6 @@ app.get(
     try {
       await shopify.ensureInstalledOnShop(req, res);
       await shopify.billing.ensure(req, res, billingConfig);
-
       return res.redirect(`/?shop=${req.query.shop}&host=${req.query.host}`);
     } catch (e) {
       next(e);
@@ -51,10 +75,14 @@ app.get(
 );
 
 // ──────────────────────────────────────────────
-// SPA fallback ONLY for non-asset routes
-// (prevents /assets/*.js returning HTML)
+// SPA CATCH-ALL (DO NOT INTERCEPT ASSETS)
+// THIS FIXES THE BLANK SCREEN BUG
 // ──────────────────────────────────────────────
-app.get(/^\/(?!assets\/).*/, (req, res) => {
+app.get("*", (req, res, next) => {
+  if (req.path.startsWith("/assets/")) {
+    return next(); // let express.static handle JS/CSS
+  }
+
   return res.sendFile(path.join(frontendDir, "index.html"));
 });
 
