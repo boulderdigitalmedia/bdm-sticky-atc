@@ -3,7 +3,7 @@ import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import shopify from "./shopify.js";
-
+import { billingConfig } from "./billing.js";
 import analyticsRoutes from "./routes/stickyAnalytics.js";
 import { ordersPaidHandler } from "./webhooks/ordersPaid.js";
 
@@ -13,60 +13,54 @@ const __dirname = path.dirname(__filename);
 const PORT = process.env.PORT || 10000;
 const app = express();
 
-/* ------------------------------------------------
-   MIDDLEWARE
------------------------------------------------- */
+// If you need raw webhook body later, we can do express.raw() on that route only.
+// For now keep it simple:
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
-/* ------------------------------------------------
-   SHOPIFY INSTALL / AUTH GUARD (CRITICAL)
------------------------------------------------- */
-app.use(shopify.ensureInstalledOnShop());
-
-/* ------------------------------------------------
-   API ROUTES
------------------------------------------------- */
+// API routes
 app.use("/api/analytics", analyticsRoutes);
 
-/* ------------------------------------------------
-   WEBHOOKS
------------------------------------------------- */
 app.post("/webhooks/orders/paid", async (req, res) => {
-  try {
-    await ordersPaidHandler(
-      req.headers["x-shopify-shop-domain"],
-      req.body
-    );
-    res.status(200).send("OK");
-  } catch (err) {
-    console.error("Webhook error:", err);
-    res.status(500).send("Webhook failed");
-  }
+  await ordersPaidHandler(req.headers["x-shopify-shop-domain"], req.body);
+  res.status(200).send("OK");
 });
 
-/* ------------------------------------------------
-   AUTH ROUTES
------------------------------------------------- */
-app.get("/auth", shopify.auth.begin());
-app.get("/auth/callback", shopify.auth.callback());
-
-/* ------------------------------------------------
-   STATIC FRONTEND (Vite build)
------------------------------------------------- */
+// ──────────────────────────────────────────────
+// STATIC FRONTEND (must be before any catch-all)
+// ──────────────────────────────────────────────
 const frontendDir = path.join(__dirname, "frontend/dist");
 app.use(express.static(frontendDir));
 
-/* ------------------------------------------------
-   SPA FALLBACK
------------------------------------------------- */
-app.get("*", (_req, res) => {
-  res.sendFile(path.join(frontendDir, "index.html"));
+// ──────────────────────────────────────────────
+// AUTH + BILLING
+// ──────────────────────────────────────────────
+app.get("/auth", shopify.auth.begin());
+app.get(
+  "/auth/callback",
+  shopify.auth.callback(),
+  async (req, res, next) => {
+    try {
+      await shopify.ensureInstalledOnShop(req, res);
+      await shopify.billing.ensure(req, res, billingConfig);
+
+      return res.redirect(`/?shop=${req.query.shop}&host=${req.query.host}`);
+    } catch (e) {
+      next(e);
+    }
+  }
+);
+
+// ──────────────────────────────────────────────
+// SPA fallback ONLY for non-asset routes
+// (prevents /assets/*.js returning HTML)
+// ──────────────────────────────────────────────
+app.get(/^\/(?!assets\/).*/, (req, res) => {
+  return res.sendFile(path.join(frontendDir, "index.html"));
 });
 
-/* ------------------------------------------------
-   START SERVER
------------------------------------------------- */
+// ──────────────────────────────────────────────
+// START SERVER
+// ──────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`🚀 Sticky ATC running on port ${PORT}`);
   console.log(`📁 Serving admin UI from: ${frontendDir}`);
