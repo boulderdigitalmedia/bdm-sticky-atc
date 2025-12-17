@@ -1,30 +1,43 @@
 import express from "express";
-- import prisma from "../prisma/client.js";
-+ import { PrismaClient } from "@prisma/client";
-
-+ const prisma = new PrismaClient();
-
+import { PrismaClient } from "@prisma/client";
 
 const router = express.Router();
+const prisma = new PrismaClient();
 
-router.post("/conversion", async (req, res) => {
+/**
+ * POST /api/analytics/track
+ * Receives events from the sticky ATC script
+ */
+router.post("/track", async (req, res) => {
   try {
-    const { shop, orderId, revenue, currency, occurredAt } = req.body;
+    const {
+      event,
+      shop,
+      product,
+      variant,
+      quantity,
+      timestamp,
+    } = req.body;
 
-    await prisma.stickyConversion.create({
+    if (!event || !shop) {
+      return res.status(400).json({ error: "Missing event or shop" });
+    }
+
+    await prisma.stickyEvent.create({
       data: {
+        event,
         shop,
-        orderId,
-        revenue: Number(revenue),
-        currency,
-        occurredAt: new Date(occurredAt),
+        productId: product ? String(product) : null,
+        variantId: variant ? String(variant) : null,
+        quantity: quantity || null,
+        createdAt: timestamp ? new Date(timestamp) : new Date(),
       },
     });
 
     res.json({ ok: true });
   } catch (err) {
     console.error("Analytics error:", err);
-    res.status(500).json({ ok: false });
+    res.status(500).json({ error: "Failed to track event" });
   }
 });
 
