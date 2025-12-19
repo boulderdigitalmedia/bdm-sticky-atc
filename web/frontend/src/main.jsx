@@ -1,10 +1,12 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import { AppProvider } from "@shopify/polaris";
+import enTranslations from "@shopify/polaris/locales/en.json";
 
-const root = document.getElementById("app");
+import App from "./App.jsx";
 
-ReactDOM.createRoot(root).render(
-  <div style={{ padding: 40, fontSize: 20 }}>
-    ✅ React mounted successfully
-  </div>
+ReactDOM.createRoot(document.getElementById("app")).render(
+  <AppProvider i18n={enTranslations}>
+    <App />
+  </AppProvider>
 );
