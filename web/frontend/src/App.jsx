@@ -1,14 +1,13 @@
-// web/frontend/src/App.jsx
-import React from "react";
-import { Frame } from "@shopify/polaris";
-import AppRouter from "./router.jsx";
-import AppNavigation from "./AppNavigation.jsx";
+import { Page, Card, Text } from "@shopify/polaris";
 
 export default function App() {
   return (
-    <Frame>
-      <AppNavigation />
-      <AppRouter />
-    </Frame>
+    <Page title="Sticky Add-to-Cart Bar Pro">
+      <Card>
+        <Text as="h2" variant="headingMd">
+          Dashboard loading successfully 🎉
+        </Text>
+      </Card>
+    </Page>
   );
 }
