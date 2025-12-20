@@ -1,15 +1,14 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-
 import { AppProvider } from "@shopify/polaris";
 import enTranslations from "@shopify/polaris/locales/en.json";
-
+import { BrowserRouter } from "react-router-dom";
 import App from "./App.jsx";
-
-console.log("React mounted successfully");
 
 ReactDOM.createRoot(document.getElementById("app")).render(
   <AppProvider i18n={enTranslations}>
-    <App />
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
   </AppProvider>
 );
