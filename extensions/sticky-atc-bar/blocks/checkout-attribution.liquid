@@ -1,18 +1,38 @@
-<script>
-(function(){
-    const stickyTime = sessionStorage.getItem("bdm_sticky_last_atc");
-    if (!stickyTime) return;
+{%- comment -%}
+  Sticky Add to Cart – Checkout Attribution Block
 
-    fetch("/api/attribution/checkout-attribution", {
+  This block is injected at checkout to help attribute
+  conversions back to Sticky ATC events.
+  It does not render visible UI.
+{%- endcomment -%}
+
+<script>
+  (function () {
+    try {
+      if (!window.Shopify || !Shopify.checkout) return;
+
+      const payload = {
+        event: "checkout_loaded",
+        checkout_token: Shopify.checkout.token,
+        shop: Shopify.shop,
+        timestamp: Date.now(),
+      };
+
+      fetch("https://sticky-add-to-cart-bar-pro.onrender.com/apps/bdm-sticky-atc/checkout", {
         method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({
-           shop: "{{ shop.permanent_domain }}",
-           checkoutToken: Shopify.checkout?.token,
-           productId: sessionStorage.getItem("bdm_sticky_product"),
-           variantId: sessionStorage.getItem("bdm_sticky_variant"),
-           timestamp: stickyTime
-        })
-    });
-})();
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    } catch (e) {
+      console.warn("Sticky ATC checkout attribution error", e);
+    }
+  })();
 </script>
+
+{% schema %}
+{
+  "name": "Sticky ATC – Checkout Attribution",
+  "target": "head",
+  "settings": []
+}
+{% endschema %}
