@@ -3,49 +3,38 @@ import {
   Layout,
   Card,
   Text,
-  DataTable,
-  SkeletonBodyText,
+  BlockStack,
 } from "@shopify/polaris";
-import { useEffect, useState } from "react";
 
 export default function Analytics() {
-  const [rows, setRows] = useState(null);
-
-  useEffect(() => {
-    fetch("/api/analytics/events")
-      .then((res) => res.json())
-      .then(setRows)
-      .catch(() => setRows([]));
-  }, []);
-
   return (
     <Page title="Analytics">
       <Layout>
         <Layout.Section>
           <Card>
-            <Text as="h2" variant="headingMd">
-              Sticky ATC Events
-            </Text>
+            <BlockStack gap="200">
+              <Text as="h2" variant="headingMd">
+                Conversion Analytics
+              </Text>
+              <Text tone="subdued">
+                These metrics show how your Sticky Add to Cart bar contributes
+                to conversions after page view.
+              </Text>
+            </BlockStack>
+          </Card>
+        </Layout.Section>
 
-            {!rows ? (
-              <SkeletonBodyText lines={6} />
-            ) : (
-              <DataTable
-                columnContentTypes={["text", "text", "numeric", "text"]}
-                headings={[
-                  "Event",
-                  "Product",
-                  "Quantity",
-                  "Time",
-                ]}
-                rows={rows.map((r) => [
-                  r.event,
-                  r.productTitle ?? "—",
-                  r.quantity ?? "—",
-                  new Date(r.timestamp).toLocaleString(),
-                ])}
-              />
-            )}
+        <Layout.Section>
+          <Card>
+            <BlockStack gap="200">
+              <Text variant="headingSm">Events Tracked</Text>
+              <Text as="p">
+                • Sticky bar viewed  
+                • Variant changed  
+                • Sticky Add to Cart clicked  
+                • Order completed (attributed)
+              </Text>
+            </BlockStack>
           </Card>
         </Layout.Section>
       </Layout>
