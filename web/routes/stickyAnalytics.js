@@ -3,72 +3,75 @@ import prisma from "../prisma/client.js";
 
 const router = express.Router();
 
-/*
-  GET /api/analytics/summary
-  Returns high-level performance metrics for the app
-*/
+/**
+ * GET /api/analytics/summary
+ * Returns high-level Sticky ATC performance metrics
+ */
 router.get("/summary", async (req, res) => {
   try {
     const shop =
       req.headers["x-shopify-shop-domain"] ||
-      req.query.shop ||
-      req.shop;
+      req.query.shop;
 
     if (!shop) {
-      return res.status(400).json({ error: "Shop missing" });
+      return res.status(400).json({ error: "Missing shop" });
     }
 
     /* -----------------------------
-       Sticky ATC Clicks
+       PAGE VIEWS
     ------------------------------ */
-    const clickCount = await prisma.analyticsEvent.count({
-      where: {
-        shop,
-        event: "add_to_cart",
-      },
-    });
-
-    /* -----------------------------
-       Product Page Views
-       (baseline for ATC rate)
-    ------------------------------ */
-    const pageViews = await prisma.analyticsEvent.count({
+    const pageViews = await prisma.stickyEvent.count({
       where: {
         shop,
         event: "page_view",
       },
     });
 
-    const atcRate =
-      pageViews > 0 ? (clickCount / pageViews) * 100 : null;
-
     /* -----------------------------
-       Revenue Influenced
-       Orders that followed Sticky ATC
+       ADD TO CART (Sticky)
     ------------------------------ */
-    const influencedOrders = await prisma.order.findMany({
+    const addToCart = await prisma.stickyEvent.count({
       where: {
         shop,
-        source: "sticky_atc",
-        financialStatus: "paid",
-      },
-      select: {
-        totalPrice: true,
+        event: "add_to_cart",
       },
     });
 
-    const revenue = influencedOrders.reduce(
-      (sum, o) => sum + Number(o.totalPrice),
-      0
-    );
+    const atcRate =
+      pageViews > 0 ? (addToCart / pageViews) * 100 : 0;
+
+    /* -----------------------------
+       CONVERSIONS (Orders)
+    ------------------------------ */
+    const conversions = await prisma.stickyConversion.count({
+      where: {
+        shop,
+      },
+    });
+
+    /* -----------------------------
+       REVENUE
+    ------------------------------ */
+    const revenueAgg = await prisma.stickyConversion.aggregate({
+      where: {
+        shop,
+      },
+      _sum: {
+        revenue: true,
+      },
+    });
+
+    const revenue = revenueAgg._sum.revenue || 0;
 
     res.json({
-      clicks: clickCount,
+      pageViews,
+      addToCart,
       atcRate,
+      conversions,
       revenue,
     });
   } catch (error) {
-    console.error("Analytics error:", error);
+    console.error("Sticky analytics error:", error);
     res.status(500).json({ error: "Analytics failed" });
   }
 });
