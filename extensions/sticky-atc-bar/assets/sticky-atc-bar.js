@@ -186,55 +186,71 @@
     atcButton.className = "bdm-sticky-atc-button";
     atcButton.textContent = "Add to cart";
 
-    atcButton.addEventListener("click", async () => {
-      const quantity = Math.max(1, Number(qtyInput.value) || 1);
+   atcButton.addEventListener("click", async () => {
+  if (!currentVariantId) {
+    const fallback = productForm.querySelector("[name='id']");
+    if (fallback) currentVariantId = fallback.value;
+  }
 
-      sendAnalytics("add_to_cart", {
-        variant: currentVariantId,
-        quantity,
-      });
+  if (!currentVariantId) {
+    alert("Unable to determine variant.");
+    return;
+  }
+
+  const quantity = Math.max(1, Number(qtyInput.value) || 1);
+
+      // Track click (your raw event)
+  sendAnalytics("add_to_cart", {
+    productId: window.ShopifyAnalytics?.meta?.product?.id,
+    variantId: currentVariantId,
+    quantity,
+    price: typeof currentPrice === "number" ? currentPrice / 100 : null
+  });
 
       /* ----------------------------------------
          🔥 CONVERSION ATTRIBUTION (THIS IS KEY)
       -----------------------------------------*/
-      try {
-        await fetch("/cart/update.js", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
-          body: JSON.stringify({
-            attributes: {
-              sticky_atc_clicked: true,
-              sticky_atc_variant: currentVariantId,
-              sticky_atc_time: Date.now(),
-            },
-          }),
-        });
-      } catch (e) {
-        console.warn("Sticky ATC attribution failed", e);
-      }
-
-      const res = await fetch("/cart/add.js", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({
-          id: currentVariantId,
-          quantity,
-        }),
-      });
-
-      if (!res.ok) {
-        alert("Unable to add to cart.");
-        return;
-      }
-
-      updateCartIconAndDrawer();
+     // ✅ Persist attribution into checkout using cart attributes
+  // These attributes are accessible in checkout + web pixel
+  try {
+    await fetch("/cart/update.js", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json"
+      },
+      body: JSON.stringify({
+        attributes: {
+          bdm_sticky_atc: "1",
+          bdm_sticky_product: String(window.ShopifyAnalytics?.meta?.product?.id || ""),
+          bdm_sticky_variant: String(currentVariantId),
+          bdm_sticky_ts: String(Date.now())
+        }
+      })
     });
+  } catch (e) {
+    console.warn("Failed to set cart attributes for attribution:", e);
+  }
+
+      // Add to cart
+  const res = await fetch("/cart/add.js", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json"
+    },
+    body: JSON.stringify({ id: currentVariantId, quantity })
+  });
+
+  if (!res.ok) {
+    console.error("Cart add error", await res.text());
+    alert("Could not add to cart. Please try again.");
+    return;
+  }
+
+  updateCartIconAndDrawer();
+});
+
 
     const controls = document.createElement("div");
     controls.className = "bdm-sticky-atc-controls";
