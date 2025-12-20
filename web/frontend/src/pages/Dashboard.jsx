@@ -1,30 +1,67 @@
-import { Page, Layout, Card, Text } from "@shopify/polaris";
+import {
+  Page,
+  Layout,
+  Card,
+  Text,
+  InlineStack,
+  BlockStack,
+  SkeletonBodyText,
+} from "@shopify/polaris";
+import { useEffect, useState } from "react";
 
 export default function Dashboard() {
+  const [stats, setStats] = useState(null);
+
+  useEffect(() => {
+    fetch("/api/analytics/summary")
+      .then((res) => res.json())
+      .then(setStats)
+      .catch(() => setStats(null));
+  }, []);
+
   return (
     <Page title="Dashboard">
       <Layout>
-        <Layout.Section oneThird>
+        <Layout.Section>
           <Card>
-            <Text variant="headingMd">Sticky ATC Clicks</Text>
-            <Text variant="headingXl">—</Text>
-          </Card>
-        </Layout.Section>
+            <BlockStack gap="400">
+              <Text as="h2" variant="headingMd">
+                Performance Overview
+              </Text>
 
-        <Layout.Section oneThird>
-          <Card>
-            <Text variant="headingMd">Add-to-Cart Rate</Text>
-            <Text variant="headingXl">—</Text>
-          </Card>
-        </Layout.Section>
-
-        <Layout.Section oneThird>
-          <Card>
-            <Text variant="headingMd">Revenue Influenced</Text>
-            <Text variant="headingXl">—</Text>
+              {!stats ? (
+                <SkeletonBodyText lines={3} />
+              ) : (
+                <InlineStack gap="600">
+                  <Metric
+                    label="Sticky ATC Clicks"
+                    value={stats.clicks}
+                  />
+                  <Metric
+                    label="Add-to-Cart Rate"
+                    value={`${stats.atcRate}%`}
+                  />
+                  <Metric
+                    label="Revenue Influenced"
+                    value={`$${stats.revenue}`}
+                  />
+                </InlineStack>
+              )}
+            </BlockStack>
           </Card>
         </Layout.Section>
       </Layout>
     </Page>
+  );
+}
+
+function Metric({ label, value }) {
+  return (
+    <Card>
+      <BlockStack gap="200">
+        <Text variant="headingLg">{value ?? "—"}</Text>
+        <Text tone="subdued">{label}</Text>
+      </BlockStack>
+    </Card>
   );
 }
