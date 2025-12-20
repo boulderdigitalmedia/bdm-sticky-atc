@@ -1,10 +1,10 @@
-// web/index.js
 import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 
 import shopify from "./shopify.js";
 import { billingConfig } from "./billing.js";
+
 import analyticsRoutes from "./routes/stickyAnalytics.js";
 import { ordersPaidHandler } from "./webhooks/ordersPaid.js";
 
@@ -14,46 +14,46 @@ const __dirname = path.dirname(__filename);
 const PORT = process.env.PORT || 10000;
 const app = express();
 
+/**
+ * IMPORTANT:
+ * - Use JSON for most routes
+ * - Webhooks need RAW body. We'll mount that route before express.json()
+ */
+
 // ──────────────────────────────────────────────
-// MIDDLEWARE
+// WEBHOOK: orders/paid (raw body)
+// ──────────────────────────────────────────────
+app.post(
+  "/webhooks/orders/paid",
+  express.text({ type: "application/json" }),
+  async (req, res) => {
+    try {
+      const shop = req.headers["x-shopify-shop-domain"];
+      const payload = JSON.parse(req.body || "{}");
+      await ordersPaidHandler(shop, payload);
+      res.status(200).send("OK");
+    } catch (e) {
+      console.error("orders/paid webhook error:", e);
+      res.status(200).send("OK"); // Shopify expects 200 often; don’t retry-storm
+    }
+  }
+);
+
+// ──────────────────────────────────────────────
+// JSON middleware (after webhook)
 // ──────────────────────────────────────────────
 app.use(express.json());
 
 // ──────────────────────────────────────────────
-// ANALYTICS API
+// ANALYTICS API (public track + dashboard reads)
 // ──────────────────────────────────────────────
 app.use("/api/analytics", analyticsRoutes);
 
 // ──────────────────────────────────────────────
-// WEBHOOKS
-// ──────────────────────────────────────────────
-app.post("/webhooks/orders/paid", async (req, res) => {
-  await ordersPaidHandler(
-    req.headers["x-shopify-shop-domain"],
-    req.body
-  );
-  res.status(200).send("OK");
-});
-
-// ──────────────────────────────────────────────
-// STATIC FRONTEND (VITE BUILD OUTPUT)
+// STATIC FRONTEND (Vite build output)
 // ──────────────────────────────────────────────
 const frontendDir = path.join(__dirname, "frontend", "dist");
 app.use(express.static(frontendDir));
-
-// ──────────────────────────────────────────────
-// ROOT URL
-// Shopify always loads apps with shop + host
-// ──────────────────────────────────────────────
-app.get("/", async (req, res) => {
-  const { shop, host } = req.query;
-
-  if (!shop || !host) {
-    return res.redirect(`/auth?shop=${process.env.DEFAULT_SHOP}`);
-  }
-
-  return res.sendFile(path.join(frontendDir, "index.html"));
-});
 
 // ──────────────────────────────────────────────
 // AUTH + BILLING
@@ -75,14 +75,16 @@ app.get(
 );
 
 // ──────────────────────────────────────────────
-// SPA CATCH-ALL (DO NOT INTERCEPT ASSETS)
-// THIS FIXES THE BLANK SCREEN BUG
+// ROOT: serve frontend
 // ──────────────────────────────────────────────
-app.get("*", (req, res, next) => {
-  if (req.path.startsWith("/assets/")) {
-    return next(); // let express.static handle JS/CSS
-  }
+app.get("/", async (req, res) => {
+  return res.sendFile(path.join(frontendDir, "index.html"));
+});
 
+// ──────────────────────────────────────────────
+// SPA CATCH-ALL
+// ──────────────────────────────────────────────
+app.get("*", (req, res) => {
   return res.sendFile(path.join(frontendDir, "index.html"));
 });
 
