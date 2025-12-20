@@ -1,3 +1,5 @@
+console.log("APP.JSX RENDERED — FRAME SHOULD EXIST");
+
 import { Frame } from "@shopify/polaris";
 import AppNavigation from "./AppNavigation";
 import AppRouter from "./router";
