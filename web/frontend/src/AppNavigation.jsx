@@ -1,17 +1,26 @@
 import { Navigation } from "@shopify/polaris";
+import { HomeIcon, ChartLineIcon } from "@shopify/polaris-icons";
+import { useLocation, useNavigate } from "react-router-dom";
 
 export default function AppNavigation() {
+  const location = useLocation();
+  const navigate = useNavigate();
+
   return (
-    <Navigation location="/">
+    <Navigation location={location.pathname}>
       <Navigation.Section
         items={[
           {
             label: "Dashboard",
-            url: "/",
+            icon: HomeIcon,
+            selected: location.pathname === "/",
+            onClick: () => navigate("/"),
           },
           {
             label: "Analytics",
-            url: "/analytics",
+            icon: ChartLineIcon,
+            selected: location.pathname === "/analytics",
+            onClick: () => navigate("/analytics"),
           },
         ]}
       />
