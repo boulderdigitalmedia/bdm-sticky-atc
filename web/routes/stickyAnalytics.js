@@ -1,43 +1,75 @@
 import express from "express";
-import { PrismaClient } from "@prisma/client";
+import prisma from "../prisma/client.js";
 
 const router = express.Router();
-const prisma = new PrismaClient();
 
-/**
- * POST /api/analytics/track
- * Receives events from the sticky ATC script
- */
-router.post("/track", async (req, res) => {
+/*
+  GET /api/analytics/summary
+  Returns high-level performance metrics for the app
+*/
+router.get("/summary", async (req, res) => {
   try {
-    const {
-      event,
-      shop,
-      product,
-      variant,
-      quantity,
-      timestamp,
-    } = req.body;
+    const shop =
+      req.headers["x-shopify-shop-domain"] ||
+      req.query.shop ||
+      req.shop;
 
-    if (!event || !shop) {
-      return res.status(400).json({ error: "Missing event or shop" });
+    if (!shop) {
+      return res.status(400).json({ error: "Shop missing" });
     }
 
-    await prisma.stickyEvent.create({
-      data: {
-        event,
+    /* -----------------------------
+       Sticky ATC Clicks
+    ------------------------------ */
+    const clickCount = await prisma.analyticsEvent.count({
+      where: {
         shop,
-        productId: product ? String(product) : null,
-        variantId: variant ? String(variant) : null,
-        quantity: quantity || null,
-        createdAt: timestamp ? new Date(timestamp) : new Date(),
+        event: "add_to_cart",
       },
     });
 
-    res.json({ ok: true });
-  } catch (err) {
-    console.error("Analytics error:", err);
-    res.status(500).json({ error: "Failed to track event" });
+    /* -----------------------------
+       Product Page Views
+       (baseline for ATC rate)
+    ------------------------------ */
+    const pageViews = await prisma.analyticsEvent.count({
+      where: {
+        shop,
+        event: "page_view",
+      },
+    });
+
+    const atcRate =
+      pageViews > 0 ? (clickCount / pageViews) * 100 : null;
+
+    /* -----------------------------
+       Revenue Influenced
+       Orders that followed Sticky ATC
+    ------------------------------ */
+    const influencedOrders = await prisma.order.findMany({
+      where: {
+        shop,
+        source: "sticky_atc",
+        financialStatus: "paid",
+      },
+      select: {
+        totalPrice: true,
+      },
+    });
+
+    const revenue = influencedOrders.reduce(
+      (sum, o) => sum + Number(o.totalPrice),
+      0
+    );
+
+    res.json({
+      clicks: clickCount,
+      atcRate,
+      revenue,
+    });
+  } catch (error) {
+    console.error("Analytics error:", error);
+    res.status(500).json({ error: "Analytics failed" });
   }
 });
 
