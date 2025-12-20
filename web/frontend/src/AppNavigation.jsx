@@ -1,5 +1,3 @@
-// web/frontend/src/AppNavigation.jsx
-import React from "react";
 import { Navigation } from "@shopify/polaris";
 
 export default function AppNavigation() {
