@@ -1,52 +1,73 @@
-import { PrismaClient } from "@prisma/client";
-const prisma = new PrismaClient();
+import prisma from "../web/prisma/client.js";
 
-export async function runDailyAggregation() {
-  try {
-    // Yesterday
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
+async function run() {
+  // yesterday in UTC
+  const now = new Date();
+  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const start = new Date(end.getTime() - 24 * 60 * 60 * 1000);
 
-    const end = new Date();
-    end.setHours(23, 59, 59, 999);
+  // Get all shops with events yesterday
+  const shops = await prisma.stickyEvent.findMany({
+    where: { timestamp: { gte: start, lt: end } },
+    select: { shop: true },
+    distinct: ["shop"]
+  });
 
-    // Find all events from yesterday
-    const events = await prisma.stickyEvent.findMany({
+  for (const s of shops) {
+    const shop = s.shop;
+
+    const [pageViews, addToCart, conversionsAgg, conversionsCount] = await Promise.all([
+      prisma.stickyEvent.count({ where: { shop, event: "page_view", timestamp: { gte: start, lt: end } } }),
+      prisma.stickyEvent.count({ where: { shop, event: "add_to_cart", timestamp: { gte: start, lt: end } } }),
+      prisma.stickyConversion.aggregate({ where: { shop, occurredAt: { gte: start, lt: end } }, _sum: { revenue: true } }),
+      prisma.stickyConversion.count({ where: { shop, occurredAt: { gte: start, lt: end } } })
+    ]);
+
+    await prisma.stickyMetricsDaily.upsert({
       where: {
-        timestamp: {
-          gte: start,
-          lte: end
-        }
-      }
+        // You don't have a unique compound key, so use id-less upsert workaround:
+        // We'll find then update/create below.
+        id: "__dummy__"
+      },
+      update: {},
+      create: {}
+    }).catch(() => {});
+
+    // manual upsert
+    const existing = await prisma.stickyMetricsDaily.findFirst({
+      where: { shop, date: start }
     });
 
-    // Group by shop
-    const shops = [...new Set(events.map((e) => e.shop))];
-
-    for (const shop of shops) {
-      const shopEvents = events.filter((e) => e.shop === shop);
-
-      const pageViews = shopEvents.filter((e) => e.event === "page_view").length;
-      const addToCart = shopEvents.filter((e) => e.event === "add_to_cart").length;
-
-      const revenue = shopEvents
-        .filter((e) => e.event === "add_to_cart" && e.price)
-        .reduce((sum, e) => sum + e.price * (e.quantity || 1), 0);
-
+    if (existing) {
+      await prisma.stickyMetricsDaily.update({
+        where: { id: existing.id },
+        data: {
+          pageViews,
+          addToCart,
+          conversions: conversionsCount,
+          revenue: conversionsAgg._sum.revenue || 0
+        }
+      });
+    } else {
       await prisma.stickyMetricsDaily.create({
         data: {
           shop,
           date: start,
           pageViews,
           addToCart,
-          conversions: addToCart, // You can update later if you want actual conversions
-          revenue
+          conversions: conversionsCount,
+          revenue: conversionsAgg._sum.revenue || 0
         }
       });
     }
-
-    console.log("Daily analytics aggregation complete.");
-  } catch (err) {
-    console.error("Daily analytics aggregation failed:", err);
   }
+
+  console.log("✅ Daily analytics rollup complete", { start, end });
 }
+
+run()
+  .then(() => process.exit(0))
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });
