@@ -5,8 +5,14 @@ export default function AppNavigation() {
     <Navigation location="/">
       <Navigation.Section
         items={[
-          { label: "Dashboard", url: "/" },
-          { label: "Analytics", url: "/analytics" },
+          {
+            label: "Dashboard",
+            url: "/",
+          },
+          {
+            label: "Analytics",
+            url: "/analytics",
+          },
         ]}
       />
     </Navigation>
