@@ -1,6 +1,6 @@
 import { Routes, Route } from "react-router-dom";
-import Dashboard from "./pages/Dashboard.jsx";
-import Analytics from "./pages/Analytics.jsx";
+import Dashboard from "./pages/Dashboard";
+import Analytics from "./pages/Analytics";
 
 export default function AppRouter() {
   return (
