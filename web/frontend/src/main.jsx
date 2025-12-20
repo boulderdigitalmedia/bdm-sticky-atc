@@ -1,25 +1,42 @@
-import "@shopify/polaris/build/esm/styles.css";
-
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { AppProvider } from "@shopify/polaris";
-import { AppBridgeProvider } from "@shopify/app-bridge-react";
-import enTranslations from "@shopify/polaris/locales/en.json";
-import App from "./App";
 import { BrowserRouter } from "react-router-dom";
 
+import { AppProvider as PolarisProvider } from "@shopify/polaris";
+import "@shopify/polaris/build/esm/styles.css";
+import enTranslations from "@shopify/polaris/locales/en.json";
+
+import { AppBridgeProvider } from "@shopify/app-bridge-react";
+
+import App from "./App.jsx";
+
+/**
+ * Shopify injects these into the iframe URL
+ * We must read them at runtime
+ */
+const urlParams = new URLSearchParams(window.location.search);
+const host = urlParams.get("host");
+
+const apiKey = import.meta.env.VITE_SHOPIFY_API_KEY;
+
+if (!host || !apiKey) {
+  console.error("Missing host or API key", { host, apiKey });
+}
+
 const appBridgeConfig = {
-  apiKey: import.meta.env.VITE_SHOPIFY_API_KEY,
-  host: new URLSearchParams(window.location.search).get("host"),
+  apiKey,
+  host,
   forceRedirect: true,
 };
 
-ReactDOM.createRoot(document.getElementById("root")).render(
-  <AppBridgeProvider config={appBridgeConfig}>
-    <AppProvider i18n={enTranslations}>
+ReactDOM.createRoot(document.getElementById("app")).render(
+  <React.StrictMode>
+    <PolarisProvider i18n={enTranslations}>
       <BrowserRouter>
-        <App />
+        <AppBridgeProvider config={appBridgeConfig}>
+          <App />
+        </AppBridgeProvider>
       </BrowserRouter>
-    </AppProvider>
-  </AppBridgeProvider>
+    </PolarisProvider>
+  </React.StrictMode>
 );
