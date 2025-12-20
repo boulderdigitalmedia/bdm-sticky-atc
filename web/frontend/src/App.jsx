@@ -1,14 +1,16 @@
-import { Frame, Page, Card, Text } from "@shopify/polaris";
+import { Frame, Page, Layout, Card } from "@shopify/polaris";
 
 export default function App() {
   return (
     <Frame>
-      <Page title="Sticky Add-to-Cart Bar Pro">
-        <Card>
-          <Text as="h2" variant="headingMd">
-            Polaris Frame working ✅
-          </Text>
-        </Card>
+      <Page title="Sticky Add To Cart">
+        <Layout>
+          <Layout.Section>
+            <Card>
+              App loaded successfully
+            </Card>
+          </Layout.Section>
+        </Layout>
       </Page>
     </Frame>
   );
