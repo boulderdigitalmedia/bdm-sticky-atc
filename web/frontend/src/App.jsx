@@ -1,13 +1,17 @@
-console.log("APP.JSX RENDERED — FRAME SHOULD EXIST");
-
 import { Frame } from "@shopify/polaris";
-import AppNavigation from "./AppNavigation";
-import AppRouter from "./router";
+import { Routes, Route } from "react-router-dom";
+
+import AppNavigation from "./AppNavigation.jsx";
+import Home from "./pages/Home.jsx";
+import Analytics from "./pages/Analytics.jsx";
 
 export default function App() {
   return (
     <Frame navigation={<AppNavigation />}>
-      <AppRouter />
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/analytics" element={<Analytics />} />
+      </Routes>
     </Frame>
   );
 }
