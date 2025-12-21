@@ -7,14 +7,11 @@ const router = express.Router();
 
 router.post("/track", async (req, res) => {
   try {
-    const {
-      shop,
-      event,
-      productId,
-      variantId,
-      quantity,
-      price,
-    } = req.body;
+    console.log("TRACK HIT");
+    console.log("Headers:", req.headers);
+    console.log("Body:", req.body);
+
+    const { shop, event } = req.body;
 
     if (!shop || !event) {
       return res.status(400).json({ error: "Missing shop or event" });
@@ -24,17 +21,13 @@ router.post("/track", async (req, res) => {
       data: {
         shop,
         event,
-        productId: productId || null,
-        variantId: variantId || null,
-        quantity: quantity ? Number(quantity) : null,
-        price: price ? Number(price) : null,
       },
     });
 
-    return res.status(200).json({ ok: true });
+    return res.json({ ok: true });
   } catch (err) {
-    console.error("Sticky ATC track error:", err);
-    return res.status(500).json({ error: "Internal server error" });
+    console.error("TRACK ERROR:", err);
+    return res.status(500).json({ error: "Server error" });
   }
 });
 
