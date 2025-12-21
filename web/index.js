@@ -1,126 +1,125 @@
-import trackRoute from "./routes/track.js";
+// web/index.js
+
+import "dotenv/config";
 import express from "express";
-import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
+
+import shopify from "./shopify.js";
 import prisma from "./prisma.js";
 
-// Load env vars
-dotenv.config();
+// ROUTES
+import trackRoutes from "./routes/track.js";
+import analyticsRoutes from "./routes/stickyAnalytics.js";
 
+// WEBHOOKS
+import { ordersPaidHandler } from "./webhooks/ordersPaid.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const PORT = process.env.PORT || 10000;
 const app = express();
-const PORT = process.env.PORT || 3000;
 
-/* ---------------------------------------------------
-   CORS — REQUIRED FOR STOREFRONT ANALYTICS
-   Allows Shopify storefront → Render backend
---------------------------------------------------- */
+/* ────────────────────────────────────────────── */
+/* MIDDLEWARE                                    */
+/* ────────────────────────────────────────────── */
+
+// Shopify requires raw body for webhooks, so we must conditionally parse
 app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.header("Access-Control-Allow-Headers", "Content-Type");
-
-  if (req.method === "OPTIONS") {
-    return res.sendStatus(200);
+  if (req.originalUrl.startsWith("/webhooks")) {
+    next();
+  } else {
+    express.json()(req, res, next);
   }
-
-  next();
 });
 
-/* ---------------------------------------------------
-   Middleware
---------------------------------------------------- */
-app.use(express.json());
+/* ────────────────────────────────────────────── */
+/* ANALYTICS TRACKING (PIXEL → BACKEND)          */
+/* MUST MATCH PIXEL URL EXACTLY                  */
+/* ────────────────────────────────────────────── */
 
-/* ---------------------------------------------------
-   Health Check (Render / Debug)
---------------------------------------------------- */
-app.get("/", (_req, res) => {
-  res.status(200).send("Sticky ATC backend running");
-});
+app.use("/apps/bdm-sticky-atc", trackRoutes);
 
-/* ---------------------------------------------------
-   ANALYTICS TRACKING ENDPOINT
-   Called from storefront JS / Web Pixel
---------------------------------------------------- */
-app.post("/track", async (req, res) => {
-  try {
-    const {
-      shop,
-      event,
-      productId,
-      variantId,
-      quantity,
-      price,
-    } = req.body;
+/* ────────────────────────────────────────────── */
+/* ADMIN ANALYTICS API                            */
+/* ────────────────────────────────────────────── */
 
-    if (!shop || !event) {
-      return res.status(400).json({
-        error: "Missing required fields",
-      });
+app.use("/api/analytics", analyticsRoutes);
+
+/* ────────────────────────────────────────────── */
+/* SHOPIFY WEBHOOKS                               */
+/* ────────────────────────────────────────────── */
+
+app.post(
+  "/webhooks/orders/paid",
+  express.raw({ type: "application/json" }),
+  async (req, res) => {
+    try {
+      await ordersPaidHandler(
+        req.headers["x-shopify-shop-domain"],
+        req.body
+      );
+      res.status(200).send("OK");
+    } catch (err) {
+      console.error("Webhook error:", err);
+      res.status(500).send("Webhook failed");
     }
-
-    await prisma.stickyEvent.create({
-      data: {
-        shop,
-        event,
-        productId,
-        variantId,
-        quantity,
-        price,
-      },
-    });
-
-    res.status(200).json({ ok: true });
-  } catch (error) {
-    console.error("TRACK EVENT ERROR:", error);
-    res.status(500).json({ error: "Tracking failed" });
   }
-});
-
-/* ---------------------------------------------------
-   DAILY METRICS (used by Analytics dashboard)
---------------------------------------------------- */
-app.get("/api/analytics/summary", async (req, res) => {
-  try {
-    const { shop } = req.query;
-
-    if (!shop) {
-      return res.status(400).json({ error: "Missing shop" });
-    }
-
-    const events = await prisma.stickyEvent.findMany({
-      where: { shop },
-    });
-
-    const clicks = events.filter(e => e.event === "add_to_cart").length;
-    const pageViews = events.filter(e => e.event === "page_view").length;
-
-    const revenue = events
-      .filter(e => e.event === "add_to_cart" && e.price)
-      .reduce((sum, e) => sum + (e.price || 0), 0);
-
-    res.json({
-      pageViews,
-      clicks,
-      addToCartRate: pageViews
-        ? ((clicks / pageViews) * 100).toFixed(2)
-        : "0.00",
-      revenue,
-    });
-  } catch (error) {
-    console.error("ANALYTICS ERROR:", error);
-    res.status(500).json({ error: "Failed to load analytics" });
-  }
-});
-
-app.use(
-  "/apps/bdm-sticky-atc",
-  express.json(),
-  trackRoute
 );
 
-/* ---------------------------------------------------
-   START SERVER
---------------------------------------------------- */
+/* ────────────────────────────────────────────── */
+/* STATIC FRONTEND (VITE BUILD)                   */
+/* ────────────────────────────────────────────── */
+
+const frontendDir = path.join(__dirname, "frontend/dist");
+app.use(express.static(frontendDir));
+
+/* ────────────────────────────────────────────── */
+/* ROOT → AUTH OR APP                             */
+/* ────────────────────────────────────────────── */
+
+app.get("/", async (req, res) => {
+  const { shop, host } = req.query;
+
+  if (!shop || !host) {
+    return res.redirect(`/auth?shop=${process.env.DEFAULT_SHOP}`);
+  }
+
+  return res.sendFile(path.join(frontendDir, "index.html"));
+});
+
+/* ────────────────────────────────────────────── */
+/* SHOPIFY AUTH                                   */
+/* ────────────────────────────────────────────── */
+
+app.get("/auth", shopify.auth.begin());
+
+app.get(
+  "/auth/callback",
+  shopify.auth.callback(),
+  async (req, res, next) => {
+    try {
+      await shopify.ensureInstalledOnShop(req, res);
+      return res.redirect(`/?shop=${req.query.shop}&host=${req.query.host}`);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/* ────────────────────────────────────────────── */
+/* SPA FALLBACK                                   */
+/* ────────────────────────────────────────────── */
+
+app.get("*", (req, res) => {
+  res.sendFile(path.join(frontendDir, "index.html"));
+});
+
+/* ────────────────────────────────────────────── */
+/* START SERVER                                   */
+/* ────────────────────────────────────────────── */
+
 app.listen(PORT, () => {
   console.log(`✅ Sticky ATC backend running on port ${PORT}`);
 });
