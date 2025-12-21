@@ -5,10 +5,6 @@ import prisma from "../prisma.js";
 
 const router = express.Router();
 
-/**
- * POST /apps/bdm-sticky-atc/track
- * Receives browser events from the Sticky ATC bar
- */
 router.post("/track", async (req, res) => {
   try {
     const {
