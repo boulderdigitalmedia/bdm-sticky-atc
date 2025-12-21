@@ -1,3 +1,4 @@
+import trackRoute from "./routes/track.js";
 import express from "express";
 import dotenv from "dotenv";
 import prisma from "./prisma.js";
@@ -110,6 +111,12 @@ app.get("/api/analytics/summary", async (req, res) => {
     res.status(500).json({ error: "Failed to load analytics" });
   }
 });
+
+app.use(
+  "/apps/bdm-sticky-atc",
+  express.json(),
+  trackRoute
+);
 
 /* ---------------------------------------------------
    START SERVER
