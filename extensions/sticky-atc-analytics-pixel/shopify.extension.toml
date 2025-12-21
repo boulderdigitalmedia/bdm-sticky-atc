@@ -3,7 +3,4 @@ type = "web_pixel_extension"
 
 runtime_context = "strict"
 
-description = "Tracks Sticky Add to Cart engagement and conversions"
-
-[build]
-externals = ["@shopify/web-pixels-extension"]
+[settings]
