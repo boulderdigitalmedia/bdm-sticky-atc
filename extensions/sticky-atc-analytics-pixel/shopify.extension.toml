@@ -1,10 +1,6 @@
 name = "Sticky ATC Analytics Pixel"
 type = "web_pixel_extension"
-
 runtime_context = "checkout"
-
-[settings]
 
 [runtime_configuration_definition]
 type = "object"
-properties = {}
