@@ -1,19 +1,18 @@
 {% comment %}
-Sticky ATC – Checkout Attribution Block
-This block injects attribution data for the Sticky Add to Cart app
+Sticky ATC – Attribution Helper
+Injected into the theme body
 {% endcomment %}
 
 <div
-  data-bdm-sticky-attribution
+  data-bdm-sticky-atc
   data-shop="{{ shop.permanent_domain }}"
-  data-checkout-token="{{ checkout.token }}"
   style="display:none;"
 ></div>
 
 {% schema %}
 {
-  "name": "Sticky ATC Attribution",
-  "target": "checkout",
+  "name": "Sticky ATC Helper",
+  "target": "body",
   "settings": []
 }
 {% endschema %}
