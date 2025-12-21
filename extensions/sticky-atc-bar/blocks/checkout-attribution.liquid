@@ -1,38 +1,19 @@
-{%- comment -%}
-  Sticky Add to Cart – Checkout Attribution Block
+{% comment %}
+Sticky ATC – Checkout Attribution Block
+This block injects attribution data for the Sticky Add to Cart app
+{% endcomment %}
 
-  This block is injected at checkout to help attribute
-  conversions back to Sticky ATC events.
-  It does not render visible UI.
-{%- endcomment -%}
-
-<script>
-  (function () {
-    try {
-      if (!window.Shopify || !Shopify.checkout) return;
-
-      const payload = {
-        event: "checkout_loaded",
-        checkout_token: Shopify.checkout.token,
-        shop: Shopify.shop,
-        timestamp: Date.now(),
-      };
-
-      fetch("https://sticky-add-to-cart-bar-pro.onrender.com/apps/bdm-sticky-atc/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-    } catch (e) {
-      console.warn("Sticky ATC checkout attribution error", e);
-    }
-  })();
-</script>
+<div
+  data-bdm-sticky-attribution
+  data-shop="{{ shop.permanent_domain }}"
+  data-checkout-token="{{ checkout.token }}"
+  style="display:none;"
+></div>
 
 {% schema %}
 {
-  "name": "Sticky ATC – Checkout Attribution",
-  "target": "head",
+  "name": "Sticky ATC Attribution",
+  "target": "checkout",
   "settings": []
 }
 {% endschema %}
