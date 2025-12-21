@@ -1,97 +1,119 @@
 import express from "express";
-import path from "path";
-import { fileURLToPath } from "url";
+import dotenv from "dotenv";
+import prisma from "./prisma.js";
 
-import shopify from "./shopify.js";
-import { billingConfig } from "./billing.js";
+// Load env vars
+dotenv.config();
 
-import analyticsRoutes from "./routes/stickyAnalytics.js";
-import { ordersPaidHandler } from "./webhooks/ordersPaid.js";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const PORT = process.env.PORT || 10000;
 const app = express();
+const PORT = process.env.PORT || 3000;
 
-/**
- * IMPORTANT:
- * - Use JSON for most routes
- * - Webhooks need RAW body. We'll mount that route before express.json()
- */
+/* ---------------------------------------------------
+   CORS — REQUIRED FOR STOREFRONT ANALYTICS
+   Allows Shopify storefront → Render backend
+--------------------------------------------------- */
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Content-Type");
 
-// ──────────────────────────────────────────────
-// WEBHOOK: orders/paid (raw body)
-// ──────────────────────────────────────────────
-app.post(
-  "/webhooks/orders/paid",
-  express.text({ type: "application/json" }),
-  async (req, res) => {
-    try {
-      const shop = req.headers["x-shopify-shop-domain"];
-      const payload = JSON.parse(req.body || "{}");
-      await ordersPaidHandler(shop, payload);
-      res.status(200).send("OK");
-    } catch (e) {
-      console.error("orders/paid webhook error:", e);
-      res.status(200).send("OK"); // Shopify expects 200 often; don’t retry-storm
-    }
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
   }
-);
 
-// ──────────────────────────────────────────────
-// JSON middleware (after webhook)
-// ──────────────────────────────────────────────
+  next();
+});
+
+/* ---------------------------------------------------
+   Middleware
+--------------------------------------------------- */
 app.use(express.json());
 
-// ──────────────────────────────────────────────
-// ANALYTICS API (public track + dashboard reads)
-// ──────────────────────────────────────────────
-app.use("/api/analytics", analyticsRoutes);
+/* ---------------------------------------------------
+   Health Check (Render / Debug)
+--------------------------------------------------- */
+app.get("/", (_req, res) => {
+  res.status(200).send("Sticky ATC backend running");
+});
 
-// ──────────────────────────────────────────────
-// STATIC FRONTEND (Vite build output)
-// ──────────────────────────────────────────────
-const frontendDir = path.join(__dirname, "frontend", "dist");
-app.use(express.static(frontendDir));
+/* ---------------------------------------------------
+   ANALYTICS TRACKING ENDPOINT
+   Called from storefront JS / Web Pixel
+--------------------------------------------------- */
+app.post("/track", async (req, res) => {
+  try {
+    const {
+      shop,
+      event,
+      productId,
+      variantId,
+      quantity,
+      price,
+    } = req.body;
 
-// ──────────────────────────────────────────────
-// AUTH + BILLING
-// ──────────────────────────────────────────────
-app.get("/auth", shopify.auth.begin());
-
-app.get(
-  "/auth/callback",
-  shopify.auth.callback(),
-  async (req, res, next) => {
-    try {
-      await shopify.ensureInstalledOnShop(req, res);
-      await shopify.billing.ensure(req, res, billingConfig);
-      return res.redirect(`/?shop=${req.query.shop}&host=${req.query.host}`);
-    } catch (e) {
-      next(e);
+    if (!shop || !event) {
+      return res.status(400).json({
+        error: "Missing required fields",
+      });
     }
+
+    await prisma.stickyEvent.create({
+      data: {
+        shop,
+        event,
+        productId,
+        variantId,
+        quantity,
+        price,
+      },
+    });
+
+    res.status(200).json({ ok: true });
+  } catch (error) {
+    console.error("TRACK EVENT ERROR:", error);
+    res.status(500).json({ error: "Tracking failed" });
   }
-);
-
-// ──────────────────────────────────────────────
-// ROOT: serve frontend
-// ──────────────────────────────────────────────
-app.get("/", async (req, res) => {
-  return res.sendFile(path.join(frontendDir, "index.html"));
 });
 
-// ──────────────────────────────────────────────
-// SPA CATCH-ALL
-// ──────────────────────────────────────────────
-app.get("*", (req, res) => {
-  return res.sendFile(path.join(frontendDir, "index.html"));
+/* ---------------------------------------------------
+   DAILY METRICS (used by Analytics dashboard)
+--------------------------------------------------- */
+app.get("/api/analytics/summary", async (req, res) => {
+  try {
+    const { shop } = req.query;
+
+    if (!shop) {
+      return res.status(400).json({ error: "Missing shop" });
+    }
+
+    const events = await prisma.stickyEvent.findMany({
+      where: { shop },
+    });
+
+    const clicks = events.filter(e => e.event === "add_to_cart").length;
+    const pageViews = events.filter(e => e.event === "page_view").length;
+
+    const revenue = events
+      .filter(e => e.event === "add_to_cart" && e.price)
+      .reduce((sum, e) => sum + (e.price || 0), 0);
+
+    res.json({
+      pageViews,
+      clicks,
+      addToCartRate: pageViews
+        ? ((clicks / pageViews) * 100).toFixed(2)
+        : "0.00",
+      revenue,
+    });
+  } catch (error) {
+    console.error("ANALYTICS ERROR:", error);
+    res.status(500).json({ error: "Failed to load analytics" });
+  }
 });
 
-// ──────────────────────────────────────────────
-// START SERVER
-// ──────────────────────────────────────────────
+/* ---------------------------------------------------
+   START SERVER
+--------------------------------------------------- */
 app.listen(PORT, () => {
-  console.log(`🚀 Sticky ATC running on port ${PORT}`);
-  console.log(`📁 Serving admin UI from: ${frontendDir}`);
+  console.log(`✅ Sticky ATC backend running on port ${PORT}`);
 });
