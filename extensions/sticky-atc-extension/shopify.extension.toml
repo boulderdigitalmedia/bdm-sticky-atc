@@ -1,8 +1,0 @@
-name = "Sticky ATC Extension"
-type = "theme"
-
-[[target]]
-type = "checkout"
-
-[targeting]
-store = "*"
