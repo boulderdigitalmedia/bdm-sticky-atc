@@ -1,7 +1,12 @@
 import { register } from "@shopify/web-pixels-extension";
 
+<<<<<<< HEAD
 register((api) => {
   api.analytics.subscribe("checkout_completed", (event) => {
+=======
+register(({ analytics }) => {
+  analytics.subscribe("checkout_completed", (event) => {
+>>>>>>> dbe8576 (Add clean web pixel analytics extension)
     fetch("https://sticky-add-to-cart-bar-pro.onrender.com/apps/bdm-sticky-atc/track", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
