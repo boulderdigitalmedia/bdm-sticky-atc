@@ -1,84 +1,70 @@
 // web/index.js
 
-import "dotenv/config";
 import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
+import dotenv from "dotenv";
 
 import shopify from "./shopify.js";
-import prisma from "./prisma.js";
-
-// ROUTES
-import trackRoutes from "./routes/track.js";
-import analyticsRoutes from "./routes/stickyAnalytics.js";
-
-// WEBHOOKS
+import trackRoutes from "./routes/stickyAnalytics.js";
 import { ordersPaidHandler } from "./webhooks/ordersPaid.js";
+
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const PORT = process.env.PORT || 10000;
 const app = express();
+const PORT = process.env.PORT || 10000;
 
-/* ────────────────────────────────────────────── */
-/* MIDDLEWARE                                    */
-/* ────────────────────────────────────────────── */
+// ──────────────────────────────────────────────
+// BODY PARSING
+// ──────────────────────────────────────────────
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// Shopify requires raw body for webhooks, so we must conditionally parse
-app.use((req, res, next) => {
-  if (req.originalUrl.startsWith("/webhooks")) {
-    next();
-  } else {
-    express.json()(req, res, next);
+// ──────────────────────────────────────────────
+// ANALYTICS TRACKING (CORS SAFE FOR STOREFRONT)
+// ──────────────────────────────────────────────
+app.use("/apps/bdm-sticky-atc", (req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
   }
-});
 
-/* ────────────────────────────────────────────── */
-/* ANALYTICS TRACKING (PIXEL → BACKEND)          */
-/* MUST MATCH PIXEL URL EXACTLY                  */
-/* ────────────────────────────────────────────── */
+  next();
+});
 
 app.use("/apps/bdm-sticky-atc", trackRoutes);
 
-/* ────────────────────────────────────────────── */
-/* ADMIN ANALYTICS API                            */
-/* ────────────────────────────────────────────── */
-
-app.use("/api/analytics", analyticsRoutes);
-
-/* ────────────────────────────────────────────── */
-/* SHOPIFY WEBHOOKS                               */
-/* ────────────────────────────────────────────── */
-
-app.post(
-  "/webhooks/orders/paid",
-  express.raw({ type: "application/json" }),
-  async (req, res) => {
-    try {
-      await ordersPaidHandler(
-        req.headers["x-shopify-shop-domain"],
-        req.body
-      );
-      res.status(200).send("OK");
-    } catch (err) {
-      console.error("Webhook error:", err);
-      res.status(500).send("Webhook failed");
-    }
+// ──────────────────────────────────────────────
+// SHOPIFY WEBHOOKS
+// ──────────────────────────────────────────────
+app.post("/webhooks/orders/paid", async (req, res) => {
+  try {
+    await ordersPaidHandler(
+      req.headers["x-shopify-shop-domain"],
+      req.body
+    );
+    res.status(200).send("OK");
+  } catch (err) {
+    console.error("Webhook error:", err);
+    res.status(500).send("Webhook failed");
   }
-);
+});
 
-/* ────────────────────────────────────────────── */
-/* STATIC FRONTEND (VITE BUILD)                   */
-/* ────────────────────────────────────────────── */
-
+// ──────────────────────────────────────────────
+// STATIC FRONTEND (VITE BUILD)
+// ──────────────────────────────────────────────
 const frontendDir = path.join(__dirname, "frontend/dist");
 app.use(express.static(frontendDir));
 
-/* ────────────────────────────────────────────── */
-/* ROOT → AUTH OR APP                             */
-/* ────────────────────────────────────────────── */
-
+// ──────────────────────────────────────────────
+// ROOT → AUTH OR LOAD APP
+// ──────────────────────────────────────────────
 app.get("/", async (req, res) => {
   const { shop, host } = req.query;
 
@@ -89,10 +75,9 @@ app.get("/", async (req, res) => {
   return res.sendFile(path.join(frontendDir, "index.html"));
 });
 
-/* ────────────────────────────────────────────── */
-/* SHOPIFY AUTH                                   */
-/* ────────────────────────────────────────────── */
-
+// ──────────────────────────────────────────────
+// SHOPIFY AUTH
+// ──────────────────────────────────────────────
 app.get("/auth", shopify.auth.begin());
 
 app.get(
@@ -108,18 +93,16 @@ app.get(
   }
 );
 
-/* ────────────────────────────────────────────── */
-/* SPA FALLBACK                                   */
-/* ────────────────────────────────────────────── */
-
+// ──────────────────────────────────────────────
+// SPA CATCH-ALL
+// ──────────────────────────────────────────────
 app.get("*", (req, res) => {
-  res.sendFile(path.join(frontendDir, "index.html"));
+  return res.sendFile(path.join(frontendDir, "index.html"));
 });
 
-/* ────────────────────────────────────────────── */
-/* START SERVER                                   */
-/* ────────────────────────────────────────────── */
-
+// ──────────────────────────────────────────────
+// START SERVER
+// ──────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`✅ Sticky ATC backend running on port ${PORT}`);
 });
