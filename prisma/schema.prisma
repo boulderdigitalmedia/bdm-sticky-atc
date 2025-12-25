@@ -1,7 +1,7 @@
 generator client {
-  provider   = "prisma-client-js"
-  engineType = "binary"
+  provider        = "prisma-client-js"
   previewFeatures = ["postgresqlExtensions"]
+  engineType      = "binary"
 }
 
 datasource db {
@@ -12,11 +12,11 @@ datasource db {
 model StickyEvent {
   id        String   @id @default(cuid())
   shop      String
-  event     String                // page_view, add_to_cart, variant_change
+  event     String
   productId String?
   variantId String?
   quantity  Int?
-  price     Float?                // store price on ATC event for revenue calc
+  price     Float?
   timestamp DateTime @default(now())
 
   @@index([shop])
@@ -38,23 +38,22 @@ model StickyMetricsDaily {
 }
 
 model StickyAttribution {
-  id            Int      @id @default(autoincrement())
+  id            Int    @id @default(autoincrement())
   shop          String
-  checkoutToken String   @unique
+  checkoutToken String @unique
   productId     String
   variantId     String
   timestamp     BigInt
 }
 
 model StickyConversion {
-  id          String   @id @default(cuid())
-  shop        String
-  orderId     String
-  revenue     Float
-  currency    String
-  occurredAt  DateTime
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  shop       String
+  orderId    String
+  revenue    Float
+  currency   String
+  occurredAt DateTime
+  createdAt  DateTime @default(now())
 
   @@index([shop])
 }
-

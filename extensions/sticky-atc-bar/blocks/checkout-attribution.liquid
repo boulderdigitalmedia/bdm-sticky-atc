@@ -1,17 +1,40 @@
 {% comment %}
-Sticky ATC – Attribution Helper
-Injected into the theme body
+Sticky ATC – Checkout Attribution
+Captures checkout token before redirect
 {% endcomment %}
 
-<div
-  data-bdm-sticky-atc
-  data-shop="{{ shop.permanent_domain }}"
-  style="display:none;"
-></div>
+<script>
+  (function () {
+    function sendAttribution() {
+      try {
+        if (!window.Shopify || !Shopify.checkout) return;
+
+        const payload = {
+          shop: "{{ shop.permanent_domain }}",
+          checkoutToken: Shopify.checkout.token,
+          timestamp: Date.now()
+        };
+
+        navigator.sendBeacon(
+          "https://sticky-add-to-cart-bar-pro.onrender.com/attribution",
+          JSON.stringify(payload)
+        );
+      } catch (e) {
+        console.warn("Sticky ATC attribution error", e);
+      }
+    }
+
+    document.addEventListener("submit", function (e) {
+      if (e.target.action && e.target.action.includes("/checkout")) {
+        sendAttribution();
+      }
+    });
+  })();
+</script>
 
 {% schema %}
 {
-  "name": "Sticky ATC Helper",
+  "name": "Sticky ATC Attribution",
   "target": "body",
   "settings": []
 }

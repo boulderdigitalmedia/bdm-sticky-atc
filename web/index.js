@@ -1,19 +1,25 @@
 // web/index.js
 
+import "dotenv/config"; // ✅ Safe: loads .env locally, ignored by Render
+
 import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
-import dotenv from "dotenv";
 
 import shopify from "./shopify.js";
 import trackRoutes from "./routes/stickyAnalytics.js";
+import attributionRoute from "./routes/attribution.js";
 import { ordersPaidHandler } from "./webhooks/ordersPaid.js";
 
-dotenv.config();
-
+// ──────────────────────────────────────────────
+// PATH SETUP
+// ──────────────────────────────────────────────
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// ──────────────────────────────────────────────
+// APP INIT
+// ──────────────────────────────────────────────
 const app = express();
 const PORT = process.env.PORT || 10000;
 
@@ -39,6 +45,7 @@ app.use("/apps/bdm-sticky-atc", (req, res, next) => {
 });
 
 app.use("/apps/bdm-sticky-atc", trackRoutes);
+app.use("/apps/bdm-sticky-atc/attribution", attributionRoute);
 
 // ──────────────────────────────────────────────
 // SHOPIFY WEBHOOKS
@@ -51,7 +58,7 @@ app.post("/webhooks/orders/paid", async (req, res) => {
     );
     res.status(200).send("OK");
   } catch (err) {
-    console.error("Webhook error:", err);
+    console.error("❌ Webhook error:", err);
     res.status(500).send("Webhook failed");
   }
 });
@@ -59,7 +66,7 @@ app.post("/webhooks/orders/paid", async (req, res) => {
 // ──────────────────────────────────────────────
 // STATIC FRONTEND (VITE BUILD)
 // ──────────────────────────────────────────────
-const frontendDir = path.join(__dirname, "frontend/dist");
+const frontendDir = path.join(__dirname, "frontend", "dist");
 app.use(express.static(frontendDir));
 
 // ──────────────────────────────────────────────

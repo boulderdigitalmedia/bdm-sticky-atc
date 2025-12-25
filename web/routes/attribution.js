@@ -1,28 +1,30 @@
 import express from "express";
-import { PrismaClient } from "@prisma/client";
+import prisma from "../prisma.js";
 
-const prisma = new PrismaClient();
 const router = express.Router();
 
-router.post("/checkout-attribution", async (req, res) => {
+router.post("/", async (req, res) => {
   try {
-    const { shop, checkoutToken, productId, variantId, timestamp } = req.body;
+    const { shop, checkoutToken, timestamp } = req.body;
 
-    await prisma.stickyAttribution.create({
-      data: {
+    if (!shop || !checkoutToken) {
+      return res.status(400).json({ ok: false });
+    }
+
+    await prisma.stickyAttribution.upsert({
+      where: { checkoutToken },
+      update: {},
+      create: {
         shop,
         checkoutToken,
-        productId,
-        variantId,
         timestamp
       }
     });
 
-    res.json({ success: true });
-
+    res.json({ ok: true });
   } catch (err) {
-    console.error("Attribution save error:", err);
-    res.status(500).json({ error: true });
+    console.error("Attribution error:", err);
+    res.status(500).json({ ok: false });
   }
 });
 
