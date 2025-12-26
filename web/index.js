@@ -46,6 +46,8 @@ app.use("/apps/bdm-sticky-atc", (req, res, next) => {
 
 app.use("/apps/bdm-sticky-atc", trackRoutes);
 app.use("/apps/bdm-sticky-atc/attribution", attributionRoute);
+app.use("/apps/bdm-sticky-atc", attributionRoute);
+
 
 // ──────────────────────────────────────────────
 // SHOPIFY WEBHOOKS

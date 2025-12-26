@@ -1,51 +1,59 @@
-import prisma from "../prisma/client.js";
+import prisma from "../prisma.js";
 
 /**
- * Called when Shopify sends orders/paid webhook.
- * This is where we FINALIZE conversions (real revenue).
- *
- * We treat an order as "attributed" if checkout token exists in StickyAttribution.
+ * Shopify orders/paid webhook
  */
-export async function ordersPaidHandler(shop, payload) {
-  try {
-    if (!shop || !payload) return;
+export async function ordersPaidHandler(shop, order) {
+  if (!order || !order.checkout_token) return;
 
-    const orderId = String(payload.id);
-    const currency = payload.currency || payload.presentment_currency || "USD";
+  const checkoutToken = order.checkout_token;
 
-    // Total price can be string from Shopify
-    const revenue = Number(payload.current_total_price || payload.total_price || 0);
+  // 1️⃣ Find attribution
+  const attribution = await prisma.stickyAttribution.findUnique({
+    where: { checkoutToken },
+  });
 
-    // Checkout token (key to attribution)
-    const checkoutToken = payload.checkout_token || payload.token || null;
-    if (!checkoutToken) return;
-
-    // Does this order have sticky attribution?
-    const attribution = await prisma.stickyAttribution.findUnique({
-      where: { checkoutToken: String(checkoutToken) },
-    });
-
-    if (!attribution) {
-      // not attributed, ignore
-      return;
-    }
-
-    // Prevent duplicates
-    const existing = await prisma.stickyConversion.findFirst({
-      where: { shop: String(shop), orderId },
-    });
-    if (existing) return;
-
-    await prisma.stickyConversion.create({
-      data: {
-        shop: String(shop),
-        orderId,
-        revenue,
-        currency,
-        occurredAt: new Date(payload.processed_at || payload.created_at || Date.now()),
-      },
-    });
-  } catch (err) {
-    console.error("ordersPaidHandler error:", err);
+  if (!attribution) {
+    console.log("No Sticky ATC attribution found");
+    return;
   }
+
+  const revenue = parseFloat(order.total_price || 0);
+  const currency = order.currency || "USD";
+
+  // 2️⃣ Store conversion
+  await prisma.stickyConversion.create({
+    data: {
+      shop,
+      orderId: String(order.id),
+      revenue,
+      currency,
+      occurredAt: new Date(order.processed_at),
+    },
+  });
+
+  // 3️⃣ Update daily metrics
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+
+  await prisma.stickyMetricsDaily.upsert({
+    where: {
+      shop_date: {
+        shop,
+        date,
+      },
+    },
+    update: {
+      conversions: { increment: 1 },
+      revenue: { increment: revenue },
+    },
+    create: {
+      shop,
+      date,
+      conversions: 1,
+      revenue,
+    },
+  });
+
+  console.log("✅ Sticky ATC conversion recorded");
 }
