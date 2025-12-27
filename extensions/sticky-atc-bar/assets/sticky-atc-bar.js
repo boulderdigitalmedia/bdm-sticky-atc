@@ -1,146 +1,128 @@
 /**
- * Sticky Add To Cart – Conversion Attribution
- * Runs on the storefront
- * Safe to fail (never blocks checkout)
+ * Sticky Add to Cart Bar – Final Attribution + Analytics
+ * Boulder Digital Media
  */
 
-(function () {
-  if (!window.Shopify || !window.fetch) return;
+/* -----------------------------------------------------
+   CONFIG
+----------------------------------------------------- */
+const TRACK_ENDPOINT =
+  "https://sticky-add-to-cart-bar-pro.onrender.com/apps/bdm-sticky-atc/track";
 
-  const API_BASE =
-    "https://sticky-add-to-cart-bar-pro.onrender.com/apps/bdm-sticky-atc";
+/* -----------------------------------------------------
+   HELPERS
+----------------------------------------------------- */
 
-  /**
-   * Send checkout attribution to backend
-   */
-  async function sendAttribution({ productId, variantId }) {
-    try {
-      const cartRes = await fetch("/cart.js", { credentials: "same-origin" });
-      const cart = await cartRes.json();
+/**
+ * Safely get the active product form
+ */
+function getProductForm() {
+  return document.querySelector('form[action*="/cart/add"]');
+}
 
-      if (!cart || !cart.token) return;
+/**
+ * Get active variant, quantity, and price (CORRECT SOURCE)
+ */
+function getActiveVariantData() {
+  const form = getProductForm();
+  if (!form) return {};
 
-      await fetch(`${API_BASE}/attribution`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          shop: Shopify.shop,
-          checkoutToken: cart.token,
-          productId: String(productId),
-          variantId: String(variantId),
-        }),
-      });
-    } catch (err) {
-      console.warn("Sticky ATC attribution failed", err);
+  const variantInput = form.querySelector('input[name="id"]');
+  const qtyInput = form.querySelector('input[name="quantity"]');
+
+  const variantId = variantInput ? variantInput.value : null;
+  const quantity = Number(qtyInput?.value || 1);
+
+  let price = null;
+
+  // Match variant price from ShopifyAnalytics (fallback-safe)
+  if (
+    window.ShopifyAnalytics?.meta?.product?.variants &&
+    variantId
+  ) {
+    const variant = window.ShopifyAnalytics.meta.product.variants.find(
+      (v) => String(v.id) === String(variantId)
+    );
+    if (variant?.price) {
+      price = variant.price / 100;
     }
   }
 
-  /**
-   * Track Add To Cart events
-   */
-  async function trackAddToCart({ productId, variantId, quantity, price }) {
-    try {
-      await fetch(`${API_BASE}/track`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          shop: Shopify.shop,
-          event: "add_to_cart",
-          productId: String(productId),
-          variantId: String(variantId),
-          quantity,
-          price,
-        }),
-      });
-    } catch (err) {
-      console.warn("Sticky ATC tracking failed", err);
-    }
+  return { variantId, quantity, price };
+}
+
+/**
+ * Persist attribution for checkout → orders/paid webhook
+ */
+function persistStickyAttribution(variantId) {
+  try {
+    localStorage.setItem("bdm_sticky_atc_variant", variantId);
+    localStorage.setItem("bdm_sticky_atc_time", Date.now());
+  } catch (e) {
+    // Silent fail (Safari private mode etc.)
   }
+}
 
-  /**
-   * Hook into checkout buttons
-   */
-  function bindCheckoutTracking() {
-    const checkoutSelectors = [
-      'button[name="checkout"]',
-      'input[name="checkout"]',
-      'a[href="/checkout"]',
-      'form[action="/checkout"]',
-    ];
+/**
+ * Fire analytics event
+ */
+function trackEvent(payload) {
+  fetch(TRACK_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  }).catch(() => {});
+}
 
-    checkoutSelectors.forEach((selector) => {
-      document.querySelectorAll(selector).forEach((el) => {
-        if (el.dataset.stickyBound) return;
-        el.dataset.stickyBound = "true";
+/* -----------------------------------------------------
+   CORE TRACKING
+----------------------------------------------------- */
 
-        el.addEventListener("click", async () => {
-          const variantInput =
-            document.querySelector('input[name="id"]') ||
-            document.querySelector('[data-variant-id]');
+/**
+ * Track Add to Cart from Sticky Bar
+ */
+function trackAddToCart() {
+  const { variantId, quantity, price } = getActiveVariantData();
 
-          const productInput =
-            document.querySelector('[data-product-id]');
+  if (!variantId || !window.Shopify?.shop) return;
 
-          const variantId =
-            variantInput?.value || variantInput?.dataset?.variantId;
+  trackEvent({
+    event: "add_to_cart",
+    shop: Shopify.shop,
+    variantId,
+    quantity,
+    price,
+    timestamp: Date.now(),
+  });
 
-          const productId =
-            productInput?.dataset?.productId ||
-            window.meta?.product?.id;
+  persistStickyAttribution(variantId);
+}
 
-          if (!variantId || !productId) return;
+/**
+ * Track Page View
+ */
+function trackPageView() {
+  if (!window.Shopify?.shop) return;
 
-          await sendAttribution({ productId, variantId });
-        });
-      });
-    });
-  }
+  trackEvent({
+    event: "page_view",
+    shop: Shopify.shop,
+    timestamp: Date.now(),
+  });
+}
 
-  /**
-   * Hook into Add To Cart forms
-   */
-  function bindAddToCartTracking() {
-    document.querySelectorAll('form[action^="/cart/add"]').forEach((form) => {
-      if (form.dataset.stickyBound) return;
-      form.dataset.stickyBound = "true";
+/* -----------------------------------------------------
+   INIT
+----------------------------------------------------- */
 
-      form.addEventListener("submit", async () => {
-        const variantId = form.querySelector('[name="id"]')?.value;
-        const quantity =
-          parseInt(form.querySelector('[name="quantity"]')?.value, 10) || 1;
+document.addEventListener("DOMContentLoaded", () => {
+  trackPageView();
 
-        if (!variantId) return;
+  // Attach to Sticky ATC button (supports dynamic themes)
+  document.body.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-bdm-sticky-atc-button]");
+    if (!btn) return;
 
-        const price =
-          window.meta?.product?.variants?.find(
-            (v) => String(v.id) === String(variantId)
-          )?.price || null;
-
-        const productId = window.meta?.product?.id;
-
-        await trackAddToCart({
-          productId,
-          variantId,
-          quantity,
-          price,
-        });
-      });
-    });
-  }
-
-  /**
-   * Init
-   */
-  function init() {
-    bindAddToCartTracking();
-    bindCheckoutTracking();
-  }
-
-  // Run immediately + after theme loads
-  init();
-  document.addEventListener("shopify:section:load", init);
-})();
+    trackAddToCart();
+  });
+});
