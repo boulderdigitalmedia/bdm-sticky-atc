@@ -1,4 +1,3 @@
-// Sticky Add to Cart Bar — FINAL (Universal Variant Sync + Variant Selector + Correct ATC)
 (function () {
   if (window.__BDM_STICKY_ATC__) return;
   window.__BDM_STICKY_ATC__ = true;
@@ -8,13 +7,8 @@
 
   const PRODUCT = window.ShopifyAnalytics?.meta?.product;
   const VARIANTS = PRODUCT?.variants || [];
-
-  // If we can't see variants, exit gracefully (non-product pages)
   if (!PRODUCT || !Array.isArray(VARIANTS) || VARIANTS.length === 0) return;
 
-  // ---------------------------
-  // Analytics
-  // ---------------------------
   function track(event, data = {}) {
     try {
       fetch(TRACK_URL, {
@@ -31,108 +25,137 @@
     } catch (e) {}
   }
 
-  // ---------------------------
-  // Variant detection (universal)
-  // Priority:
-  // 1) URL ?variant=123
-  // 2) checked radio input[name="id"]
-  // 3) any input/select[name="id"] value
-  // 4) first variant
-  // ---------------------------
-  function getVariantIdFromUrl() {
-    try {
-      const url = new URL(window.location.href);
-      return url.searchParams.get("variant");
-    } catch (e) {
-      return null;
-    }
+  function findVariant(id) {
+    return VARIANTS.find((v) => String(v.id) === String(id)) || null;
   }
 
-  function getVariantIdFromFormControls() {
-    // Radio-style
-    const checkedRadio = document.querySelector('input[name="id"][type="radio"]:checked');
-    if (checkedRadio?.value) return checkedRadio.value;
+  // ---------------------------
+  // THE FIX:
+  // Capture the TRUE variant ID from the real product form.
+  // This works even when themes use custom variant pickers.
+  // ---------------------------
+  let lastKnownVariantId = String(VARIANTS[0]?.id || "");
 
-    // Hidden/input/select
-    const anyIdField =
-      document.querySelector('form[action*="/cart"] [name="id"]') ||
+  function getVariantFromAnyCartForm() {
+    // Find the first add-to-cart form on page
+    const form =
+      document.querySelector('form[action*="/cart/add"]') ||
+      document.querySelector('form[action="/cart/add"]') ||
+      document.querySelector('form[action^="/cart/add"]') ||
+      document.querySelector("product-form form") ||
+      document.querySelector("form");
+
+    if (!form) return null;
+
+    // Variant id is ALWAYS in name="id" somewhere if the form is real
+    const idField =
+      form.querySelector('[name="id"]') ||
       document.querySelector('[name="id"]');
 
-    if (anyIdField?.value) return anyIdField.value;
-
-    return null;
+    if (!idField || !idField.value) return null;
+    return String(idField.value);
   }
 
-  function getActiveVariantId() {
-    return (
-      getVariantIdFromUrl() ||
-      getVariantIdFromFormControls() ||
-      String(VARIANTS[0]?.id || "")
+  // Intercept real form submits to capture correct variant
+  function installFormIntercept() {
+    document.addEventListener(
+      "submit",
+      (e) => {
+        const form = e.target;
+        if (!form || !(form instanceof HTMLFormElement)) return;
+
+        const action = (form.getAttribute("action") || "").toLowerCase();
+        const isCartAdd =
+          action.includes("/cart/add") ||
+          form.querySelector('[name="id"]')?.value;
+
+        if (!isCartAdd) return;
+
+        const idField = form.querySelector('[name="id"]');
+        if (idField?.value) {
+          lastKnownVariantId = String(idField.value);
+          syncStickySelectToVariant(lastKnownVariantId);
+        }
+      },
+      true
     );
   }
 
-  function findVariant(variantId) {
-    return VARIANTS.find((v) => String(v.id) === String(variantId)) || null;
+  // Also capture when variant controls change (works for normal themes too)
+  function installChangeListeners() {
+    document.addEventListener(
+      "change",
+      (e) => {
+        const t = e.target;
+        if (!t) return;
+
+        // If any input/select with name="id" changes, that's the variant
+        if (t.matches && t.matches('[name="id"]')) {
+          if (t.value) {
+            lastKnownVariantId = String(t.value);
+            syncStickySelectToVariant(lastKnownVariantId);
+          }
+        }
+
+        // Many themes keep the variant id in a hidden input updated by JS
+        const maybe = getVariantFromAnyCartForm();
+        if (maybe) {
+          lastKnownVariantId = maybe;
+          syncStickySelectToVariant(lastKnownVariantId);
+        }
+      },
+      true
+    );
   }
 
   // ---------------------------
-  // Theme-compatible setter
-  // This is the key: we update URL + update relevant controls + fire events
+  // Sticky UI
   // ---------------------------
-  function setThemeVariant(variantId) {
-    // 1) Update URL (many themes derive state from this)
+  let barEl = null;
+  let selectEl = null;
+
+  function formatPriceCents(cents) {
+    const currency = window.Shopify?.currency?.active || "USD";
+    return (Number(cents || 0) / 100).toLocaleString(undefined, {
+      style: "currency",
+      currency,
+    });
+  }
+
+  function syncStickySelectToVariant(variantId) {
+    if (!selectEl) return;
+    if (selectEl.value !== String(variantId)) {
+      selectEl.value = String(variantId);
+    }
+  }
+
+  function setVariantInThemeForm(variantId) {
+    // Set on ALL name="id" fields we can find (hidden/select/radio)
+    const inputs = document.querySelectorAll('[name="id"]');
+    inputs.forEach((el) => {
+      if (el.tagName === "SELECT") {
+        el.value = String(variantId);
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+        el.dispatchEvent(new Event("change", { bubbles: true }));
+      } else if (el.type === "radio") {
+        if (String(el.value) === String(variantId)) {
+          el.checked = true;
+          el.dispatchEvent(new Event("change", { bubbles: true }));
+          el.dispatchEvent(new Event("click", { bubbles: true }));
+        }
+      } else {
+        el.value = String(variantId);
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+        el.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    });
+
+    // Update URL as a nice-to-have
     try {
       const url = new URL(window.location.href);
       url.searchParams.set("variant", String(variantId));
       window.history.replaceState({}, "", url.toString());
     } catch (e) {}
-
-    // 2) Update <select name="id"> if present
-    const select = document.querySelector('select[name="id"]');
-    if (select) {
-      select.value = String(variantId);
-      select.dispatchEvent(new Event("input", { bubbles: true }));
-      select.dispatchEvent(new Event("change", { bubbles: true }));
-    }
-
-    // 3) Update radio inputs if present
-    const radios = document.querySelectorAll('input[name="id"][type="radio"]');
-    if (radios && radios.length) {
-      radios.forEach((r) => {
-        if (String(r.value) === String(variantId)) {
-          r.checked = true;
-          // some themes listen on click, some on change
-          r.dispatchEvent(new Event("input", { bubbles: true }));
-          r.dispatchEvent(new Event("change", { bubbles: true }));
-          r.dispatchEvent(new Event("click", { bubbles: true }));
-        }
-      });
-    }
-
-    // 4) Update hidden input[name=id] (Dawn uses this pattern too)
-    const idInputs = document.querySelectorAll('input[name="id"]');
-    idInputs.forEach((inp) => {
-      // avoid overwriting radios already handled
-      if (inp.type === "radio") return;
-      inp.value = String(variantId);
-      inp.dispatchEvent(new Event("input", { bubbles: true }));
-      inp.dispatchEvent(new Event("change", { bubbles: true }));
-    });
-
-    // 5) Nudge themes that re-render on variant change
-    document.dispatchEvent(
-      new CustomEvent("bdm:variant:change", { detail: { variantId: String(variantId) } })
-    );
-  }
-
-  // ---------------------------
-  // ATC
-  // ---------------------------
-  function getQuantity() {
-    const qty =
-      document.querySelector('form[action*="/cart"] [name="quantity"]') ||
-      document.querySelector('input[name="quantity"]');
-    return qty ? Math.max(1, parseInt(qty.value, 10) || 1) : 1;
   }
 
   async function addToCart(variantId, quantity) {
@@ -152,25 +175,16 @@
     return res.json();
   }
 
-  // ---------------------------
-  // Sticky Bar UI
-  // ---------------------------
-  let activeVariantId = null;
-  let barEl = null;
-  let selectEl = null;
-
-  function formatPriceCents(cents) {
-    const n = typeof cents === "number" ? cents : 0;
-    const currency = window.Shopify?.currency?.active || "USD";
-    return (n / 100).toLocaleString(undefined, {
-      style: "currency",
-      currency,
-    });
+  function getQuantity() {
+    const qty =
+      document.querySelector('form[action*="/cart"] [name="quantity"]') ||
+      document.querySelector('input[name="quantity"]');
+    return qty ? Math.max(1, parseInt(qty.value, 10) || 1) : 1;
   }
 
   function buildVariantSelect() {
-    const select = document.createElement("select");
-    select.style.cssText = `
+    const s = document.createElement("select");
+    s.style.cssText = `
       width: 100%;
       margin-bottom: 10px;
       padding: 10px 12px;
@@ -185,24 +199,24 @@
       opt.value = String(v.id);
       const title = v.public_title || v.title || "Default";
       opt.textContent = `${title} — ${formatPriceCents(v.price)}`;
-      select.appendChild(opt);
+      s.appendChild(opt);
     });
 
-    select.addEventListener("change", () => {
-      const nextId = select.value;
-      activeVariantId = nextId;
+    s.addEventListener("change", () => {
+      const nextId = String(s.value);
+      lastKnownVariantId = nextId;
 
-      // force theme to switch (THIS is what fixes “still uses main variant”)
-      setThemeVariant(nextId);
+      // Force theme form to match (so cart/add.js uses correct variant)
+      setVariantInThemeForm(nextId);
 
       const v = findVariant(nextId);
       track("variant_change", {
-        variantId: String(nextId),
+        variantId: nextId,
         price: v ? v.price / 100 : null,
       });
     });
 
-    return select;
+    return s;
   }
 
   function createStickyBar() {
@@ -247,21 +261,23 @@
     `;
 
     btn.addEventListener("click", async () => {
+      // Pull the true variant from the real form if possible
+      const fromForm = getVariantFromAnyCartForm();
+      const variantId = fromForm || lastKnownVariantId || String(VARIANTS[0]?.id || "");
       const qty = getQuantity();
-      const id = activeVariantId || getActiveVariantId();
-      const v = findVariant(id);
+      const v = findVariant(variantId);
 
-      // Safety: ensure theme form controls are synced before ATC
-      setThemeVariant(id);
+      // Ensure theme state is aligned before adding
+      setVariantInThemeForm(variantId);
 
       track("add_to_cart", {
-        variantId: String(id),
+        variantId: String(variantId),
         quantity: qty,
         price: v ? v.price / 100 : null,
       });
 
       try {
-        await addToCart(id, qty);
+        await addToCart(variantId, qty);
       } catch (err) {
         console.error("Sticky ATC error:", err);
         alert("Could not add to cart. Please try again.");
@@ -271,63 +287,25 @@
     bar.appendChild(title);
     bar.appendChild(selectEl);
     bar.appendChild(btn);
-
     document.body.appendChild(bar);
+
     return bar;
-  }
-
-  // ---------------------------
-  // Keep sticky bar synced with theme changes
-  // - URL changes
-  // - input[name=id] changes
-  // - radio changes
-  // - re-renders
-  // ---------------------------
-  function syncBarToTheme() {
-    const id = getActiveVariantId();
-    activeVariantId = String(id);
-
-    if (selectEl && selectEl.value !== String(id)) {
-      selectEl.value = String(id);
-    }
-  }
-
-  function installVariantObservers() {
-    // 1) Watch for input changes on variant controls
-    document.addEventListener("change", (e) => {
-      const t = e.target;
-      if (!t) return;
-
-      // select[name=id] or input[name=id] changes => sync sticky bar
-      if (
-        (t.matches && t.matches('select[name="id"]')) ||
-        (t.matches && t.matches('input[name="id"]'))
-      ) {
-        syncBarToTheme();
-      }
-    });
-
-    // 2) Watch URL changes (some themes update variant param)
-    window.addEventListener("popstate", syncBarToTheme);
-
-    // 3) MutationObserver: if theme swaps forms on variant change
-    const obs = new MutationObserver(() => {
-      syncBarToTheme();
-    });
-    obs.observe(document.documentElement, { subtree: true, childList: true });
   }
 
   function init() {
     barEl = createStickyBar();
 
-    // initialize from current theme state
-    syncBarToTheme();
+    // Initialize lastKnownVariantId from the actual cart form
+    const initial = getVariantFromAnyCartForm();
+    if (initial) lastKnownVariantId = String(initial);
 
-    track("page_view", { variantId: String(activeVariantId || "") });
+    syncStickySelectToVariant(lastKnownVariantId);
 
-    installVariantObservers();
+    track("page_view", { variantId: String(lastKnownVariantId) });
 
-    // show bar after scrolling
+    installFormIntercept();
+    installChangeListeners();
+
     window.addEventListener("scroll", () => {
       if (!barEl) return;
       barEl.style.display = window.scrollY > 300 ? "block" : "none";
