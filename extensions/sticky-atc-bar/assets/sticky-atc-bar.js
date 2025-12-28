@@ -238,12 +238,65 @@
    * After add, do the “real” refresh path first (sections),
    * then open drawer, then fire generic events as a backup.
    */
-  async function refreshAndOpenCart() {
-    // try section refresh first (most reliable)
-    await refreshCartSections().catch(() => {});
+async function refreshAndOpenCart() {
+  let cart = null;
 
-    // then open
-    openCartDrawer();
+  try {
+    const res = await fetch("/cart.js", {
+      credentials: "same-origin",
+      headers: { Accept: "application/json" },
+    });
+    cart = await res.json();
+  } catch {
+    return;
+  }
+
+  // 1️⃣ DAWN / OS 2.0 OFFICIAL PATH
+  const drawer =
+    document.querySelector("cart-drawer") ||
+    document.getElementById("CartDrawer");
+
+  if (drawer && typeof drawer.renderContents === "function") {
+    drawer.renderContents(cart);
+    drawer.open?.();
+    return;
+  }
+
+  // 2️⃣ FALLBACK: section re-render (already works for many themes)
+  try {
+    const sections = ["cart-drawer", "cart-icon-bubble"];
+    const res = await fetch(
+      `${window.location.pathname}?sections=${sections.join(",")}`,
+      { credentials: "same-origin" }
+    );
+
+    const html = await res.json();
+
+    if (html["cart-drawer"]) {
+      const wrapper = document.createElement("div");
+      wrapper.innerHTML = html["cart-drawer"];
+      const next =
+        wrapper.querySelector("cart-drawer") ||
+        wrapper.querySelector("#CartDrawer");
+      if (next && drawer) drawer.replaceWith(next);
+    }
+
+    if (html["cart-icon-bubble"]) {
+      const bubble =
+        document.getElementById("cart-icon-bubble") ||
+        document.querySelector("[id*='cart-icon-bubble']");
+      if (bubble) {
+        const wrap = document.createElement("div");
+        wrap.innerHTML = html["cart-icon-bubble"];
+        bubble.replaceWith(wrap.firstElementChild);
+      }
+    }
+  } catch {}
+
+  // 3️⃣ FINAL OPEN (in case theme needs it)
+  drawer?.open?.();
+}
+
 
     // finally, send updated cart object to any listeners
     try {
