@@ -234,6 +234,33 @@
         document.querySelector("#cart-icon-bubble");
 
       toggle?.dispatchEvent(new Event("click", { bubbles: true }));
+
+// ─── CLEANUP AFTER DRAWER CLOSE ───
+setTimeout(() => {
+  const drawer =
+    document.querySelector("cart-drawer") ||
+    document.querySelector(".cart-drawer");
+
+  if (!drawer) return;
+
+  const observer = new MutationObserver(() => {
+    const isOpen =
+      drawer.hasAttribute("open") ||
+      drawer.classList.contains("active") ||
+      drawer.classList.contains("is-open");
+
+    if (!isOpen) {
+      unlockPageScroll();
+      observer.disconnect();
+    }
+  });
+
+  observer.observe(drawer, {
+    attributes: true,
+    attributeFilter: ["class", "open"],
+  });
+}, 300);
+
     });
   }
 
