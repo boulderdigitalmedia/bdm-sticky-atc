@@ -43,6 +43,7 @@
       credentials: "same-origin",
       headers: { Accept: "application/json" },
     });
+
     if (!res.ok) return null;
     return res.json();
   }
@@ -84,37 +85,6 @@
   }
 
   /* ────────────────────────────────────────────── */
-  /* CART DRAWER REFRESH (THE FIX) */
-  /* ────────────────────────────────────────────── */
-
-  async function refreshCartUI() {
-    try {
-      // 1️⃣ Refresh cart data
-      const cart = await fetch("/cart.js").then(r => r.json());
-
-      // 2️⃣ Dawn / OS 2.0 events
-      document.dispatchEvent(new CustomEvent("cart:refresh", { detail: { cart } }));
-      document.dispatchEvent(new CustomEvent("cart:updated", { detail: { cart } }));
-      document.dispatchEvent(new CustomEvent("ajaxProduct:added", { detail: { cart } }));
-
-      // 3️⃣ Force drawer open (multiple fallbacks)
-      const drawerToggle =
-        document.querySelector('[aria-controls="CartDrawer"]') ||
-        document.querySelector('[data-cart-toggle]') ||
-        document.querySelector('.js-drawer-open-cart') ||
-        document.querySelector('#cart-icon-bubble');
-
-      if (drawerToggle) {
-        drawerToggle.dispatchEvent(
-          new Event("click", { bubbles: true, cancelable: true })
-        );
-      }
-    } catch (err) {
-      console.warn("Sticky ATC: cart refresh failed", err);
-    }
-  }
-
-  /* ────────────────────────────────────────────── */
   /* UI */
   /* ────────────────────────────────────────────── */
 
@@ -150,42 +120,45 @@
 
     bar.innerHTML = `
       <div style="display:flex;flex-direction:column;gap:4px;min-width:200px;">
-        <div style="font-weight:700;font-size:16px;">
-          ${product?.title || "Product"}
-        </div>
+        <div style="font-weight:700;font-size:16px;">${product?.title || "Product"}</div>
         <div style="opacity:.9;font-size:14px;">
           ${priceCents ? formatMoney(priceCents) : ""}
-          ${selectedSellingPlanId ? `<span style="opacity:.8;"> · Subscription</span>` : ""}
+          ${selectedSellingPlanId ? `<span style="opacity:.85;"> · Subscription</span>` : ""}
         </div>
       </div>
 
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-        <select id="bdm-variant">
-          ${(product?.variants || [])
-            .map(v => {
-              const sel = Number(v.id) === Number(selectedVariantId) ? "selected" : "";
-              return `<option value="${v.id}" ${sel}>${v.public_title || v.title || "Default"}</option>`;
-            })
-            .join("")}
-        </select>
+        <label style="font-size:12px;">
+          Variant
+          <select id="bdm-variant" style="padding:8px;border-radius:8px;">
+            ${product.variants.map(v => `
+              <option value="${v.id}" ${v.id === selectedVariantId ? "selected" : ""} ${!v.available ? "disabled" : ""}>
+                ${v.public_title || v.title || "Default"}
+              </option>
+            `).join("")}
+          </select>
+        </label>
 
         ${
-          plans.length
-            ? `<select id="bdm-plan">
-                <option value="">One-time purchase</option>
-                ${plans
-                  .map(p => {
-                    const sel = p.id === selectedSellingPlanId ? "selected" : "";
-                    return `<option value="${p.id}" ${sel}>${p.groupName}: ${p.name}</option>`;
-                  })
-                  .join("")}
-              </select>`
-            : ""
+          plans.length ? `
+          <label style="font-size:12px;">
+            Purchase
+            <select id="bdm-plan" style="padding:8px;border-radius:8px;">
+              <option value="">One-time</option>
+              ${plans.map(p => `
+                <option value="${p.id}" ${p.id === selectedSellingPlanId ? "selected" : ""}>
+                  ${p.groupName}: ${p.name}
+                </option>
+              `).join("")}
+            </select>
+          </label>` : ""
         }
 
-        <input id="bdm-qty" type="number" min="1" value="1" style="width:70px;" />
+        <input id="bdm-qty" type="number" min="1" value="1"
+          style="width:70px;padding:8px;border-radius:8px;" />
 
-        <button id="bdm-add" style="background:#48d17f;font-weight:700;border:none;padding:10px 16px;border-radius:999px;">
+        <button id="bdm-add"
+          style="background:#48d17f;color:#000;font-weight:700;border:none;padding:10px 16px;border-radius:999px;cursor:pointer;">
           Add to cart
         </button>
       </div>
@@ -205,33 +178,62 @@
     $("#bdm-add", bar)?.addEventListener("click", async () => {
       const qty = Number($("#bdm-qty", bar)?.value || 1);
       const v = getVariantById(selectedVariantId);
-      if (!selectedVariantId) return;
+      if (!v) return;
 
       track("add_to_cart", {
-        productId: String(v?.product_id || ""),
-        variantId: String(selectedVariantId),
+        productId: String(v.product_id),
+        variantId: String(v.id),
         quantity: qty,
-        price: v?.price ? v.price / 100 : null,
+        price: v.price / 100,
         sellingPlanId: selectedSellingPlanId,
       });
 
-      const fd = new FormData();
-      fd.append("id", selectedVariantId);
-      fd.append("quantity", qty);
-      if (selectedSellingPlanId) fd.append("selling_plan", selectedSellingPlanId);
+      const form = new FormData();
+      form.append("id", v.id);
+      form.append("quantity", qty);
+      if (selectedSellingPlanId) {
+        form.append("selling_plan", selectedSellingPlanId);
+      }
 
       const res = await fetch("/cart/add", {
         method: "POST",
-        body: fd,
+        body: form,
         credentials: "same-origin",
         headers: { Accept: "application/json" },
       });
 
-      if (res.ok) {
-        await refreshCartUI();
-      } else {
-        console.warn("Sticky ATC: add failed", await res.text());
-      }
+      if (!res.ok) return;
+
+      /* ───── FORCE CART UPDATE (CRITICAL FIX) ───── */
+
+      const cart = await fetch("/cart.js").then(r => r.json());
+
+      document.dispatchEvent(new CustomEvent("cart:updated", { detail: { cart } }));
+      document.dispatchEvent(new CustomEvent("cart:refresh", { detail: { cart } }));
+      document.dispatchEvent(new CustomEvent("ajaxProduct:added", { detail: { cart } }));
+
+      try {
+        const sections = await fetch(
+          "/?sections=cart-drawer,cart-icon-bubble",
+          { credentials: "same-origin" }
+        ).then(r => r.json());
+
+        const drawer = document.querySelector("cart-drawer");
+        if (drawer && sections["cart-drawer"]) {
+          drawer.innerHTML = sections["cart-drawer"];
+        }
+
+        const bubble = document.querySelector("#cart-icon-bubble");
+        if (bubble && sections["cart-icon-bubble"]) {
+          bubble.innerHTML = sections["cart-icon-bubble"];
+        }
+      } catch {}
+
+      const toggle =
+        document.querySelector('[aria-controls="CartDrawer"]') ||
+        document.querySelector("#cart-icon-bubble");
+
+      toggle?.dispatchEvent(new Event("click", { bubbles: true }));
     });
   }
 
@@ -240,17 +242,16 @@
   /* ────────────────────────────────────────────── */
 
   async function init() {
-    if (!window.location.pathname.includes("/products/")) return;
+    if (!location.pathname.includes("/products/")) return;
 
     product = await loadProductJson();
     if (!product) return;
 
     const initial = getFirstAvailableVariant();
     selectedVariantId = Number(initial?.id);
-    selectedSellingPlanId = null;
 
     track("page_view", {
-      productId: String(initial?.product_id || ""),
+      productId: String(initial?.product_id),
       variantId: String(selectedVariantId),
     });
 
