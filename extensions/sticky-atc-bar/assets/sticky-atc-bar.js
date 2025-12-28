@@ -48,11 +48,11 @@
   }
 
   function getVariantById(id) {
-    return product?.variants?.find((v) => Number(v.id) === Number(id)) || null;
+    return product?.variants?.find(v => Number(v.id) === Number(id)) || null;
   }
 
   function getFirstAvailableVariant() {
-    return product?.variants?.find((v) => v.available) || product?.variants?.[0] || null;
+    return product?.variants?.find(v => v.available) || product?.variants?.[0] || null;
   }
 
   function getSellingPlansFlat() {
@@ -80,231 +80,67 @@
   }
 
   /* ────────────────────────────────────────────── */
-  /* THEME CART HELPERS (OPEN + REFRESH) */
+  /* CART REFRESH + DRAWER OPEN (FINAL FIX) */
   /* ────────────────────────────────────────────── */
 
-  async function fetchCart() {
-    const res = await fetch("/cart.js", {
-      credentials: "same-origin",
-      headers: { Accept: "application/json" },
-    });
-    if (!res.ok) throw new Error("Failed to fetch cart");
-    return res.json();
-  }
+  async function refreshAndOpenCart() {
+    let cart;
 
-  /**
-   * Dawn / many OS2 themes update cart UI by re-rendering "sections"
-   * Common section ids:
-   * - cart-drawer
-   * - cart-icon-bubble
-   * - cart-notification
-   *
-   * We request all and apply what exists on the page.
-   */
-  async function refreshCartSections() {
-    const sectionIds = ["cart-drawer", "cart-icon-bubble", "cart-notification"];
-    const url = `${window.location.pathname}?sections=${encodeURIComponent(sectionIds.join(","))}`;
-
-    const res = await fetch(url, {
-      credentials: "same-origin",
-      headers: { Accept: "application/json" },
-    });
-
-    if (!res.ok) return false;
-
-    const data = await res.json().catch(() => null);
-    if (!data || typeof data !== "object") return false;
-
-    let updated = false;
-
-    // cart drawer
-    if (data["cart-drawer"]) {
-      const current = document.querySelector("cart-drawer") || document.getElementById("CartDrawer");
-      if (current) {
-        const wrapper = document.createElement("div");
-        wrapper.innerHTML = data["cart-drawer"];
-        const next =
-          wrapper.querySelector("cart-drawer") ||
-          wrapper.querySelector("#CartDrawer") ||
-          wrapper.firstElementChild;
-        if (next) {
-          current.replaceWith(next);
-          updated = true;
-        }
-      }
-    }
-
-    // cart icon bubble
-    if (data["cart-icon-bubble"]) {
-      const current =
-        document.getElementById("cart-icon-bubble") ||
-        document.querySelector("[id*='cart-icon-bubble']");
-      if (current) {
-        const wrapper = document.createElement("div");
-        wrapper.innerHTML = data["cart-icon-bubble"];
-        const next = wrapper.querySelector("#cart-icon-bubble") || wrapper.firstElementChild;
-        if (next) {
-          current.replaceWith(next);
-          updated = true;
-        }
-      }
-    }
-
-    // cart notification
-    if (data["cart-notification"]) {
-      const current = document.querySelector("cart-notification") || document.getElementById("CartNotification");
-      if (current) {
-        const wrapper = document.createElement("div");
-        wrapper.innerHTML = data["cart-notification"];
-        const next =
-          wrapper.querySelector("cart-notification") ||
-          wrapper.querySelector("#CartNotification") ||
-          wrapper.firstElementChild;
-        if (next) {
-          current.replaceWith(next);
-          updated = true;
-        }
-      }
-    }
-
-    return updated;
-  }
-
-  /**
-   * Try to open the cart drawer in a theme-safe way.
-   * We:
-   *  1) dispatch common events
-   *  2) call known drawer APIs (Dawn has a cart-drawer element)
-   *  3) click common cart triggers (without navigating if possible)
-   */
-  function openCartDrawer() {
-    // 1) common events (some themes listen)
-    document.dispatchEvent(new CustomEvent("cart:open"));
-    document.dispatchEvent(new CustomEvent("cart:toggle", { detail: { open: true } }));
-    document.dispatchEvent(new CustomEvent("cart:refresh"));
-
-    // 2) Dawn cart drawer element often exposes .open() / setAttribute
-    const drawerEl = document.querySelector("cart-drawer") || document.getElementById("CartDrawer");
-    if (drawerEl) {
-      try {
-        if (typeof drawerEl.open === "function") {
-          drawerEl.open();
-          return true;
-        }
-      } catch {}
-      try {
-        drawerEl.setAttribute("open", "");
-        drawerEl.classList.add("active");
-        document.body.classList.add("overflow-hidden"); // some themes use this
-        return true;
-      } catch {}
-    }
-
-    // 3) click cart icon / button triggers
-    const triggers = [
-      "#cart-icon-bubble a",
-      'a[href="/cart"]',
-      'button[name="open-cart"]',
-      '[data-cart-toggle]',
-      '[aria-controls*="CartDrawer"]',
-      '[data-drawer-trigger]',
-    ];
-
-    for (const sel of triggers) {
-      const el = document.querySelector(sel);
-      if (!el) continue;
-
-      // avoid hard navigation to /cart if possible
-      if (el.tagName === "A" && el.getAttribute("href") === "/cart") {
-        // only click if it looks like a drawer trigger (aria-controls / data attribute)
-        const hasDrawerHint =
-          el.getAttribute("aria-controls") ||
-          el.hasAttribute("data-cart-toggle") ||
-          el.closest("[data-cart-toggle]") ||
-          el.closest("[aria-controls*='CartDrawer']");
-        if (!hasDrawerHint) continue;
-      }
-
-      try {
-        el.click();
-        return true;
-      } catch {}
-    }
-
-    return false;
-  }
-
-  /**
-   * After add, do the “real” refresh path first (sections),
-   * then open drawer, then fire generic events as a backup.
-   */
-async function refreshAndOpenCart() {
-  let cart = null;
-
-  try {
-    const res = await fetch("/cart.js", {
-      credentials: "same-origin",
-      headers: { Accept: "application/json" },
-    });
-    cart = await res.json();
-  } catch {
-    return;
-  }
-
-  // 1️⃣ DAWN / OS 2.0 OFFICIAL PATH
-  const drawer =
-    document.querySelector("cart-drawer") ||
-    document.getElementById("CartDrawer");
-
-  if (drawer && typeof drawer.renderContents === "function") {
-    drawer.renderContents(cart);
-    drawer.open?.();
-    return;
-  }
-
-  // 2️⃣ FALLBACK: section re-render (already works for many themes)
-  try {
-    const sections = ["cart-drawer", "cart-icon-bubble"];
-    const res = await fetch(
-      `${window.location.pathname}?sections=${sections.join(",")}`,
-      { credentials: "same-origin" }
-    );
-
-    const html = await res.json();
-
-    if (html["cart-drawer"]) {
-      const wrapper = document.createElement("div");
-      wrapper.innerHTML = html["cart-drawer"];
-      const next =
-        wrapper.querySelector("cart-drawer") ||
-        wrapper.querySelector("#CartDrawer");
-      if (next && drawer) drawer.replaceWith(next);
-    }
-
-    if (html["cart-icon-bubble"]) {
-      const bubble =
-        document.getElementById("cart-icon-bubble") ||
-        document.querySelector("[id*='cart-icon-bubble']");
-      if (bubble) {
-        const wrap = document.createElement("div");
-        wrap.innerHTML = html["cart-icon-bubble"];
-        bubble.replaceWith(wrap.firstElementChild);
-      }
-    }
-  } catch {}
-
-  // 3️⃣ FINAL OPEN (in case theme needs it)
-  drawer?.open?.();
-}
-
-
-    // finally, send updated cart object to any listeners
     try {
-      const cart = await fetchCart();
-      document.dispatchEvent(new CustomEvent("cart:updated", { detail: cart }));
-      document.dispatchEvent(new CustomEvent("cart:change", { detail: cart }));
-      document.dispatchEvent(new CustomEvent("cart:refresh", { detail: cart }));
-    } catch {}
+      const res = await fetch("/cart.js", {
+        credentials: "same-origin",
+        headers: { Accept: "application/json" },
+      });
+      cart = await res.json();
+    } catch {
+      return;
+    }
+
+    const drawer =
+      document.querySelector("cart-drawer") ||
+      document.getElementById("CartDrawer");
+
+    // 1️⃣ Dawn / OS 2.0 official API
+    if (drawer && typeof drawer.renderContents === "function") {
+      drawer.renderContents(cart);
+      drawer.open?.();
+    } else {
+      // 2️⃣ Fallback: section re-render
+      try {
+        const sections = ["cart-drawer", "cart-icon-bubble"];
+        const res = await fetch(
+          `${window.location.pathname}?sections=${sections.join(",")}`,
+          { credentials: "same-origin" }
+        );
+
+        const html = await res.json();
+
+        if (html["cart-drawer"] && drawer) {
+          const wrapper = document.createElement("div");
+          wrapper.innerHTML = html["cart-drawer"];
+          const next =
+            wrapper.querySelector("cart-drawer") ||
+            wrapper.querySelector("#CartDrawer");
+          if (next) drawer.replaceWith(next);
+        }
+
+        if (html["cart-icon-bubble"]) {
+          const bubble =
+            document.getElementById("cart-icon-bubble") ||
+            document.querySelector("[id*='cart-icon-bubble']");
+          if (bubble) {
+            const wrap = document.createElement("div");
+            wrap.innerHTML = html["cart-icon-bubble"];
+            bubble.replaceWith(wrap.firstElementChild);
+          }
+        }
+      } catch {}
+    }
+
+    // 3️⃣ Fire cart events AFTER update
+    document.dispatchEvent(new CustomEvent("cart:updated", { detail: cart }));
+    document.dispatchEvent(new CustomEvent("cart:change", { detail: cart }));
+    document.dispatchEvent(new CustomEvent("cart:refresh", { detail: cart }));
   }
 
   /* ────────────────────────────────────────────── */
@@ -317,8 +153,6 @@ async function refreshAndOpenCart() {
 
     bar = document.createElement("div");
     bar.id = BAR_ID;
-
-    // minimal inline styles
     bar.style.position = "fixed";
     bar.style.left = "0";
     bar.style.right = "0";
@@ -342,120 +176,61 @@ async function refreshAndOpenCart() {
     const priceCents = resolveDisplayedPriceCents(selectedVariantId);
 
     bar.innerHTML = `
-      <div style="display:flex;flex-direction:column;gap:4px;min-width:200px;">
-        <div style="font-weight:700;font-size:16px;line-height:1.1;">
-          ${product?.title || "Product"}
-        </div>
-        <div style="opacity:.9;font-size:14px;">
-          <span id="bdm-price">${priceCents ? formatMoney(priceCents) : ""}</span>
-          ${selectedSellingPlanId ? `<span style="opacity:.85;"> · Subscription</span>` : ""}
-        </div>
+      <div>
+        <strong>${product?.title}</strong><br>
+        ${priceCents ? formatMoney(priceCents) : ""}
       </div>
 
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
-        <label style="display:flex;flex-direction:column;font-size:12px;gap:4px;color:#ddd;">
-          Variant
-          <select id="bdm-variant" style="padding:8px;border-radius:8px;">
-            ${(product?.variants || [])
-              .map((v) => {
-                const name = v.public_title || v.title || "Default";
-                const disabled = v.available ? "" : "disabled";
-                const sel = Number(v.id) === Number(selectedVariantId) ? "selected" : "";
-                return `<option value="${v.id}" ${sel} ${disabled}>${name}</option>`;
-              })
-              .join("")}
-          </select>
-        </label>
+      <select id="bdm-variant">
+        ${(product?.variants || []).map(v =>
+          `<option value="${v.id}" ${v.id == selectedVariantId ? "selected" : ""}>
+            ${v.public_title || v.title}
+          </option>`
+        ).join("")}
+      </select>
 
-        ${
-          plans.length
-            ? `
-          <label style="display:flex;flex-direction:column;font-size:12px;gap:4px;color:#ddd;">
-            Purchase option
-            <select id="bdm-plan" style="padding:8px;border-radius:8px;">
-              <option value="">One-time purchase</option>
-              ${plans
-                .map((p) => {
-                  const sel = String(p.id) === String(selectedSellingPlanId) ? "selected" : "";
-                  return `<option value="${p.id}" ${sel}>${p.groupName}: ${p.name}</option>`;
-                })
-                .join("")}
-            </select>
-          </label>
-        `
-            : ""
-        }
+      ${plans.length ? `
+        <select id="bdm-plan">
+          <option value="">One-time</option>
+          ${plans.map(p =>
+            `<option value="${p.id}" ${p.id == selectedSellingPlanId ? "selected" : ""}>
+              ${p.groupName}: ${p.name}
+            </option>`
+          ).join("")}
+        </select>
+      ` : ""}
 
-        <label style="display:flex;flex-direction:column;font-size:12px;gap:4px;color:#ddd;">
-          Qty
-          <input id="bdm-qty" type="number" min="1" value="1"
-            style="width:70px;padding:8px;border-radius:8px;" />
-        </label>
-
-        <button id="bdm-add"
-          style="background:#48d17f;color:#000;font-weight:700;border:none;padding:10px 16px;border-radius:999px;cursor:pointer;">
-          Add to cart
-        </button>
-      </div>
+      <input id="bdm-qty" type="number" min="1" value="1" style="width:60px" />
+      <button id="bdm-add">Add to cart</button>
     `;
 
-    // variant change
-    $("#bdm-variant", bar)?.addEventListener("change", (e) => {
+    $("#bdm-variant")?.addEventListener("change", e => {
       selectedVariantId = Number(e.target.value);
-      // keep plan selection if possible; otherwise reset
-      selectedSellingPlanId = $("#bdm-plan", bar)?.value || null;
       renderBar();
     });
 
-    // plan change
-    $("#bdm-plan", bar)?.addEventListener("change", (e) => {
-      selectedSellingPlanId = e.target.value ? String(e.target.value) : null;
+    $("#bdm-plan")?.addEventListener("change", e => {
+      selectedSellingPlanId = e.target.value || null;
       renderBar();
     });
 
-    // add to cart
-    $("#bdm-add", bar)?.addEventListener("click", async () => {
-      const qty = Number($("#bdm-qty", bar)?.value || 1) || 1;
-      const v = getVariantById(selectedVariantId);
-
-      if (!selectedVariantId) {
-        console.warn("Sticky ATC: no variant selected");
-        return;
+    $("#bdm-add")?.addEventListener("click", async () => {
+      const qty = Number($("#bdm-qty")?.value || 1);
+      const formData = new FormData();
+      formData.append("id", selectedVariantId);
+      formData.append("quantity", qty);
+      if (selectedSellingPlanId) {
+        formData.append("selling_plan", selectedSellingPlanId);
       }
 
-      track("add_to_cart", {
-        variantId: String(selectedVariantId),
-        productId: v?.product_id ? String(v.product_id) : null,
-        quantity: qty,
-        price: typeof v?.price === "number" ? v.price / 100 : null,
-        sellingPlanId: selectedSellingPlanId || null,
+      await fetch("/cart/add.js", {
+        method: "POST",
+        body: formData,
+        credentials: "same-origin",
+        headers: { Accept: "application/json" },
       });
 
-      const formData = new FormData();
-      formData.append("id", String(selectedVariantId));
-      formData.append("quantity", String(qty));
-      if (selectedSellingPlanId) {
-        formData.append("selling_plan", String(selectedSellingPlanId));
-      }
-
-      try {
-        const res = await fetch("/cart/add.js", {
-          method: "POST",
-          body: formData,
-          credentials: "same-origin",
-          headers: { Accept: "application/json" },
-        });
-
-        if (!res.ok) {
-          console.warn("Sticky ATC: add failed", await res.text());
-          return;
-        }
-
-        // ✅ refresh + open drawer without page refresh
-        await refreshAndOpenCart();
-      } catch (err) {
-        console.error("Sticky ATC: network error", err);
-      }
+      await refreshAndOpenCart();
     });
   }
 
@@ -464,20 +239,11 @@ async function refreshAndOpenCart() {
   /* ────────────────────────────────────────────── */
 
   async function init() {
-    if (!window.location.pathname.includes("/products/")) return;
-
+    if (!location.pathname.includes("/products/")) return;
     product = await loadProductJson();
     if (!product) return;
 
-    const initial = getFirstAvailableVariant();
-    selectedVariantId = Number(initial?.id);
-    selectedSellingPlanId = null;
-
-    track("page_view", {
-      productId: initial?.product_id ? String(initial.product_id) : null,
-      variantId: String(selectedVariantId),
-    });
-
+    selectedVariantId = getFirstAvailableVariant()?.id;
     renderBar();
   }
 
