@@ -204,42 +204,58 @@
     });
 
     $("#bdm-add", bar)?.addEventListener("click", async () => {
-      const qty = Number($("#bdm-qty", bar)?.value || 1) || 1;
+  const qty = Number($("#bdm-qty", bar)?.value || 1) || 1;
+  const v = getVariantById(selectedVariantId);
 
-      const payload = {
-        id: selectedVariantId,
-        quantity: qty,
-      };
+  if (!selectedVariantId) {
+    console.warn("Sticky ATC: no variant selected");
+    return;
+  }
 
-      if (selectedSellingPlanId) {
-        payload.selling_plan = selectedSellingPlanId;
-      }
+  // Track BEFORE add (so failures still log)
+  track("add_to_cart", {
+    variantId: selectedVariantId,
+    productId: v?.product_id ? String(v.product_id) : null,
+    quantity: qty,
+    price: v?.price ? v.price / 100 : null,
+    sellingPlanId: selectedSellingPlanId || null,
+  });
 
-      // Track BEFORE add so you get data even if add fails
-      const v = getVariantById(selectedVariantId);
-      track("add_to_cart", {
-        variantId: selectedVariantId,
-        productId: v?.product_id ? String(v.product_id) : null,
-        quantity: qty,
-        price: v?.price ? v.price / 100 : null,
-        sellingPlanId: selectedSellingPlanId || null,
-      });
+  // ---- CRITICAL FIX: Use FormData (Shopify-safe) ----
+  const formData = new FormData();
+  formData.append("id", selectedVariantId);
+  formData.append("quantity", qty);
 
-      const res = await fetch("/cart/add.js", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify(payload),
-      });
+  if (selectedSellingPlanId) {
+    formData.append("selling_plan", selectedSellingPlanId);
+  }
 
-      if (!res.ok) {
-        console.warn("Sticky ATC: add failed", await res.text());
-        return;
-      }
-
-      // Optional: open cart drawer refresh
-      document.dispatchEvent(new CustomEvent("cart:refresh"));
+  try {
+    const res = await fetch("/cart/add", {
+      method: "POST",
+      body: formData,
+      credentials: "same-origin",
+      headers: {
+        Accept: "application/json",
+      },
     });
+
+    if (!res.ok) {
+      console.warn("Sticky ATC: add failed", await res.text());
+      return;
+    }
+
+    // Refresh cart UI (drawer-aware themes listen for this)
+    document.dispatchEvent(new CustomEvent("cart:refresh"));
+
+    // Optional: open cart page if no drawer exists
+    // window.location.href = "/cart";
+
+  } catch (err) {
+    console.error("Sticky ATC: network error", err);
+  }
+});
+
   }
 
   /* ────────────────────────────────────────────── */
