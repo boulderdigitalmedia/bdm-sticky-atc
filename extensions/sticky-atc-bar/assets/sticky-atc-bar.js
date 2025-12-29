@@ -6,113 +6,95 @@
   let selectedVariantId = null;
   let selectedSellingPlanId = null;
 
-  /* ───────────────────────── HELPERS ───────────────────────── */
+  /* ───────────────── HELPERS ───────────────── */
 
-  const $ = (sel, root = document) => root.querySelector(sel);
+  const $ = (s, r = document) => r.querySelector(s);
 
-  const formatMoney = (cents) =>
-    typeof cents === "number" ? `$${(cents / 100).toFixed(2)}` : "";
-
-  const getProductHandle = () =>
-    window.location.pathname.match(/\/products\/([^/]+)/)?.[1] || null;
+  const formatMoney = (c) =>
+    typeof c === "number" ? `$${(c / 100).toFixed(2)}` : "";
 
   async function loadProductJson() {
-    const embedded =
-      document.querySelector('script[type="application/json"][data-product-json]') ||
-      document.querySelector('script[type="application/json"][id^="ProductJson"]') ||
-      document.querySelector("#ProductJson");
-
-    if (embedded) {
-      try {
-        return JSON.parse(embedded.textContent);
-      } catch {}
-    }
-
-    const handle = getProductHandle();
+    const handle = location.pathname.match(/\/products\/([^/]+)/)?.[1];
     if (!handle) return null;
-
     const res = await fetch(`/products/${handle}.js`, {
       credentials: "same-origin",
       headers: { Accept: "application/json" },
     });
-
     return res.ok ? res.json() : null;
   }
 
   const getVariantById = (id) =>
-    product?.variants?.find((v) => Number(v.id) === Number(id)) || null;
+    product?.variants?.find(v => Number(v.id) === Number(id)) || null;
 
   const getFirstAvailableVariant = () =>
-    product?.variants?.find((v) => v.available) || product?.variants?.[0] || null;
+    product?.variants?.find(v => v.available) || product?.variants?.[0] || null;
 
-  const getSellingPlansFlat = () => {
-    const plans = [];
-    for (const g of product?.selling_plan_groups || []) {
-      for (const p of g.selling_plans || []) {
-        plans.push({ id: String(p.id), name: p.name, group: g.name });
-      }
-    }
-    return plans;
-  };
+  const getSellingPlansFlat = () =>
+    (product?.selling_plan_groups || []).flatMap(g =>
+      (g.selling_plans || []).map(p => ({
+        id: String(p.id),
+        name: p.name,
+        groupName: g.name,
+      }))
+    );
 
-  const track = (event, payload) => {
+  function track(event, payload) {
     fetch(TRACK_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ event, ...payload }),
     }).catch(() => {});
-  };
-
-  /* ───────────── CART REFRESH (SAFE – NO DOM REPLACE) ───────────── */
-
-  async function refreshCartState() {
-    try {
-      const res = await fetch("/cart.js", {
-        credentials: "same-origin",
-        headers: { Accept: "application/json" },
-      });
-      const cart = await res.json();
-
-      document.dispatchEvent(new CustomEvent("cart:updated", { detail: cart }));
-      document.dispatchEvent(new CustomEvent("cart:change", { detail: cart }));
-      document.dispatchEvent(new CustomEvent("cart:refresh", { detail: cart }));
-
-      return cart;
-    } catch {
-      return null;
-    }
   }
 
-  function openCartDrawerThemeSafe(cart) {
+  /* ───────────── CART REFRESH (CRITICAL FIX) ───────────── */
+
+  async function refreshCartUI() {
+    const sections = ["cart-drawer", "cart-icon-bubble", "cart-notification"];
+
+    // ✅ IMPORTANT: must be "/" not "/cart"
+    const res = await fetch(`/?sections=${sections.join(",")}`, {
+      credentials: "same-origin",
+      headers: { Accept: "application/json" },
+    });
+
+    if (!res.ok) return;
+    const html = await res.json();
+
+    if (html["cart-drawer"]) {
+      const current =
+        document.querySelector("cart-drawer") ||
+        document.getElementById("CartDrawer");
+
+      if (current) {
+        const wrap = document.createElement("div");
+        wrap.innerHTML = html["cart-drawer"];
+        const next =
+          wrap.querySelector("cart-drawer") ||
+          wrap.querySelector("#CartDrawer");
+        if (next) current.replaceWith(next);
+      }
+    }
+
+    if (html["cart-icon-bubble"]) {
+      const bubble =
+        document.getElementById("cart-icon-bubble") ||
+        document.querySelector("[id*='cart-icon-bubble']");
+      if (bubble) {
+        const wrap = document.createElement("div");
+        wrap.innerHTML = html["cart-icon-bubble"];
+        bubble.replaceWith(wrap.firstElementChild);
+      }
+    }
+
     const drawer =
       document.querySelector("cart-drawer") ||
       document.getElementById("CartDrawer");
 
-    if (!drawer) return;
-
-    // Dawn / OS 2.0 official API
-    if (typeof drawer.renderContents === "function" && cart) {
-      drawer.renderContents(cart);
-      drawer.open?.();
-      return;
-    }
-
-    if (typeof drawer.open === "function") {
-      drawer.open();
-      return;
-    }
-
-    // Last-resort triggers
-    document.dispatchEvent(new CustomEvent("cart:open"));
-    document.dispatchEvent(new CustomEvent("cart:toggle", { detail: { open: true } }));
+    drawer?.open?.();
+    drawer?.setAttribute?.("open", "");
   }
 
-  async function refreshAndOpenCart() {
-    const cart = await refreshCartState();
-    openCartDrawerThemeSafe(cart);
-  }
-
-  /* ───────────────────────── UI ───────────────────────── */
+  /* ───────────────── UI ───────────────── */
 
   function ensureBar() {
     let bar = document.getElementById(BAR_ID);
@@ -120,91 +102,72 @@
 
     bar = document.createElement("div");
     bar.id = BAR_ID;
-    bar.style.cssText = `
-      position:fixed;
-      left:0; right:0; bottom:0;
-      z-index:99999;
-      background:#111;
-      color:#fff;
-      padding:12px;
-      display:flex;
-      gap:12px;
-      align-items:center;
-      justify-content:space-between;
-    `;
+    bar.style.position = "fixed";
+    bar.style.bottom = "0";
+    bar.style.left = "0";
+    bar.style.right = "0";
+    bar.style.zIndex = "9999";
+    bar.style.background = "#111";
+    bar.style.color = "#fff";
+    bar.style.padding = "12px";
+    bar.style.display = "flex";
+    bar.style.gap = "10px";
+    bar.style.alignItems = "center";
+    bar.style.justifyContent = "space-between";
+
     document.body.appendChild(bar);
     return bar;
   }
 
   function renderBar() {
     const bar = ensureBar();
-    const variant = getVariantById(selectedVariantId);
+    const v = getVariantById(selectedVariantId);
     const plans = getSellingPlansFlat();
 
     bar.innerHTML = `
-      <div style="min-width:200px">
-        <div style="font-weight:700">${product.title}</div>
-        <div style="opacity:.85">
-          ${formatMoney(variant?.price)}
-          ${selectedSellingPlanId ? " · Subscription" : ""}
-        </div>
+      <div>
+        <strong>${product.title}</strong><br>
+        ${formatMoney(v?.price)}
       </div>
 
-      <div style="display:flex;gap:10px;align-items:center">
-        <select id="bdm-variant">
-          ${product.variants
-            .map(
-              (v) =>
-                `<option value="${v.id}" ${
-                  Number(v.id) === selectedVariantId ? "selected" : ""
-                } ${v.available ? "" : "disabled"}>
-                  ${v.public_title || v.title}
-                </option>`
-            )
-            .join("")}
+      <select id="bdm-variant">
+        ${product.variants.map(v =>
+          `<option value="${v.id}" ${v.id == selectedVariantId ? "selected" : ""}>
+            ${v.public_title || v.title}
+          </option>`
+        ).join("")}
+      </select>
+
+      ${plans.length ? `
+        <select id="bdm-plan">
+          <option value="">One-time</option>
+          ${plans.map(p =>
+            `<option value="${p.id}" ${p.id == selectedSellingPlanId ? "selected" : ""}>
+              ${p.groupName}: ${p.name}
+            </option>`
+          ).join("")}
         </select>
+      ` : ""}
 
-        ${
-          plans.length
-            ? `
-          <select id="bdm-plan">
-            <option value="">One-time</option>
-            ${plans
-              .map(
-                (p) =>
-                  `<option value="${p.id}" ${
-                    p.id === selectedSellingPlanId ? "selected" : ""
-                  }>${p.group}: ${p.name}</option>`
-              )
-              .join("")}
-          </select>`
-            : ""
-        }
-
-        <input id="bdm-qty" type="number" min="1" value="1" style="width:60px"/>
-
-        <button id="bdm-add" style="font-weight:700">Add to cart</button>
-      </div>
+      <input id="bdm-qty" type="number" min="1" value="1" style="width:60px" />
+      <button id="bdm-add">Add to cart</button>
     `;
 
-    $("#bdm-variant", bar).onchange = (e) => {
+    $("#bdm-variant").onchange = e => {
       selectedVariantId = Number(e.target.value);
       renderBar();
     };
 
-    $("#bdm-plan", bar)?.addEventListener("change", (e) => {
+    $("#bdm-plan")?.addEventListener("change", e => {
       selectedSellingPlanId = e.target.value || null;
     });
 
-    $("#bdm-add", bar).onclick = async () => {
-      const qty = Number($("#bdm-qty", bar).value || 1);
-      const v = getVariantById(selectedVariantId);
+    $("#bdm-add").onclick = async () => {
+      const qty = Number($("#bdm-qty").value || 1);
 
       track("add_to_cart", {
-        productId: String(v.product_id),
-        variantId: String(selectedVariantId),
+        variantId: selectedVariantId,
         quantity: qty,
-        price: v.price / 100,
         sellingPlanId: selectedSellingPlanId,
       });
 
@@ -213,34 +176,25 @@
       fd.append("quantity", qty);
       if (selectedSellingPlanId) fd.append("selling_plan", selectedSellingPlanId);
 
-      const res = await fetch("/cart/add.js", {
+      await fetch("/cart/add.js", {
         method: "POST",
         body: fd,
         credentials: "same-origin",
         headers: { Accept: "application/json" },
       });
 
-      if (res.ok) {
-        await refreshAndOpenCart();
-      }
+      await refreshCartUI();
     };
   }
 
-  /* ───────────────────────── INIT ───────────────────────── */
+  /* ───────────────── INIT ───────────────── */
 
   async function init() {
     if (!location.pathname.includes("/products/")) return;
-
     product = await loadProductJson();
     if (!product) return;
 
-    selectedVariantId = Number(getFirstAvailableVariant()?.id);
-
-    track("page_view", {
-      productId: String(product.id),
-      variantId: String(selectedVariantId),
-    });
-
+    selectedVariantId = getFirstAvailableVariant()?.id;
     renderBar();
   }
 
