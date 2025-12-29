@@ -76,15 +76,21 @@
     }
 
     if (html["cart-icon-bubble"]) {
-      const bubble =
-        document.getElementById("cart-icon-bubble") ||
-        document.querySelector("[id*='cart-icon-bubble']");
-      if (bubble) {
-        const wrap = document.createElement("div");
-        wrap.innerHTML = html["cart-icon-bubble"];
-        bubble.replaceWith(wrap.firstElementChild);
-      }
+  const bubble =
+    document.getElementById("cart-icon-bubble") ||
+    document.querySelector("[id*='cart-icon-bubble']");
+
+  if (bubble) {
+    const wrap = document.createElement("div");
+    wrap.innerHTML = html["cart-icon-bubble"];
+
+    const next = wrap.querySelector("#cart-icon-bubble");
+    if (next) {
+      bubble.innerHTML = next.innerHTML;
     }
+  }
+}
+
 
     const drawer =
       document.querySelector("cart-drawer") ||
