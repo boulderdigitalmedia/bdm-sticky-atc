@@ -46,12 +46,11 @@
     }).catch(() => {});
   }
 
-  /* ───────────── CART REFRESH (CRITICAL FIX) ───────────── */
+  /* ───────────── CART REFRESH (WORKING PATH) ───────────── */
 
   async function refreshCartUI() {
     const sections = ["cart-drawer", "cart-icon-bubble", "cart-notification"];
 
-    // ✅ IMPORTANT: must be "/" not "/cart"
     const res = await fetch(`/?sections=${sections.join(",")}`, {
       credentials: "same-origin",
       headers: { Accept: "application/json" },
@@ -76,21 +75,15 @@
     }
 
     if (html["cart-icon-bubble"]) {
-  const bubble =
-    document.getElementById("cart-icon-bubble") ||
-    document.querySelector("[id*='cart-icon-bubble']");
-
-  if (bubble) {
-    const wrap = document.createElement("div");
-    wrap.innerHTML = html["cart-icon-bubble"];
-
-    const next = wrap.querySelector("#cart-icon-bubble");
-    if (next) {
-      bubble.innerHTML = next.innerHTML;
+      const bubble =
+        document.getElementById("cart-icon-bubble") ||
+        document.querySelector("[id*='cart-icon-bubble']");
+      if (bubble) {
+        const wrap = document.createElement("div");
+        wrap.innerHTML = html["cart-icon-bubble"];
+        bubble.replaceWith(wrap.firstElementChild);
+      }
     }
-  }
-}
-
 
     const drawer =
       document.querySelector("cart-drawer") ||
@@ -98,6 +91,22 @@
 
     drawer?.open?.();
     drawer?.setAttribute?.("open", "");
+  }
+
+  /* ───────────── ✅ DAWN CART BUBBLE FIX (ADD ONLY) ───────────── */
+
+  async function updateCartBubbleWithData() {
+    const res = await fetch("/cart.js", {
+      credentials: "same-origin",
+      headers: { Accept: "application/json" },
+    });
+
+    if (!res.ok) return;
+    const cart = await res.json();
+
+    // Dawn listens for these events
+    document.dispatchEvent(new CustomEvent("cart:updated", { detail: cart }));
+    document.dispatchEvent(new CustomEvent("cart:change", { detail: cart }));
   }
 
   /* ───────────────── UI ───────────────── */
@@ -190,6 +199,7 @@
       });
 
       await refreshCartUI();
+      await updateCartBubbleWithData(); // ✅ ONLY ADDITION
     };
   }
 
