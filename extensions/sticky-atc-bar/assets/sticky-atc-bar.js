@@ -6,24 +6,15 @@
   let selectedVariantId = null;
   let selectedSellingPlanId = null;
 
-  /* ────────────────────────────────────────────── */
-  /* HELPERS */
-  /* ────────────────────────────────────────────── */
+  /* ───────────────── HELPERS ───────────────── */
 
-  function $(sel, root = document) {
-    return root.querySelector(sel);
-  }
+  const $ = (s, r = document) => r.querySelector(s);
 
-  function formatMoney(cents) {
-    return typeof cents === "number" ? `$${(cents / 100).toFixed(2)}` : "";
-  }
-
-  function getProductHandle() {
-    return location.pathname.match(/\/products\/([^\/]+)/)?.[1] || null;
-  }
+  const formatMoney = (c) =>
+    typeof c === "number" ? `$${(c / 100).toFixed(2)}` : "";
 
   async function loadProductJson() {
-    const handle = getProductHandle();
+    const handle = location.pathname.match(/\/products\/([^/]+)/)?.[1];
     if (!handle) return null;
     const res = await fetch(`/products/${handle}.js`, {
       credentials: "same-origin",
@@ -32,24 +23,20 @@
     return res.ok ? res.json() : null;
   }
 
-  function getVariantById(id) {
-    return product?.variants?.find(v => Number(v.id) === Number(id)) || null;
-  }
+  const getVariantById = (id) =>
+    product?.variants?.find(v => Number(v.id) === Number(id)) || null;
 
-  function getFirstAvailableVariant() {
-    return product?.variants?.find(v => v.available) || product?.variants?.[0] || null;
-  }
+  const getFirstAvailableVariant = () =>
+    product?.variants?.find(v => v.available) || product?.variants?.[0] || null;
 
-  function getSellingPlansFlat() {
-    const groups = product?.selling_plan_groups || [];
-    return groups.flatMap(g =>
+  const getSellingPlansFlat = () =>
+    (product?.selling_plan_groups || []).flatMap(g =>
       (g.selling_plans || []).map(p => ({
         id: String(p.id),
         name: p.name,
         groupName: g.name,
       }))
     );
-  }
 
   function track(event, payload) {
     fetch(TRACK_ENDPOINT, {
@@ -59,26 +46,25 @@
     }).catch(() => {});
   }
 
-  /* ────────────────────────────────────────────── */
-  /* CART UPDATE — THE ONLY RELIABLE WAY */
-  /* ────────────────────────────────────────────── */
+  /* ───────────── CART REFRESH (CRITICAL FIX) ───────────── */
 
   async function refreshCartUI() {
     const sections = ["cart-drawer", "cart-icon-bubble", "cart-notification"];
-    const res = await fetch(`/cart?sections=${sections.join(",")}`, {
+
+    // ✅ IMPORTANT: must be "/" not "/cart"
+    const res = await fetch(`/?sections=${sections.join(",")}`, {
       credentials: "same-origin",
       headers: { Accept: "application/json" },
     });
 
     if (!res.ok) return;
-
     const html = await res.json();
 
-    // CART DRAWER
     if (html["cart-drawer"]) {
       const current =
         document.querySelector("cart-drawer") ||
         document.getElementById("CartDrawer");
+
       if (current) {
         const wrap = document.createElement("div");
         wrap.innerHTML = html["cart-drawer"];
@@ -89,7 +75,6 @@
       }
     }
 
-    // CART ICON
     if (html["cart-icon-bubble"]) {
       const bubble =
         document.getElementById("cart-icon-bubble") ||
@@ -101,7 +86,6 @@
       }
     }
 
-    // OPEN DRAWER (native)
     const drawer =
       document.querySelector("cart-drawer") ||
       document.getElementById("CartDrawer");
@@ -110,9 +94,7 @@
     drawer?.setAttribute?.("open", "");
   }
 
-  /* ────────────────────────────────────────────── */
-  /* UI */
-  /* ────────────────────────────────────────────── */
+  /* ───────────────── UI ───────────────── */
 
   function ensureBar() {
     let bar = document.getElementById(BAR_ID);
@@ -139,13 +121,13 @@
 
   function renderBar() {
     const bar = ensureBar();
-    const variant = getVariantById(selectedVariantId);
+    const v = getVariantById(selectedVariantId);
     const plans = getSellingPlansFlat();
 
     bar.innerHTML = `
       <div>
         <strong>${product.title}</strong><br>
-        ${formatMoney(variant?.price)}
+        ${formatMoney(v?.price)}
       </div>
 
       <select id="bdm-variant">
@@ -171,16 +153,16 @@
       <button id="bdm-add">Add to cart</button>
     `;
 
-    $("#bdm-variant")?.addEventListener("change", e => {
+    $("#bdm-variant").onchange = e => {
       selectedVariantId = Number(e.target.value);
       renderBar();
-    });
+    };
 
     $("#bdm-plan")?.addEventListener("change", e => {
       selectedSellingPlanId = e.target.value || null;
     });
 
-    $("#bdm-add")?.addEventListener("click", async () => {
+    $("#bdm-add").onclick = async () => {
       const qty = Number($("#bdm-qty").value || 1);
 
       track("add_to_cart", {
@@ -192,9 +174,7 @@
       const fd = new FormData();
       fd.append("id", selectedVariantId);
       fd.append("quantity", qty);
-      if (selectedSellingPlanId) {
-        fd.append("selling_plan", selectedSellingPlanId);
-      }
+      if (selectedSellingPlanId) fd.append("selling_plan", selectedSellingPlanId);
 
       await fetch("/cart/add.js", {
         method: "POST",
@@ -204,12 +184,10 @@
       });
 
       await refreshCartUI();
-    });
+    };
   }
 
-  /* ────────────────────────────────────────────── */
-  /* INIT */
-  /* ────────────────────────────────────────────── */
+  /* ───────────────── INIT ───────────────── */
 
   async function init() {
     if (!location.pathname.includes("/products/")) return;
