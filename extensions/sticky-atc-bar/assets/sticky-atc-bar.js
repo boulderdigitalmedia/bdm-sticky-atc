@@ -16,10 +16,12 @@
   async function loadProductJson() {
     const handle = location.pathname.match(/\/products\/([^/]+)/)?.[1];
     if (!handle) return null;
+
     const res = await fetch(`/products/${handle}.js`, {
       credentials: "same-origin",
       headers: { Accept: "application/json" },
     });
+
     return res.ok ? res.json() : null;
   }
 
@@ -27,7 +29,9 @@
     product?.variants?.find(v => Number(v.id) === Number(id)) || null;
 
   const getFirstAvailableVariant = () =>
-    product?.variants?.find(v => v.available) || product?.variants?.[0] || null;
+    product?.variants?.find(v => v.available) ||
+    product?.variants?.[0] ||
+    null;
 
   const getSellingPlansFlat = () =>
     (product?.selling_plan_groups || []).flatMap(g =>
@@ -46,11 +50,12 @@
     }).catch(() => {});
   }
 
-  /* ───────────── CART REFRESH (WORKING PATH) ───────────── */
+  /* ───────────── CART REFRESH (STABLE + SAFE) ───────────── */
 
   async function refreshCartUI() {
     const sections = ["cart-drawer", "cart-icon-bubble", "cart-notification"];
 
+    // IMPORTANT: must be "/" not "/cart"
     const res = await fetch(`/?sections=${sections.join(",")}`, {
       credentials: "same-origin",
       headers: { Accept: "application/json" },
@@ -59,6 +64,7 @@
     if (!res.ok) return;
     const html = await res.json();
 
+    /* ─── CART DRAWER ─── */
     if (html["cart-drawer"]) {
       const current =
         document.querySelector("cart-drawer") ||
@@ -70,43 +76,36 @@
         const next =
           wrap.querySelector("cart-drawer") ||
           wrap.querySelector("#CartDrawer");
+
         if (next) current.replaceWith(next);
       }
     }
 
+    /* ─── CART ICON BUBBLE (FIXED: NO DISPLACEMENT) ─── */
     if (html["cart-icon-bubble"]) {
       const bubble =
         document.getElementById("cart-icon-bubble") ||
         document.querySelector("[id*='cart-icon-bubble']");
+
       if (bubble) {
         const wrap = document.createElement("div");
         wrap.innerHTML = html["cart-icon-bubble"];
-        bubble.replaceWith(wrap.firstElementChild);
+        const next = wrap.firstElementChild;
+
+        if (next) {
+          // ✅ ONLY update contents — preserves layout & position
+          bubble.innerHTML = next.innerHTML;
+        }
       }
     }
 
+    /* ─── OPEN DRAWER ─── */
     const drawer =
       document.querySelector("cart-drawer") ||
       document.getElementById("CartDrawer");
 
     drawer?.open?.();
     drawer?.setAttribute?.("open", "");
-  }
-
-  /* ───────────── ✅ DAWN CART BUBBLE FIX (ADD ONLY) ───────────── */
-
-  async function updateCartBubbleWithData() {
-    const res = await fetch("/cart.js", {
-      credentials: "same-origin",
-      headers: { Accept: "application/json" },
-    });
-
-    if (!res.ok) return;
-    const cart = await res.json();
-
-    // Dawn listens for these events
-    document.dispatchEvent(new CustomEvent("cart:updated", { detail: cart }));
-    document.dispatchEvent(new CustomEvent("cart:change", { detail: cart }));
   }
 
   /* ───────────────── UI ───────────────── */
@@ -199,7 +198,6 @@
       });
 
       await refreshCartUI();
-      await updateCartBubbleWithData(); // ✅ ONLY ADDITION
     };
   }
 
@@ -207,6 +205,7 @@
 
   async function init() {
     if (!location.pathname.includes("/products/")) return;
+
     product = await loadProductJson();
     if (!product) return;
 
