@@ -4,21 +4,26 @@ import prisma from "../prisma.js";
 const router = express.Router();
 
 /**
- * POST /api/analytics/track
- * Public endpoint (storefront script hits this).
- * Stores raw events in StickyEvent.
+ * POST /apps/bdm-sticky-atc/track
+ * Public storefront endpoint
+ * Stores raw events in StickyEvent
  */
 router.post("/track", async (req, res) => {
   try {
     const {
-      shop,
       event,
       productId,
       variantId,
       quantity,
-      price, // dollars (float) is fine for your schema
+      price,
       timestamp,
     } = req.body || {};
+
+    // ✅ ALWAYS derive shop server-side
+    const shop =
+      req.headers["x-shopify-shop-domain"] ||
+      req.query.shop ||
+      null;
 
     if (!shop || !event) {
       return res.status(400).json({ error: "Missing shop or event" });
@@ -44,25 +49,28 @@ router.post("/track", async (req, res) => {
 });
 
 /**
- * POST /api/analytics/checkout
- * Web Pixel posts here when checkout completes.
- * We store attribution token (checkoutToken) so webhook can finalize later.
+ * POST /apps/bdm-sticky-atc/checkout
+ * Web Pixel posts here when checkout completes
+ * Stores attribution token for Orders Paid webhook
  */
 router.post("/checkout", async (req, res) => {
   try {
     const {
-      shop,
       checkoutToken,
       productId,
       variantId,
       occurredAt,
     } = req.body || {};
 
+    const shop =
+      req.headers["x-shopify-shop-domain"] ||
+      req.query.shop ||
+      null;
+
     if (!shop || !checkoutToken) {
       return res.status(400).json({ error: "Missing shop or checkoutToken" });
     }
 
-    // StickyAttribution has unique checkoutToken
     await prisma.stickyAttribution.upsert({
       where: { checkoutToken: String(checkoutToken) },
       update: {
@@ -80,7 +88,7 @@ router.post("/checkout", async (req, res) => {
       },
     });
 
-    // Optional: also log an event so you can chart "checkouts started/completed"
+    // Optional event log for analytics
     await prisma.stickyEvent.create({
       data: {
         shop: String(shop),
@@ -99,8 +107,8 @@ router.post("/checkout", async (req, res) => {
 });
 
 /**
- * GET /api/analytics/summary?shop=xxx&days=30
- * Dashboard KPIs
+ * GET /apps/bdm-sticky-atc/summary
+ * KPI dashboard
  */
 router.get("/summary", async (req, res) => {
   try {
@@ -111,24 +119,28 @@ router.get("/summary", async (req, res) => {
     const days = Math.max(1, Number(req.query.days) || 30);
     if (!shop) return res.status(400).json({ error: "Missing shop" });
 
-    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const since = new Date(Date.now() - days * 86400000);
 
-    const [pageViews, addToCart, conversionsAgg, conversionsCount] =
-      await Promise.all([
-        prisma.stickyEvent.count({
-          where: { shop: String(shop), event: "page_view", timestamp: { gte: since } },
-        }),
-        prisma.stickyEvent.count({
-          where: { shop: String(shop), event: "add_to_cart", timestamp: { gte: since } },
-        }),
-        prisma.stickyConversion.aggregate({
-          where: { shop: String(shop), occurredAt: { gte: since } },
-          _sum: { revenue: true },
-        }),
-        prisma.stickyConversion.count({
-          where: { shop: String(shop), occurredAt: { gte: since } },
-        }),
-      ]);
+    const [
+      pageViews,
+      addToCart,
+      conversionsAgg,
+      conversionsCount,
+    ] = await Promise.all([
+      prisma.stickyEvent.count({
+        where: { shop: String(shop), event: "page_view", timestamp: { gte: since } },
+      }),
+      prisma.stickyEvent.count({
+        where: { shop: String(shop), event: "add_to_cart", timestamp: { gte: since } },
+      }),
+      prisma.stickyConversion.aggregate({
+        where: { shop: String(shop), occurredAt: { gte: since } },
+        _sum: { revenue: true },
+      }),
+      prisma.stickyConversion.count({
+        where: { shop: String(shop), occurredAt: { gte: since } },
+      }),
+    ]);
 
     const revenue = conversionsAgg._sum.revenue || 0;
     const atcRate = pageViews > 0 ? (addToCart / pageViews) * 100 : 0;
@@ -148,9 +160,7 @@ router.get("/summary", async (req, res) => {
 });
 
 /**
- * GET /api/analytics/timeseries?shop=xxx&days=30
- * Returns daily points for charts (page_views, add_to_cart, conversions, revenue)
- * Uses SQL date_trunc for Postgres.
+ * GET /apps/bdm-sticky-atc/timeseries
  */
 router.get("/timeseries", async (req, res) => {
   try {
@@ -161,7 +171,7 @@ router.get("/timeseries", async (req, res) => {
     const days = Math.max(1, Number(req.query.days) || 30);
     if (!shop) return res.status(400).json({ error: "Missing shop" });
 
-    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const since = new Date(Date.now() - days * 86400000);
 
     const eventsByDay = await prisma.$queryRaw`
       SELECT
@@ -185,8 +195,8 @@ router.get("/timeseries", async (req, res) => {
       ORDER BY 1 ASC;
     `;
 
-    // merge by day
     const map = new Map();
+
     for (const r of eventsByDay) {
       map.set(String(r.day), {
         day: String(r.day),
@@ -196,80 +206,30 @@ router.get("/timeseries", async (req, res) => {
         revenue: 0,
       });
     }
+
     for (const r of convByDay) {
       const key = String(r.day);
-      const existing = map.get(key) || {
+      const row = map.get(key) || {
         day: key,
         pageViews: 0,
         addToCart: 0,
         conversions: 0,
         revenue: 0,
       };
-      existing.conversions = Number(r.conversions || 0);
-      existing.revenue = Number(r.revenue || 0);
-      map.set(key, existing);
+      row.conversions = Number(r.conversions || 0);
+      row.revenue = Number(r.revenue || 0);
+      map.set(key, row);
     }
 
     return res.json({
       days,
-      points: Array.from(map.values()).sort((a, b) => a.day.localeCompare(b.day)),
+      points: Array.from(map.values()).sort((a, b) =>
+        a.day.localeCompare(b.day)
+      ),
     });
   } catch (err) {
     console.error("timeseries error:", err);
     return res.status(500).json({ error: "Timeseries failed" });
-  }
-});
-
-/**
- * GET /api/analytics/products?shop=xxx&days=30
- * Top products by ATC and by conversion revenue.
- */
-router.get("/products", async (req, res) => {
-  try {
-    const shop =
-      req.query.shop ||
-      req.headers["x-shopify-shop-domain"];
-
-    const days = Math.max(1, Number(req.query.days) || 30);
-    if (!shop) return res.status(400).json({ error: "Missing shop" });
-
-    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-
-    const topAtc = await prisma.$queryRaw`
-      SELECT
-        "productId",
-        COUNT(*)::int AS atc
-      FROM "StickyEvent"
-      WHERE shop = ${String(shop)}
-        AND event = 'add_to_cart'
-        AND "timestamp" >= ${since}
-        AND "productId" IS NOT NULL
-      GROUP BY "productId"
-      ORDER BY atc DESC
-      LIMIT 20;
-    `;
-
-    // If you want "revenue per attributed product", you need product attribution.
-    // We use StickyAttribution checkoutToken -> productId
-    const topRevenue = await prisma.$queryRaw`
-      SELECT
-        a."productId",
-        COUNT(c."orderId")::int AS conversions,
-        COALESCE(SUM(c."revenue"), 0)::float AS revenue
-      FROM "StickyConversion" c
-      JOIN "StickyAttribution" a
-        ON a."shop" = c."shop"
-      WHERE c.shop = ${String(shop)}
-        AND c."occurredAt" >= ${since}
-      GROUP BY a."productId"
-      ORDER BY revenue DESC
-      LIMIT 20;
-    `;
-
-    return res.json({ days, topAtc, topRevenue });
-  } catch (err) {
-    console.error("products error:", err);
-    return res.status(500).json({ error: "Products failed" });
   }
 });
 
