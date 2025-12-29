@@ -15,36 +15,21 @@
   }
 
   function formatMoney(cents) {
-    if (typeof cents !== "number") return "";
-    return `$${(cents / 100).toFixed(2)}`;
+    return typeof cents === "number" ? `$${(cents / 100).toFixed(2)}` : "";
   }
 
   function getProductHandle() {
-    const m = window.location.pathname.match(/\/products\/([^\/]+)/);
-    return m?.[1] || null;
+    return location.pathname.match(/\/products\/([^\/]+)/)?.[1] || null;
   }
 
   async function loadProductJson() {
-    const embedded =
-      document.querySelector('script[type="application/json"][data-product-json]') ||
-      document.querySelector('script[type="application/json"][id^="ProductJson"]') ||
-      document.querySelector("#ProductJson");
-
-    if (embedded) {
-      try {
-        return JSON.parse(embedded.textContent);
-      } catch {}
-    }
-
     const handle = getProductHandle();
     if (!handle) return null;
-
     const res = await fetch(`/products/${handle}.js`, {
       credentials: "same-origin",
       headers: { Accept: "application/json" },
     });
-    if (!res.ok) return null;
-    return res.json();
+    return res.ok ? res.json() : null;
   }
 
   function getVariantById(id) {
@@ -57,18 +42,13 @@
 
   function getSellingPlansFlat() {
     const groups = product?.selling_plan_groups || [];
-    const plans = [];
-    for (const g of groups) {
-      for (const p of g.selling_plans || []) {
-        plans.push({ id: String(p.id), name: p.name, groupName: g.name });
-      }
-    }
-    return plans;
-  }
-
-  function resolveDisplayedPriceCents(variantId) {
-    const v = getVariantById(variantId);
-    return typeof v?.price === "number" ? v.price : null;
+    return groups.flatMap(g =>
+      (g.selling_plans || []).map(p => ({
+        id: String(p.id),
+        name: p.name,
+        groupName: g.name,
+      }))
+    );
   }
 
   function track(event, payload) {
@@ -80,67 +60,54 @@
   }
 
   /* ────────────────────────────────────────────── */
-  /* CART REFRESH + DRAWER OPEN (FINAL FIX) */
+  /* CART UPDATE — THE ONLY RELIABLE WAY */
   /* ────────────────────────────────────────────── */
 
-  async function refreshAndOpenCart() {
-    let cart;
+  async function refreshCartUI() {
+    const sections = ["cart-drawer", "cart-icon-bubble", "cart-notification"];
+    const res = await fetch(`/cart?sections=${sections.join(",")}`, {
+      credentials: "same-origin",
+      headers: { Accept: "application/json" },
+    });
 
-    try {
-      const res = await fetch("/cart.js", {
-        credentials: "same-origin",
-        headers: { Accept: "application/json" },
-      });
-      cart = await res.json();
-    } catch {
-      return;
+    if (!res.ok) return;
+
+    const html = await res.json();
+
+    // CART DRAWER
+    if (html["cart-drawer"]) {
+      const current =
+        document.querySelector("cart-drawer") ||
+        document.getElementById("CartDrawer");
+      if (current) {
+        const wrap = document.createElement("div");
+        wrap.innerHTML = html["cart-drawer"];
+        const next =
+          wrap.querySelector("cart-drawer") ||
+          wrap.querySelector("#CartDrawer");
+        if (next) current.replaceWith(next);
+      }
     }
 
+    // CART ICON
+    if (html["cart-icon-bubble"]) {
+      const bubble =
+        document.getElementById("cart-icon-bubble") ||
+        document.querySelector("[id*='cart-icon-bubble']");
+      if (bubble) {
+        const wrap = document.createElement("div");
+        wrap.innerHTML = html["cart-icon-bubble"];
+        bubble.replaceWith(wrap.firstElementChild);
+      }
+    }
+
+    // OPEN DRAWER (native)
     const drawer =
       document.querySelector("cart-drawer") ||
       document.getElementById("CartDrawer");
 
-    // 1️⃣ Dawn / OS 2.0 official API
-    if (drawer && typeof drawer.renderContents === "function") {
-      drawer.renderContents(cart);
-      drawer.open?.();
-    } else {
-      // 2️⃣ Fallback: section re-render
-      try {
-        const sections = ["cart-drawer", "cart-icon-bubble"];
-        const res = await fetch(
-          `${window.location.pathname}?sections=${sections.join(",")}`,
-          { credentials: "same-origin" }
-        );
-
-        const html = await res.json();
-
-        if (html["cart-drawer"] && drawer) {
-          const wrapper = document.createElement("div");
-          wrapper.innerHTML = html["cart-drawer"];
-          const next =
-            wrapper.querySelector("cart-drawer") ||
-            wrapper.querySelector("#CartDrawer");
-          if (next) drawer.replaceWith(next);
-        }
-
-        if (html["cart-icon-bubble"]) {
-          const bubble =
-            document.getElementById("cart-icon-bubble") ||
-            document.querySelector("[id*='cart-icon-bubble']");
-          if (bubble) {
-            const wrap = document.createElement("div");
-            wrap.innerHTML = html["cart-icon-bubble"];
-            bubble.replaceWith(wrap.firstElementChild);
-          }
-        }
-      } catch {}
-    }
-
-    // 3️⃣ Fire cart events AFTER update
-    document.dispatchEvent(new CustomEvent("cart:updated", { detail: cart }));
-    document.dispatchEvent(new CustomEvent("cart:change", { detail: cart }));
-    document.dispatchEvent(new CustomEvent("cart:refresh", { detail: cart }));
+    drawer?.open?.();
+    drawer?.setAttribute?.("open", "");
   }
 
   /* ────────────────────────────────────────────── */
@@ -154,15 +121,15 @@
     bar = document.createElement("div");
     bar.id = BAR_ID;
     bar.style.position = "fixed";
+    bar.style.bottom = "0";
     bar.style.left = "0";
     bar.style.right = "0";
-    bar.style.bottom = "0";
-    bar.style.zIndex = "99999";
-    bar.style.padding = "12px";
+    bar.style.zIndex = "9999";
     bar.style.background = "#111";
     bar.style.color = "#fff";
+    bar.style.padding = "12px";
     bar.style.display = "flex";
-    bar.style.gap = "12px";
+    bar.style.gap = "10px";
     bar.style.alignItems = "center";
     bar.style.justifyContent = "space-between";
 
@@ -172,17 +139,17 @@
 
   function renderBar() {
     const bar = ensureBar();
+    const variant = getVariantById(selectedVariantId);
     const plans = getSellingPlansFlat();
-    const priceCents = resolveDisplayedPriceCents(selectedVariantId);
 
     bar.innerHTML = `
       <div>
-        <strong>${product?.title}</strong><br>
-        ${priceCents ? formatMoney(priceCents) : ""}
+        <strong>${product.title}</strong><br>
+        ${formatMoney(variant?.price)}
       </div>
 
       <select id="bdm-variant">
-        ${(product?.variants || []).map(v =>
+        ${product.variants.map(v =>
           `<option value="${v.id}" ${v.id == selectedVariantId ? "selected" : ""}>
             ${v.public_title || v.title}
           </option>`
@@ -211,26 +178,32 @@
 
     $("#bdm-plan")?.addEventListener("change", e => {
       selectedSellingPlanId = e.target.value || null;
-      renderBar();
     });
 
     $("#bdm-add")?.addEventListener("click", async () => {
-      const qty = Number($("#bdm-qty")?.value || 1);
-      const formData = new FormData();
-      formData.append("id", selectedVariantId);
-      formData.append("quantity", qty);
+      const qty = Number($("#bdm-qty").value || 1);
+
+      track("add_to_cart", {
+        variantId: selectedVariantId,
+        quantity: qty,
+        sellingPlanId: selectedSellingPlanId,
+      });
+
+      const fd = new FormData();
+      fd.append("id", selectedVariantId);
+      fd.append("quantity", qty);
       if (selectedSellingPlanId) {
-        formData.append("selling_plan", selectedSellingPlanId);
+        fd.append("selling_plan", selectedSellingPlanId);
       }
 
       await fetch("/cart/add.js", {
         method: "POST",
-        body: formData,
+        body: fd,
         credentials: "same-origin",
         headers: { Accept: "application/json" },
       });
 
-      await refreshAndOpenCart();
+      await refreshCartUI();
     });
   }
 
