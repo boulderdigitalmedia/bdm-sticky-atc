@@ -23,3 +23,7 @@ redirect_urls = [
 
 [pos]
 embedded = false
+
+[[extensions]]
+name = "sticky-atc-web-pixel"
+type = "web_pixel_extension"
