@@ -1,6 +1,6 @@
 // web/index.js
 
-import "dotenv/config"; // ✅ Safe: loads .env locally, ignored by Render
+import "dotenv/config"; // loads .env locally, ignored by Render
 
 import express from "express";
 import path from "path";
@@ -22,6 +22,7 @@ const __dirname = path.dirname(__filename);
 // ──────────────────────────────────────────────
 const app = express();
 const PORT = process.env.PORT || 10000;
+
 // ──────────────────────────────────────────────
 // APP PROXY TEST ROUTES (REQUIRED)
 // ──────────────────────────────────────────────
@@ -54,10 +55,11 @@ app.use("/apps/bdm-sticky-atc", (req, res, next) => {
   next();
 });
 
+// ✅ storefront tracking (POST /apps/bdm-sticky-atc/track)
 app.use("/apps/bdm-sticky-atc", trackRoutes);
-app.use("/apps/bdm-sticky-atc/attribution", attributionRoute);
-app.use("/apps/bdm-sticky-atc", attributionRoute);
 
+// ✅ attribution lives ONLY here
+app.use("/apps/bdm-sticky-atc/attribution", attributionRoute);
 
 // ──────────────────────────────────────────────
 // SHOPIFY WEBHOOKS
@@ -113,7 +115,7 @@ app.get(
 );
 
 // ──────────────────────────────────────────────
-// SPA CATCH-ALL
+// SPA CATCH-ALL (must be LAST)
 // ──────────────────────────────────────────────
 app.get("*", (req, res) => {
   return res.sendFile(path.join(frontendDir, "index.html"));
