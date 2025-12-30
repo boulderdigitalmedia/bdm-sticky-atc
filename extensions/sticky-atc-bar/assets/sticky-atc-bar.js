@@ -43,12 +43,21 @@
     );
 
   function track(event, payload) {
-    fetch(TRACK_ENDPOINT, {
+  try {
+    fetch("/apps/bdm-sticky-atc/track", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ event, ...payload }),
+      body: JSON.stringify({
+        event,
+        ...payload,
+        shop: window.Shopify?.shop || window.location.host,
+      }),
     }).catch(() => {});
+  } catch (_) {
+    // Never let analytics break the UI
   }
+}
+
 
   /* ───────────── CART REFRESH (STABLE + SAFE) ───────────── */
 
