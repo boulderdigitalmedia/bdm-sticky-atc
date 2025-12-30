@@ -1,2 +1,6 @@
-name = "Sticky ATC Conversion Pixel"
+name = "Sticky ATC Analytics Pixel"
 type = "web_pixel_extension"
+
+runtime_context = "strict"
+
+[settings]
