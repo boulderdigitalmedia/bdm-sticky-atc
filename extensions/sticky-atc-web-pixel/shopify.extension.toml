@@ -3,6 +3,10 @@ type = "web_pixel_extension"
 
 runtime_context = "strict"
 
+extension_points = [
+  "shopify.web_pixel.render"
+]
+
 [runtime_configuration_definition]
 type = "object"
 
