@@ -1,10 +1,6 @@
 name = "Sticky ATC Web Pixel"
 type = "web_pixel_extension"
 api_version = "2024-07"
-runtime_context = "strict"
-
-[capabilities]
-network_access = true
 
 [extension_points]
 shopify.web_pixel.render = {}
