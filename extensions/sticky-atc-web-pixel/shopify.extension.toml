@@ -3,4 +3,7 @@ type = "web_pixel_extension"
 
 runtime_context = "strict"
 
-[settings]
+[runtime_configuration_definition]
+type = "object"
+
+[runtime_configuration_definition.properties]
