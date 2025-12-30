@@ -22,6 +22,16 @@ const __dirname = path.dirname(__filename);
 // ──────────────────────────────────────────────
 const app = express();
 const PORT = process.env.PORT || 10000;
+// ──────────────────────────────────────────────
+// APP PROXY TEST ROUTES (REQUIRED)
+// ──────────────────────────────────────────────
+app.get("/apps/bdm-sticky-atc", (req, res) => {
+  res.status(200).send("Sticky ATC proxy OK");
+});
+
+app.get("/apps/bdm-sticky-atc/health", (req, res) => {
+  res.json({ ok: true });
+});
 
 // ──────────────────────────────────────────────
 // BODY PARSING

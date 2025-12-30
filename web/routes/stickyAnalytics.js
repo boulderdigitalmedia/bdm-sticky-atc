@@ -40,8 +40,7 @@ router.post("/track", async (req, res) => {
         timestamp: timestamp ? new Date(timestamp) : undefined,
       },
     });
-
-    return res.json({ ok: true });
+router.post
   } catch (err) {
     console.error("track error:", err);
     return res.status(500).json({ error: "Track failed" });
