@@ -1,5 +1,6 @@
 name = "Sticky ATC Analytics Pixel"
 type = "web_pixel_extension"
+api_version = "2024-07"
 
 runtime_context = "strict"
 
