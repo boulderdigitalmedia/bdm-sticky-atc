@@ -1,3 +1,5 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
 client_id = "624b866762bfee0ffea282573cfc8539"
 name = "BDM Sticky Add to Cart Bar"
 application_url = "https://sticky-add-to-cart-bar-pro.onrender.com"
@@ -7,8 +9,9 @@ embedded = true
 api_version = "2024-10"
 
 [access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
 scopes = ""
-optional_scopes = []
+optional_scopes = [ ]
 use_legacy_install_flow = false
 
 [auth]
@@ -22,6 +25,5 @@ redirect_urls = [
 embedded = false
 
 [[extensions]]
-name = "sticky-atc-web-pixel"
+name = "Sticky ATC Analytics Pixel"
 type = "web_pixel_extension"
-path = "extensions/sticky-atc-web-pixel"
