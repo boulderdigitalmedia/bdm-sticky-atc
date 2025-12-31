@@ -4,4 +4,12 @@ type = "web_pixel_extension"
 
 runtime_context = "strict"
 
-[settings]
+runtime_configuration_definition = {
+  type = "object",
+  properties = {},
+  required = []
+}
+
+[[extensions.web_pixel]]
+runtime = "web_pixel"
+path = "src/index.js"
