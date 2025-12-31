@@ -1,47 +1,40 @@
-import prisma from "../prisma/client.js";
+import prisma from "../prisma.js";
 
 export async function ordersPaidHandler(shop, payload) {
-  if (!payload?.checkout_token) return;
+  if (!shop || !payload?.id) return;
 
-  const checkoutToken = payload.checkout_token;
+  const orderId = String(payload.id);
+  const currency = payload.currency;
+  const occurredAt = new Date(payload.processed_at);
 
-  // Find attribution
-  const attribution = await prisma.stickyAttribution.findUnique({
-    where: { checkoutToken },
-  });
+  const revenue =
+    typeof payload.total_price === "string"
+      ? parseFloat(payload.total_price)
+      : payload.total_price;
 
-  if (!attribution) return;
-
-  const revenue = Number(payload.total_price || 0);
-
-  // Record conversion
+  // 1️⃣ Write conversion record
   await prisma.stickyConversion.create({
     data: {
       shop,
-      orderId: String(payload.id),
+      orderId,
       revenue,
-      currency: payload.currency,
-      occurredAt: new Date(payload.created_at),
+      currency,
+      occurredAt,
     },
   });
 
-  // Update daily metrics
-  const date = new Date();
-  date.setHours(0, 0, 0, 0);
-
-  await prisma.stickyMetricsDaily.upsert({
-    where: {
-      shop_date: { shop, date },
-    },
-    update: {
-      conversions: { increment: 1 },
-      revenue: { increment: revenue },
-    },
-    create: {
-      shop,
-      date,
-      conversions: 1,
-      revenue,
-    },
-  });
+  // 2️⃣ Optional: write per-product events
+  for (const item of payload.line_items || []) {
+    await prisma.stickyEvent.create({
+      data: {
+        shop,
+        event: "purchase",
+        productId: item.product_id ? String(item.product_id) : null,
+        variantId: item.variant_id ? String(item.variant_id) : null,
+        quantity: item.quantity,
+        price: item.price ? Number(item.price) : null,
+        timestamp: occurredAt,
+      },
+    });
+  }
 }
