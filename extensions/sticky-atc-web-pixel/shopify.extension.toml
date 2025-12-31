@@ -1,4 +1,5 @@
 name = "Sticky ATC Analytics Pixel"
+uid = "978f05d7-cb54-35a5-af2a-af079368bdbc937dbeca"
 type = "web_pixel_extension"
 
 runtime_context = "strict"
