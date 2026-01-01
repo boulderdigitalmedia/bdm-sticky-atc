@@ -1,13 +1,6 @@
 // web/shopify.js
-
-import "@shopify/shopify-api/adapters/node"; // REQUIRED runtime adapter
-
-import {
-  shopifyApi,
-  LATEST_API_VERSION,
-  DeliveryMethod,
-} from "@shopify/shopify-api";
-
+import "@shopify/shopify-api/adapters/node";
+import { shopifyApi, LATEST_API_VERSION } from "@shopify/shopify-api";
 import pkg from "@shopify/shopify-app-express";
 const { shopifyApp } = pkg;
 
@@ -29,34 +22,26 @@ const shopify = shopifyApp({
     callbackPath: "/auth/callback",
   },
 
-  // 🔥 THIS IS THE IMPORTANT PART
   webhooks: {
     path: "/webhooks",
-
-    ORDERS_PAID: {
-      deliveryMethod: DeliveryMethod.Http,
-      callbackUrl: "/webhooks/orders/paid",
-    },
   },
 
   billing: billingConfig,
 
-  /* ---------------------------------------------------
-     AFTER AUTH HOOK (RUNS ON INSTALL + REAUTH)
-     THIS IS WHAT ACTUALLY CREATES THE WEBHOOK
-  --------------------------------------------------- */
   hooks: {
     afterAuth: async ({ session, redirect }) => {
       const { shop, host } = session;
 
-      // ✅ THIS LINE IS CRITICAL
-      // Registers ALL declared webhooks above
-      await shopify.registerWebhooks({ session });
+      // ✅ REGISTER WEBHOOKS (THIS WAS MISSING)
+      try {
+        await shopify.registerWebhooks({ session });
+        console.log("✅ Webhooks registered for", shop);
+      } catch (err) {
+        console.error("❌ Failed to register webhooks", err);
+      }
 
       // Redirect back into embedded app
-      redirect(
-        `/apps/bdm-sticky-atc?shop=${shop}&host=${host}`
-      );
+      redirect(`/apps/bdm-sticky-atc?shop=${shop}&host=${host}`);
     },
   },
 });
