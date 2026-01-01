@@ -24,6 +24,12 @@ const shopify = shopifyApp({
 
   webhooks: {
     path: "/webhooks",
+    // ✅ DEFINE WEBHOOKS HERE (THIS WAS MISSING)
+    subscriptions: {
+      ORDERS_PAID: {
+        endpoint: "/orders/paid",
+      },
+    },
   },
 
   billing: billingConfig,
@@ -32,15 +38,14 @@ const shopify = shopifyApp({
     afterAuth: async ({ session, redirect }) => {
       const { shop, host } = session;
 
-      // ✅ REGISTER WEBHOOKS (THIS WAS MISSING)
       try {
+        // ✅ THIS NOW ACTUALLY REGISTERS SOMETHING
         await shopify.registerWebhooks({ session });
         console.log("✅ Webhooks registered for", shop);
       } catch (err) {
-        console.error("❌ Failed to register webhooks", err);
+        console.error("❌ Webhook registration failed", err);
       }
 
-      // Redirect back into embedded app
       redirect(`/apps/bdm-sticky-atc?shop=${shop}&host=${host}`);
     },
   },
