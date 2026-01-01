@@ -1,3 +1,4 @@
+// web/index.js
 import "dotenv/config";
 
 import express from "express";
@@ -9,31 +10,41 @@ import trackRoutes from "./routes/stickyAnalytics.js";
 import attributionRoute from "./routes/attribution.js";
 import { ordersPaidHandler } from "./webhooks/ordersPaid.js";
 
+/* ───────────────── PATH SETUP ───────────────── */
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+/* ───────────────── APP INIT ───────────────── */
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-/* ───────── BODY PARSING ───────── */
+/* ───────────────── HEALTH CHECK (MUST BE FIRST) ───────────────── */
+app.get("/apps/bdm-sticky-atc/health", (_req, res) => {
+  res.status(200).json({ ok: true });
+});
+
+/* ───────────────── BODY PARSING ───────────────── */
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-/* ───────── CORS FOR STOREFRONT ───────── */
+/* ───────────────── CORS FOR STOREFRONT TRACKING ───────────────── */
 app.use("/apps/bdm-sticky-atc", (req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-  if (req.method === "OPTIONS") return res.sendStatus(200);
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
+
   next();
 });
 
-/* ───────── ANALYTICS ───────── */
+/* ───────────────── STOREFRONT ANALYTICS ───────────────── */
 app.use("/apps/bdm-sticky-atc", trackRoutes);
 app.use("/apps/bdm-sticky-atc/attribution", attributionRoute);
 
-/* ───────── WEBHOOK ───────── */
+/* ───────────────── SHOPIFY WEBHOOKS ───────────────── */
 app.post("/webhooks/orders/paid", async (req, res) => {
   try {
     await ordersPaidHandler(
@@ -47,19 +58,22 @@ app.post("/webhooks/orders/paid", async (req, res) => {
   }
 });
 
-/* ───────── FRONTEND ───────── */
+/* ───────────────── STATIC FRONTEND ───────────────── */
 const frontendDir = path.join(__dirname, "frontend", "dist");
 app.use(express.static(frontendDir));
 
+/* ───────────────── ROOT → EMBEDDED APP ───────────────── */
 app.get("/", async (req, res) => {
   const { shop, host } = req.query;
+
   if (!shop || !host) {
     return res.redirect(`/auth?shop=${process.env.DEFAULT_SHOP}`);
   }
+
   return res.sendFile(path.join(frontendDir, "index.html"));
 });
 
-/* ───────── AUTH ───────── */
+/* ───────────────── SHOPIFY AUTH ───────────────── */
 app.get("/auth", shopify.auth.begin());
 
 app.get(
@@ -75,11 +89,12 @@ app.get(
   }
 );
 
-/* ───────── SPA FALLBACK ───────── */
-app.get("*", (req, res) => {
-  res.sendFile(path.join(frontendDir, "index.html"));
+/* ───────────────── SPA FALLBACK (LAST) ───────────────── */
+app.get("*", (_req, res) => {
+  return res.sendFile(path.join(frontendDir, "index.html"));
 });
 
+/* ───────────────── START SERVER ───────────────── */
 app.listen(PORT, () => {
   console.log(`✅ Sticky ATC backend running on port ${PORT}`);
 });
