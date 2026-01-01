@@ -1,6 +1,9 @@
 (() => {
   const BAR_ID = "bdm-sticky-atc";
-  const TRACK_ENDPOINT = "/apps/bdm-sticky-atc/track";
+
+  // ✅ DIRECT TO RENDER (NO SHOPIFY PROXY)
+  const TRACK_ENDPOINT =
+    "https://sticky-add-to-cart-bar-pro.onrender.com/apps/bdm-sticky-atc/track";
 
   let product = null;
   let selectedVariantId = null;
@@ -26,16 +29,16 @@
   }
 
   const getVariantById = (id) =>
-    product?.variants?.find(v => Number(v.id) === Number(id)) || null;
+    product?.variants?.find((v) => Number(v.id) === Number(id)) || null;
 
   const getFirstAvailableVariant = () =>
-    product?.variants?.find(v => v.available) ||
+    product?.variants?.find((v) => v.available) ||
     product?.variants?.[0] ||
     null;
 
   const getSellingPlansFlat = () =>
-    (product?.selling_plan_groups || []).flatMap(g =>
-      (g.selling_plans || []).map(p => ({
+    (product?.selling_plan_groups || []).flatMap((g) =>
+      (g.selling_plans || []).map((p) => ({
         id: String(p.id),
         name: p.name,
         groupName: g.name,
@@ -43,28 +46,26 @@
     );
 
   function track(event, payload) {
-  try {
-    fetch("/apps/bdm-sticky-atc/track", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        event,
-        ...payload,
-        shop: window.Shopify?.shop || window.location.host,
-      }),
-    }).catch(() => {});
-  } catch (_) {
-    // Never let analytics break the UI
+    try {
+      fetch(TRACK_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          shop: window.Shopify?.shop || window.location.host,
+          event,
+          ...payload,
+        }),
+      }).catch(() => {});
+    } catch (_) {
+      // never break UI
+    }
   }
-}
-
 
   /* ───────────── CART REFRESH (STABLE + SAFE) ───────────── */
 
   async function refreshCartUI() {
     const sections = ["cart-drawer", "cart-icon-bubble", "cart-notification"];
 
-    // IMPORTANT: must be "/" not "/cart"
     const res = await fetch(`/?sections=${sections.join(",")}`, {
       credentials: "same-origin",
       headers: { Accept: "application/json" },
@@ -73,7 +74,7 @@
     if (!res.ok) return;
     const html = await res.json();
 
-    /* ─── CART DRAWER ─── */
+    // cart drawer
     if (html["cart-drawer"]) {
       const current =
         document.querySelector("cart-drawer") ||
@@ -85,12 +86,11 @@
         const next =
           wrap.querySelector("cart-drawer") ||
           wrap.querySelector("#CartDrawer");
-
         if (next) current.replaceWith(next);
       }
     }
 
-    /* ─── CART ICON BUBBLE (FIXED: NO DISPLACEMENT) ─── */
+    // cart bubble (NO DISPLACEMENT)
     if (html["cart-icon-bubble"]) {
       const bubble =
         document.getElementById("cart-icon-bubble") ||
@@ -100,15 +100,10 @@
         const wrap = document.createElement("div");
         wrap.innerHTML = html["cart-icon-bubble"];
         const next = wrap.firstElementChild;
-
-        if (next) {
-          // ✅ ONLY update contents — preserves layout & position
-          bubble.innerHTML = next.innerHTML;
-        }
+        if (next) bubble.innerHTML = next.innerHTML;
       }
     }
 
-    /* ─── OPEN DRAWER ─── */
     const drawer =
       document.querySelector("cart-drawer") ||
       document.getElementById("CartDrawer");
@@ -154,34 +149,48 @@
       </div>
 
       <select id="bdm-variant">
-        ${product.variants.map(v =>
-          `<option value="${v.id}" ${v.id == selectedVariantId ? "selected" : ""}>
+        ${product.variants
+          .map(
+            (v) => `
+          <option value="${v.id}" ${
+              v.id == selectedVariantId ? "selected" : ""
+            }>
             ${v.public_title || v.title}
           </option>`
-        ).join("")}
+          )
+          .join("")}
       </select>
 
-      ${plans.length ? `
+      ${
+        plans.length
+          ? `
         <select id="bdm-plan">
           <option value="">One-time</option>
-          ${plans.map(p =>
-            `<option value="${p.id}" ${p.id == selectedSellingPlanId ? "selected" : ""}>
+          ${plans
+            .map(
+              (p) => `
+            <option value="${p.id}" ${
+                p.id == selectedSellingPlanId ? "selected" : ""
+              }>
               ${p.groupName}: ${p.name}
             </option>`
-          ).join("")}
+            )
+            .join("")}
         </select>
-      ` : ""}
+      `
+          : ""
+      }
 
       <input id="bdm-qty" type="number" min="1" value="1" style="width:60px" />
       <button id="bdm-add">Add to cart</button>
     `;
 
-    $("#bdm-variant").onchange = e => {
+    $("#bdm-variant").onchange = (e) => {
       selectedVariantId = Number(e.target.value);
       renderBar();
     };
 
-    $("#bdm-plan")?.addEventListener("change", e => {
+    $("#bdm-plan")?.addEventListener("change", (e) => {
       selectedSellingPlanId = e.target.value || null;
     });
 
@@ -197,7 +206,8 @@
       const fd = new FormData();
       fd.append("id", selectedVariantId);
       fd.append("quantity", qty);
-      if (selectedSellingPlanId) fd.append("selling_plan", selectedSellingPlanId);
+      if (selectedSellingPlanId)
+        fd.append("selling_plan", selectedSellingPlanId);
 
       await fetch("/cart/add.js", {
         method: "POST",
@@ -214,10 +224,8 @@
 
   async function init() {
     if (!location.pathname.includes("/products/")) return;
-
     product = await loadProductJson();
     if (!product) return;
-
     selectedVariantId = getFirstAvailableVariant()?.id;
     renderBar();
   }

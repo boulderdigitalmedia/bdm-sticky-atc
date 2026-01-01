@@ -24,4 +24,7 @@ redirect_urls = [
 [pos]
 embedded = false
 
+[[webhooks.subscriptions]]
+topics = ["orders/create"]
+uri = "/webhooks/app/orders-create"
 
