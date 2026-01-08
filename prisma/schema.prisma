@@ -1,7 +1,5 @@
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["postgresqlExtensions"]
-  engineType      = "binary"
+  provider = "prisma-client-js"
 }
 
 datasource db {
@@ -9,51 +7,40 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model StickyEvent {
+// Shopify session storage for public apps
+model ShopifySession {
+  id            String   @id
+  shop          String
+  state         String?
+  isOnline      Boolean  @default(false)
+  scope         String?
+  expires       DateTime?
+  accessToken   String?
+
+  userId        BigInt?
+  firstName     String?
+  lastName      String?
+  email         String?
+  accountOwner  Boolean?
+  locale        String?
+  collaborator  Boolean?
+  emailVerified Boolean?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([shop])
+}
+
+// Simple analytics event store
+model AnalyticsEvent {
   id        String   @id @default(cuid())
   shop      String
   event     String
-  productId String?
-  variantId String?
-  quantity  Int?
-  price     Float?
-  timestamp DateTime @default(now())
+  payload   Json?
+  createdAt DateTime @default(now())
 
   @@index([shop])
   @@index([event])
-  @@index([timestamp])
-}
-
-model StickyMetricsDaily {
-  id          String   @id @default(cuid())
-  shop        String
-  date        DateTime
-  pageViews   Int      @default(0)
-  addToCart   Int      @default(0)
-  conversions Int      @default(0)
-  revenue     Float    @default(0)
-
-  @@index([shop])
-  @@index([date])
-}
-
-model StickyAttribution {
-  id            Int    @id @default(autoincrement())
-  shop          String
-  checkoutToken String @unique
-  productId     String
-  variantId     String
-  timestamp     BigInt
-}
-
-model StickyConversion {
-  id         String   @id @default(cuid())
-  shop       String
-  orderId    String
-  revenue    Float
-  currency   String
-  occurredAt DateTime
-  createdAt  DateTime @default(now())
-
-  @@index([shop])
+  @@index([createdAt])
 }

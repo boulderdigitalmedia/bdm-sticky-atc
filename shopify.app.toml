@@ -1,30 +1,16 @@
-# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
-
-client_id = "624b866762bfee0ffea282573cfc8539"
-name = "BDM Sticky Add to Cart Bar"
-application_url = "https://sticky-add-to-cart-bar-pro.onrender.com"
+name = "BDM Sticky ATC Bar"
+client_id = "YOUR_API_KEY"
+application_url = "https://YOUR-RENDER-URL.onrender.com"
 embedded = true
 
-[webhooks]
-api_version = "2024-10"
-
 [access_scopes]
-# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = ""
-optional_scopes = [ ]
-use_legacy_install_flow = false
+scopes = "read_products,read_orders"
 
 [auth]
 redirect_urls = [
-  "https://sticky-add-to-cart-bar-pro.onrender.com/auth/callback",
-  "https://sticky-add-to-cart-bar-pro.onrender.com/api/auth/callback",
-  "https://sticky-add-to-cart-bar-pro.onrender.com/billing/complete"
+  "https://YOUR-RENDER-URL.onrender.com/auth/callback"
 ]
 
-[pos]
-embedded = false
-
 [[webhooks.subscriptions]]
-topics = ["orders/create"]
-uri = "/webhooks/app/orders-create"
-
+topics = ["orders/paid"]
+uri = "/webhooks/orders/paid"

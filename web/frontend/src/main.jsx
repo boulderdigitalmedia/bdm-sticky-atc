@@ -1,6 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { BrowserRouter } from "react-router-dom";
+import { HashRouter } from "react-router-dom";
 
 import { AppProvider as PolarisProvider } from "@shopify/polaris";
 import "@shopify/polaris/build/esm/styles.css";
@@ -10,25 +10,39 @@ import { Provider as AppBridgeProvider } from "@shopify/app-bridge-react";
 
 import App from "./App.jsx";
 
+// --- Shopify embedded app setup ---
 const urlParams = new URLSearchParams(window.location.search);
 const host = urlParams.get("host");
 
 const apiKey = import.meta.env.VITE_SHOPIFY_API_KEY;
 
+// Fail loudly instead of silently
+if (!apiKey) {
+  document.body.innerHTML =
+    "<h1>Missing VITE_SHOPIFY_API_KEY</h1><p>Check frontend env vars.</p>";
+  throw new Error("Missing VITE_SHOPIFY_API_KEY");
+}
+
+if (!host) {
+  document.body.innerHTML =
+    "<h1>Missing host param</h1><p>Open the app from Shopify Admin.</p>";
+  throw new Error("Missing host param");
+}
+
 const config = {
   apiKey,
   host,
-  forceRedirect: true,
+  forceRedirect: true
 };
 
 ReactDOM.createRoot(document.getElementById("app")).render(
   <React.StrictMode>
     <PolarisProvider i18n={enTranslations}>
-      <BrowserRouter>
+      <HashRouter>
         <AppBridgeProvider config={config}>
           <App />
         </AppBridgeProvider>
-      </BrowserRouter>
+      </HashRouter>
     </PolarisProvider>
   </React.StrictMode>
 );

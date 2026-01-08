@@ -1,0 +1,19 @@
+name = "Sticky Add To Cart Bar"
+client_id = "274644b8e4ba970fe66b9a97dcbbb712"
+application_url = "https://YOUR-CODESPACE-URL.githubpreview.dev"
+embedded = true
+
+[build]
+automatically_update_urls_on_dev = true
+dev_store_url = "bdm-sandbox.myshopify.com"
+
+[access_scopes]
+scopes = "read_products,read_orders"
+
+[auth]
+redirect_urls = [
+  "https://YOUR-CODESPACE-URL.githubpreview.dev/auth/callback"
+]
+
+[webhooks]
+api_version = "2024-01"
