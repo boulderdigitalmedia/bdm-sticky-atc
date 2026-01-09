@@ -1,9 +1,0 @@
-type = "web_pixel_extension"
-name = "Sticky ATC Web Pixel"
-
-runtime_context = "strict"
-runtime_configuration_definition = "runtime_configuration_definition.json"
-
-[build]
-command = "npm run build"
-path = "dist"

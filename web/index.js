@@ -6,6 +6,9 @@ import { fileURLToPath } from "url";
 
 import { initShopify } from "./shopify.js";
 import trackRoutes from "./routes/track.js";
+import settingsRouter from "./routes/settings.js";
+
+app.use("/api/settings", settingsRouter);
 
 dotenv.config();
 

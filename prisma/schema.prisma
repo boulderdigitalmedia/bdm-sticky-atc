@@ -44,3 +44,24 @@ model AnalyticsEvent {
   @@index([event])
   @@index([createdAt])
 }
+
+model ShopSettings {
+  id              String   @id @default(cuid())
+  shop            String   @unique
+
+  enabled         Boolean  @default(true)
+  showAfterScroll Int      @default(300)
+
+  buttonText      String   @default("Add to cart")
+
+  bgColor         String   @default("#000000")
+  textColor       String   @default("#ffffff")
+
+  position        String   @default("bottom") // bottom | top
+
+  includePages    String?  // JSON array
+  excludePages    String?  // JSON array
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
