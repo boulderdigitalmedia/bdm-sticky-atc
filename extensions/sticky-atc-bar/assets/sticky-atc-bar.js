@@ -1,34 +1,54 @@
-(async function () {
-  const shop = Shopify.shop;
-  const res = await fetch(`/api/settings?shop=${shop}`);
-  const settings = await res.json();
+(function () {
+  if (!window.location.pathname.includes("/products/")) return;
 
-  if (!settings.enabled) return;
+  const SCROLL_THRESHOLD = 300;
 
-  const path = window.location.pathname;
+  function init() {
+    const bar = document.getElementById("bdm-sticky-atc");
+    const inner = document.getElementById("bdm-sticky-atc-inner");
 
-  if (settings.includePages) {
-    const includes = JSON.parse(settings.includePages);
-    if (!includes.some(p => path.includes(p))) return;
-  }
+    if (!bar || !inner) return false;
 
-  if (settings.excludePages) {
-    const excludes = JSON.parse(settings.excludePages);
-    if (excludes.some(p => path.includes(p))) return;
-  }
+    const originalForm = document.querySelector('form[action^="/cart/add"]');
+    if (!originalForm) return false;
 
-  const bar = document.getElementById("bdm-sticky-atc");
-  if (!bar) return;
+    // Prevent double-init
+    if (bar.dataset.initialized) return true;
+    bar.dataset.initialized = "true";
 
-  bar.style.background = settings.bgColor;
-  bar.style.color = settings.textColor;
-  bar.style[settings.position] = "0";
+    // Create placeholder so layout doesn’t jump
+    const placeholder = document.createElement("div");
+    placeholder.style.display = "none";
+    originalForm.parentNode.insertBefore(placeholder, originalForm);
 
-  window.addEventListener("scroll", () => {
-    if (window.scrollY >= settings.showAfterScroll) {
-      bar.classList.add("visible");
-    } else {
-      bar.classList.remove("visible");
+    // Move the REAL form (do not clone)
+    inner.appendChild(originalForm);
+
+    // Scroll logic
+    function onScroll() {
+      if (window.scrollY >= SCROLL_THRESHOLD) {
+        bar.classList.add("visible");
+        placeholder.style.display = "block";
+      } else {
+        bar.classList.remove("visible");
+        placeholder.style.display = "none";
+      }
     }
-  });
+
+    window.addEventListener("scroll", onScroll);
+
+    // Force initial check
+    onScroll();
+
+    return true;
+  }
+
+  // Retry until Shopify theme JS has initialized
+  let attempts = 0;
+  const interval = setInterval(() => {
+    attempts++;
+    if (init() || attempts > 30) {
+      clearInterval(interval);
+    }
+  }, 250);
 })();
