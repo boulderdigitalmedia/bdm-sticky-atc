@@ -1,4 +1,4 @@
-import { prisma } from "./prisma.js";
+import prisma from "./prisma.js";
 
 /**
  * Minimal Prisma-backed session storage compatible with shopifyApi({ sessionStorage }).
