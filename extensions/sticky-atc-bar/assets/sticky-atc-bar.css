@@ -35,3 +35,14 @@
 #bdm-sticky-atc form {
   width: 100%;
 }
+
+#bdm-sticky-atc-inner .product__info-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+#bdm-sticky-atc-inner .price {
+  font-size: 18px;
+  font-weight: 600;
+}

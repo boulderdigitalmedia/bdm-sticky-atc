@@ -1,45 +1,44 @@
 (function () {
   if (!window.location.pathname.includes("/products/")) return;
 
-  function waitForHydratedForm(callback) {
+  function waitForProductInfo(callback) {
     const interval = setInterval(() => {
-      const form = document.querySelector('form[action^="/cart/add"]');
+      const productInfo =
+        document.querySelector(".product__info-container") ||
+        document.querySelector("[data-product-info]");
 
-      if (!form) return;
+      if (!productInfo) return;
 
-      // Shopify hydration signal:
-      // variant selects OR quantity input OR submit button exists
+      // Ensure selling plans or ATC exist
       const hydrated =
-        form.querySelector("select") ||
-        form.querySelector('input[name="quantity"]') ||
-        form.querySelector('button[type="submit"]');
+        productInfo.querySelector('form[action^="/cart/add"]') &&
+        (productInfo.querySelector('button[type="submit"]') ||
+          productInfo.querySelector('[name="selling_plan"]'));
 
       if (hydrated) {
         clearInterval(interval);
-        callback(form);
+        callback(productInfo);
       }
     }, 200);
   }
 
-  waitForHydratedForm((form) => {
+  waitForProductInfo((productInfo) => {
     const bar = document.getElementById("bdm-sticky-atc");
     const inner = document.getElementById("bdm-sticky-atc-inner");
 
     if (!bar || !inner) return;
-
-    // Prevent double init
     if (bar.dataset.initialized) return;
     bar.dataset.initialized = "true";
 
-    // Placeholder to preserve layout
+    // Preserve layout
     const placeholder = document.createElement("div");
-    placeholder.style.height = `${form.offsetHeight}px`;
-    form.parentNode.insertBefore(placeholder, form);
+    placeholder.style.height = `${productInfo.offsetHeight}px`;
+    productInfo.parentNode.insertBefore(placeholder, productInfo);
 
-    // Move the REAL, hydrated form
-    inner.appendChild(form);
+    // Move EVERYTHING (price, selling plans, variants, qty, buttons)
+    inner.appendChild(productInfo);
 
-    // Show sticky bar when placeholder leaves viewport
+    // Scroll-based visibility
     const observer = new IntersectionObserver(
       ([entry]) => {
         bar.classList.toggle("visible", !entry.isIntersecting);
