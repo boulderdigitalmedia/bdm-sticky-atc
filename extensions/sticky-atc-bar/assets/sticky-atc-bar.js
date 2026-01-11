@@ -1,49 +1,52 @@
 (function () {
   if (!window.location.pathname.includes("/products/")) return;
 
-  function init() {
+  function waitForHydratedForm(callback) {
+    const interval = setInterval(() => {
+      const form = document.querySelector('form[action^="/cart/add"]');
+
+      if (!form) return;
+
+      // Shopify hydration signal:
+      // variant selects OR quantity input OR submit button exists
+      const hydrated =
+        form.querySelector("select") ||
+        form.querySelector('input[name="quantity"]') ||
+        form.querySelector('button[type="submit"]');
+
+      if (hydrated) {
+        clearInterval(interval);
+        callback(form);
+      }
+    }, 200);
+  }
+
+  waitForHydratedForm((form) => {
     const bar = document.getElementById("bdm-sticky-atc");
     const inner = document.getElementById("bdm-sticky-atc-inner");
 
-    if (!bar || !inner) return false;
-
-    const form = document.querySelector('form[action^="/cart/add"]');
-    if (!form) return false;
+    if (!bar || !inner) return;
 
     // Prevent double init
-    if (bar.dataset.initialized) return true;
+    if (bar.dataset.initialized) return;
     bar.dataset.initialized = "true";
 
-    // Create placeholder so layout doesn't jump
+    // Placeholder to preserve layout
     const placeholder = document.createElement("div");
     placeholder.style.height = `${form.offsetHeight}px`;
     form.parentNode.insertBefore(placeholder, form);
 
-    // Move REAL form into sticky bar
+    // Move the REAL, hydrated form
     inner.appendChild(form);
 
-    // Observe placeholder (when it leaves viewport, show bar)
+    // Show sticky bar when placeholder leaves viewport
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) {
-          bar.classList.remove("visible");
-        } else {
-          bar.classList.add("visible");
-        }
+        bar.classList.toggle("visible", !entry.isIntersecting);
       },
       { threshold: 0 }
     );
 
     observer.observe(placeholder);
-
-    return true;
-  }
-
-  let attempts = 0;
-  const interval = setInterval(() => {
-    attempts++;
-    if (init() || attempts > 30) {
-      clearInterval(interval);
-    }
-  }, 250);
+  });
 })();
