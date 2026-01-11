@@ -1,49 +1,44 @@
 (function () {
   if (!window.location.pathname.includes("/products/")) return;
 
-  const SCROLL_THRESHOLD = 300;
-
   function init() {
     const bar = document.getElementById("bdm-sticky-atc");
     const inner = document.getElementById("bdm-sticky-atc-inner");
 
     if (!bar || !inner) return false;
 
-    const originalForm = document.querySelector('form[action^="/cart/add"]');
-    if (!originalForm) return false;
+    const form = document.querySelector('form[action^="/cart/add"]');
+    if (!form) return false;
 
-    // Prevent double-init
+    // Prevent double init
     if (bar.dataset.initialized) return true;
     bar.dataset.initialized = "true";
 
-    // Create placeholder so layout doesn’t jump
+    // Create placeholder so layout doesn't jump
     const placeholder = document.createElement("div");
-    placeholder.style.display = "none";
-    originalForm.parentNode.insertBefore(placeholder, originalForm);
+    placeholder.style.height = `${form.offsetHeight}px`;
+    form.parentNode.insertBefore(placeholder, form);
 
-    // Move the REAL form (do not clone)
-    inner.appendChild(originalForm);
+    // Move REAL form into sticky bar
+    inner.appendChild(form);
 
-    // Scroll logic
-    function onScroll() {
-      if (window.scrollY >= SCROLL_THRESHOLD) {
-        bar.classList.add("visible");
-        placeholder.style.display = "block";
-      } else {
-        bar.classList.remove("visible");
-        placeholder.style.display = "none";
-      }
-    }
+    // Observe placeholder (when it leaves viewport, show bar)
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          bar.classList.remove("visible");
+        } else {
+          bar.classList.add("visible");
+        }
+      },
+      { threshold: 0 }
+    );
 
-    window.addEventListener("scroll", onScroll);
-
-    // Force initial check
-    onScroll();
+    observer.observe(placeholder);
 
     return true;
   }
 
-  // Retry until Shopify theme JS has initialized
   let attempts = 0;
   const interval = setInterval(() => {
     attempts++;
