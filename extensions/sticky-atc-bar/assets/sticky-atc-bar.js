@@ -7,7 +7,8 @@
 
   const variantSelect = productForm.querySelector('select[name="id"]');
   const submitBtn = productForm.querySelector('[type="submit"]');
-  const themePrice = document.querySelector('[data-product-price], .price');
+  const priceEl = document.querySelector('[data-product-price], .price');
+  const titleEl = document.querySelector("h1");
 
   const stickyVariant = document.getElementById("bdm-variant");
   const stickyQty = document.getElementById("bdm-qty");
@@ -15,11 +16,8 @@
   const stickyTitle = document.getElementById("bdm-title");
   const stickyPrice = document.getElementById("bdm-price");
 
-  /* ---------- Populate title ---------- */
-  const titleEl = document.querySelector("h1");
   if (titleEl) stickyTitle.textContent = titleEl.textContent;
 
-  /* ---------- Populate variants ---------- */
   if (variantSelect) {
     variantSelect.querySelectorAll("option").forEach(opt => {
       const o = document.createElement("option");
@@ -38,16 +36,13 @@
     stickyVariant.style.display = "none";
   }
 
-  /* ---------- Sync price ---------- */
-  if (themePrice) {
-    stickyPrice.textContent = themePrice.textContent;
-
+  if (priceEl) {
+    stickyPrice.textContent = priceEl.textContent;
     new MutationObserver(() => {
-      stickyPrice.textContent = themePrice.textContent;
-    }).observe(themePrice, { childList: true, subtree: true });
+      stickyPrice.textContent = priceEl.textContent;
+    }).observe(priceEl, { childList: true, subtree: true });
   }
 
-  /* ---------- Add to cart ---------- */
   stickyATC.addEventListener("click", () => {
     let qtyInput = productForm.querySelector('input[name="quantity"]');
     if (!qtyInput) {
@@ -56,21 +51,13 @@
       qtyInput.name = "quantity";
       productForm.appendChild(qtyInput);
     }
-
     qtyInput.value = stickyQty.value;
     submitBtn.click();
   });
 
-  /* ---------- Show on scroll ---------- */
-  const triggerPoint = productForm.getBoundingClientRect().bottom + window.scrollY;
+  const trigger = productForm.getBoundingClientRect().bottom + window.scrollY;
 
   window.addEventListener("scroll", () => {
-    if (window.scrollY > triggerPoint) {
-      bar.classList.add("visible");
-      bar.setAttribute("aria-hidden", "false");
-    } else {
-      bar.classList.remove("visible");
-      bar.setAttribute("aria-hidden", "true");
-    }
+    bar.classList.toggle("visible", window.scrollY > trigger);
   });
 })();
