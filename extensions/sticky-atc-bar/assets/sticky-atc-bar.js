@@ -1,51 +1,76 @@
 (function () {
-  if (!window.location.pathname.includes("/products/")) return;
+  const bar = document.getElementById("bdm-sticky-atc");
+  if (!bar) return;
 
-  function waitForProductInfo(callback) {
-    const interval = setInterval(() => {
-      const productInfo =
-        document.querySelector(".product__info-container") ||
-        document.querySelector("[data-product-info]");
+  const productForm = document.querySelector('form[action="/cart/add"]');
+  if (!productForm) return;
 
-      if (!productInfo) return;
+  const variantSelect = productForm.querySelector('select[name="id"]');
+  const submitBtn = productForm.querySelector('[type="submit"]');
+  const themePrice = document.querySelector('[data-product-price], .price');
 
-      // Ensure selling plans or ATC exist
-      const hydrated =
-        productInfo.querySelector('form[action^="/cart/add"]') &&
-        (productInfo.querySelector('button[type="submit"]') ||
-          productInfo.querySelector('[name="selling_plan"]'));
+  const stickyVariant = document.getElementById("bdm-variant");
+  const stickyQty = document.getElementById("bdm-qty");
+  const stickyATC = document.getElementById("bdm-atc");
+  const stickyTitle = document.getElementById("bdm-title");
+  const stickyPrice = document.getElementById("bdm-price");
 
-      if (hydrated) {
-        clearInterval(interval);
-        callback(productInfo);
-      }
-    }, 200);
+  /* ---------- Populate title ---------- */
+  const titleEl = document.querySelector("h1");
+  if (titleEl) stickyTitle.textContent = titleEl.textContent;
+
+  /* ---------- Populate variants ---------- */
+  if (variantSelect) {
+    variantSelect.querySelectorAll("option").forEach(opt => {
+      const o = document.createElement("option");
+      o.value = opt.value;
+      o.textContent = opt.textContent;
+      stickyVariant.appendChild(o);
+    });
+
+    stickyVariant.value = variantSelect.value;
+
+    stickyVariant.addEventListener("change", () => {
+      variantSelect.value = stickyVariant.value;
+      variantSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+  } else {
+    stickyVariant.style.display = "none";
   }
 
-  waitForProductInfo((productInfo) => {
-    const bar = document.getElementById("bdm-sticky-atc");
-    const inner = document.getElementById("bdm-sticky-atc-inner");
+  /* ---------- Sync price ---------- */
+  if (themePrice) {
+    stickyPrice.textContent = themePrice.textContent;
 
-    if (!bar || !inner) return;
-    if (bar.dataset.initialized) return;
-    bar.dataset.initialized = "true";
+    new MutationObserver(() => {
+      stickyPrice.textContent = themePrice.textContent;
+    }).observe(themePrice, { childList: true, subtree: true });
+  }
 
-    // Preserve layout
-    const placeholder = document.createElement("div");
-    placeholder.style.height = `${productInfo.offsetHeight}px`;
-    productInfo.parentNode.insertBefore(placeholder, productInfo);
+  /* ---------- Add to cart ---------- */
+  stickyATC.addEventListener("click", () => {
+    let qtyInput = productForm.querySelector('input[name="quantity"]');
+    if (!qtyInput) {
+      qtyInput = document.createElement("input");
+      qtyInput.type = "hidden";
+      qtyInput.name = "quantity";
+      productForm.appendChild(qtyInput);
+    }
 
-    // Move EVERYTHING (price, selling plans, variants, qty, buttons)
-    inner.appendChild(productInfo);
+    qtyInput.value = stickyQty.value;
+    submitBtn.click();
+  });
 
-    // Scroll-based visibility
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        bar.classList.toggle("visible", !entry.isIntersecting);
-      },
-      { threshold: 0 }
-    );
+  /* ---------- Show on scroll ---------- */
+  const triggerPoint = productForm.getBoundingClientRect().bottom + window.scrollY;
 
-    observer.observe(placeholder);
+  window.addEventListener("scroll", () => {
+    if (window.scrollY > triggerPoint) {
+      bar.classList.add("visible");
+      bar.setAttribute("aria-hidden", "false");
+    } else {
+      bar.classList.remove("visible");
+      bar.setAttribute("aria-hidden", "true");
+    }
   });
 })();

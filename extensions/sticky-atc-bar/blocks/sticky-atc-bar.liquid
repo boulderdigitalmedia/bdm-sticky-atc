@@ -1,35 +1,21 @@
-{% comment %} Sticky Add to Cart Bar App Block {% endcomment %}
+{% if request.page_type == 'product' %}
 
-<div>
-  {% render 'sticky-atc-bar' %}
+<div id="bdm-sticky-atc" aria-hidden="true">
+  <div class="bdm-inner">
+    <div class="bdm-left">
+      <div id="bdm-title"></div>
+      <div id="bdm-price"></div>
+    </div>
+
+    <div class="bdm-right">
+      <select id="bdm-variant"></select>
+      <input id="bdm-qty" type="number" min="1" value="1" />
+      <button id="bdm-atc">Add to cart</button>
+    </div>
+  </div>
 </div>
 
-{% schema %}
-{
-  "name": "Sticky Add to Cart Bar",
-  "target": "body",
-  "settings": [
-    {
-      "type": "checkbox",
-      "id": "show_on_desktop",
-      "label": "Show on desktop",
-      "default": true
-    },
-    {
-      "type": "checkbox",
-      "id": "show_on_mobile",
-      "label": "Show on mobile",
-      "default": true
-    },
-    {
-      "type": "text",
-      "id": "free_footer_text",
-      "label": "Free plan footer text",
-      "default": "Powered by Boulder Digital Media"
-    }
-  ],
-  "enabled_on": {
-    "templates": ["product"]
-  }
-}
-{% endschema %}
+{{ 'sticky-atc.css' | asset_url | stylesheet_tag }}
+{{ 'sticky-atc.js' | asset_url | script_tag }}
+
+{% endif %}
