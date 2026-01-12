@@ -5,10 +5,10 @@
   const productForm = document.querySelector('form[action="/cart/add"]');
   if (!productForm) return;
 
-  const variantSelect = productForm.querySelector('select[name="id"]');
   const submitBtn = productForm.querySelector('[type="submit"]');
-  const priceEl = document.querySelector('[data-product-price], .price');
+  const variantSelect = productForm.querySelector('select[name="id"]');
   const titleEl = document.querySelector("h1");
+  const priceEl = document.querySelector('[data-product-price], .price');
 
   const stickyVariant = document.getElementById("bdm-variant");
   const stickyQty = document.getElementById("bdm-qty");
@@ -17,6 +17,7 @@
   const stickyPrice = document.getElementById("bdm-price");
 
   if (titleEl) stickyTitle.textContent = titleEl.textContent;
+  if (priceEl) stickyPrice.textContent = priceEl.textContent;
 
   if (variantSelect) {
     variantSelect.querySelectorAll("option").forEach(opt => {
@@ -36,13 +37,6 @@
     stickyVariant.style.display = "none";
   }
 
-  if (priceEl) {
-    stickyPrice.textContent = priceEl.textContent;
-    new MutationObserver(() => {
-      stickyPrice.textContent = priceEl.textContent;
-    }).observe(priceEl, { childList: true, subtree: true });
-  }
-
   stickyATC.addEventListener("click", () => {
     let qtyInput = productForm.querySelector('input[name="quantity"]');
     if (!qtyInput) {
@@ -55,10 +49,9 @@
     submitBtn.click();
   });
 
-  const triggerPoint =
-    productForm.getBoundingClientRect().bottom + window.scrollY;
+  const trigger = productForm.getBoundingClientRect().bottom + window.scrollY;
 
   window.addEventListener("scroll", () => {
-    bar.classList.toggle("visible", window.scrollY > triggerPoint);
+    bar.classList.toggle("visible", window.scrollY > trigger);
   });
 })();
