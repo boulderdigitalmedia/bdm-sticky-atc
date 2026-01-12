@@ -55,9 +55,10 @@
     submitBtn.click();
   });
 
-  const trigger = productForm.getBoundingClientRect().bottom + window.scrollY;
+  const triggerPoint =
+    productForm.getBoundingClientRect().bottom + window.scrollY;
 
   window.addEventListener("scroll", () => {
-    bar.classList.toggle("visible", window.scrollY > trigger);
+    bar.classList.toggle("visible", window.scrollY > triggerPoint);
   });
 })();
