@@ -9,108 +9,124 @@
   const stickyPrice = document.getElementById("bdm-price");
 
   /* --------------------------------
-     PRODUCT TITLE + PRICE
+     PRODUCT JSON (required for variants)
   -------------------------------- */
-  const titleEl = document.querySelector("h1");
-  if (titleEl) stickyTitle.textContent = titleEl.textContent;
+  const productJsonEl =
+    document.querySelector('script[type="application/json"][data-product-json]') ||
+    document.querySelector("#ProductJson");
 
-  const priceEl =
-    document.querySelector("[data-product-price]") ||
-    document.querySelector(".price") ||
-    document.querySelector(".price-item");
-
-  if (priceEl) stickyPrice.textContent = priceEl.textContent;
-
-  /* --------------------------------
-     GET CURRENT VARIANT ID (SAFE)
-  -------------------------------- */
-  function getCurrentVariantId() {
-    const input = document.querySelector('input[name="id"]');
-    if (input && input.value) return input.value;
-
-    const select = document.querySelector('select[name="id"]');
-    if (select && select.value) return select.value;
-
-    return null;
+  if (!productJsonEl) {
+    console.warn("Sticky ATC: product JSON not found");
+    return;
   }
 
-  // Hide variant selector if theme controls variants
-  if (getCurrentVariantId()) {
-    stickyVariant.style.display = "none";
+  const product = JSON.parse(productJsonEl.textContent);
+
+  stickyTitle.textContent = product.title;
+
+  /* --------------------------------
+     VARIANT SELECTOR (STICKY BAR)
+  -------------------------------- */
+  product.variants.forEach(v => {
+    const opt = document.createElement("option");
+    opt.value = v.id;
+    opt.textContent = v.title;
+    stickyVariant.appendChild(opt);
+  });
+
+  function getThemeVariantInput() {
+    return (
+      document.querySelector('input[name="id"]') ||
+      document.querySelector('select[name="id"]')
+    );
+  }
+
+  function setThemeVariant(id) {
+    const input = getThemeVariantInput();
+    if (!input) return;
+    input.value = id;
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+
+  function getCurrentVariantId() {
+    const input = getThemeVariantInput();
+    return input ? input.value : product.variants[0].id;
+  }
+
+  stickyVariant.value = getCurrentVariantId();
+
+  function updatePrice() {
+    const variant = product.variants.find(v => v.id == stickyVariant.value);
+    if (!variant) return;
+
+    stickyPrice.textContent =
+      (variant.price / 100).toLocaleString(undefined, {
+        style: "currency",
+        currency: product.currency || "USD",
+      });
+  }
+
+  updatePrice();
+
+  stickyVariant.addEventListener("change", () => {
+    setThemeVariant(stickyVariant.value);
+    updatePrice();
+  });
+
+  /* --------------------------------
+     SYNC WHEN THEME VARIANT CHANGES
+  -------------------------------- */
+  const themeVariantInput = getThemeVariantInput();
+  if (themeVariantInput) {
+    themeVariantInput.addEventListener("change", () => {
+      stickyVariant.value = themeVariantInput.value;
+      updatePrice();
+    });
   }
 
   /* --------------------------------
      ADD TO CART
   -------------------------------- */
   stickyATC.addEventListener("click", async () => {
-    const variantId = getCurrentVariantId();
-    if (!variantId) {
-      console.warn("Sticky ATC: No variant ID found");
-      return;
-    }
-
     stickyATC.disabled = true;
     stickyATC.textContent = "Adding…";
 
     try {
-      /* Add item */
-      const res = await fetch("/cart/add.js", {
+      await fetch("/cart/add.js", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          id: Number(variantId),
+          id: Number(stickyVariant.value),
           quantity: Number(stickyQty.value || 1),
         }),
       });
 
-      await res.json();
-
-      /* --------------------------------
-         REFRESH CART DATA
-      -------------------------------- */
       const cart = await fetch("/cart.js").then(r => r.json());
 
-      /* --------------------------------
-         UPDATE CART ICON / BADGE
-      -------------------------------- */
+      /* Update cart badge */
       const count = cart.item_count;
-
-      const badgeSelectors = [
+      [
         ".cart-count-bubble span",
         ".cart-count",
         "[data-cart-count]",
         ".header__cart-count",
-        ".site-header__cart-count"
-      ];
-
-      badgeSelectors.forEach(selector => {
-        document.querySelectorAll(selector).forEach(el => {
+        ".site-header__cart-count",
+      ].forEach(sel => {
+        document.querySelectorAll(sel).forEach(el => {
           el.textContent = count;
           el.classList.remove("hidden");
-          el.style.display = "";
         });
       });
 
-      // Dawn cart-count element
       document.querySelectorAll("cart-count").forEach(el => {
         el.textContent = count;
       });
 
-      /* --------------------------------
-         OPEN CART DRAWER
-      -------------------------------- */
+      /* Open cart drawer */
       const drawer = document.querySelector("cart-drawer");
-      if (drawer && typeof drawer.open === "function") {
-        drawer.open();
-      } else {
-        document
-          .querySelector('[data-cart-drawer-toggle], a[href="/cart"]')
-          ?.click();
-      }
+      if (drawer?.open) drawer.open();
+      else document.querySelector('[data-cart-drawer-toggle]')?.click();
 
-      /* --------------------------------
-         BUTTON FEEDBACK
-      -------------------------------- */
       stickyATC.textContent = "Added ✓";
       setTimeout(() => {
         stickyATC.textContent = "Add to cart";
@@ -128,7 +144,6 @@
      SHOW ON SCROLL
   -------------------------------- */
   const triggerOffset = 400;
-
   window.addEventListener("scroll", () => {
     bar.classList.toggle("visible", window.scrollY > triggerOffset);
   });
