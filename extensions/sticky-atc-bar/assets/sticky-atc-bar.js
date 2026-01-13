@@ -8,53 +8,117 @@
   const stickyTitle = document.getElementById("bdm-title");
   const stickyPrice = document.getElementById("bdm-price");
 
-  // Always show title
+  /* --------------------------------
+     PRODUCT INFO (safe selectors)
+  -------------------------------- */
   const titleEl = document.querySelector("h1");
   if (titleEl) stickyTitle.textContent = titleEl.textContent;
 
-  // Try to detect variant ID from theme
-  function getCurrentVariantId() {
-    // Dawn / modern themes
-    const idInput = document.querySelector('input[name="id"]');
-    if (idInput) return idInput.value;
+  const priceEl =
+    document.querySelector("[data-product-price]") ||
+    document.querySelector(".price") ||
+    document.querySelector(".price-item");
 
-    // Fallback: select
+  if (priceEl) stickyPrice.textContent = priceEl.textContent;
+
+  /* --------------------------------
+     GET CURRENT VARIANT ID (theme-safe)
+  -------------------------------- */
+  function getCurrentVariantId() {
+    // Modern themes (hidden input)
+    const input = document.querySelector('input[name="id"]');
+    if (input && input.value) return input.value;
+
+    // Legacy themes
     const select = document.querySelector('select[name="id"]');
-    if (select) return select.value;
+    if (select && select.value) return select.value;
 
     return null;
   }
 
-  // Populate variant dropdown dynamically
-  const idInput = document.querySelector('input[name="id"]');
-  if (idInput) {
+  // If theme controls variants, hide sticky selector
+  if (getCurrentVariantId()) {
     stickyVariant.style.display = "none";
   }
 
-  // Add to cart
+  /* --------------------------------
+     ADD TO CART
+  -------------------------------- */
   stickyATC.addEventListener("click", async () => {
     const variantId = getCurrentVariantId();
     if (!variantId) {
-      console.warn("No variant ID found");
+      console.warn("Sticky ATC: No variant ID found");
       return;
     }
 
-    await fetch("/cart/add.js", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        id: Number(variantId),
-        quantity: Number(stickyQty.value || 1),
-      }),
-    });
+    stickyATC.disabled = true;
+    stickyATC.textContent = "Adding…";
 
-    document.dispatchEvent(new CustomEvent("cart:refresh"));
+    try {
+      const res = await fetch("/cart/add.js", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: Number(variantId),
+          quantity: Number(stickyQty.value || 1),
+        }),
+      });
+
+      const item = await res.json();
+
+      /* --------------------------------
+         CART REFRESH EVENTS (important)
+      -------------------------------- */
+      document.dispatchEvent(new CustomEvent("cart:updated", { detail: item }));
+      document.dispatchEvent(new Event("cart:refresh"));
+      document.dispatchEvent(new Event("cart:change"));
+
+      // Fetch full cart as fallback
+      fetch("/cart.js")
+        .then(r => r.json())
+        .then(cart => {
+          document.dispatchEvent(
+            new CustomEvent("cart:updated", { detail: cart })
+          );
+        });
+
+      /* --------------------------------
+         AUTO-OPEN CART DRAWER
+      -------------------------------- */
+
+      // Dawn theme
+      const drawer = document.querySelector("cart-drawer");
+      if (drawer && typeof drawer.open === "function") {
+        drawer.open();
+      }
+
+      // Generic fallback
+      document
+        .querySelector('[data-cart-drawer-toggle], a[href="/cart"]')
+        ?.click();
+
+      /* --------------------------------
+         BUTTON FEEDBACK
+      -------------------------------- */
+      stickyATC.textContent = "Added ✓";
+      setTimeout(() => {
+        stickyATC.textContent = "Add to cart";
+        stickyATC.disabled = false;
+      }, 1400);
+
+    } catch (e) {
+      console.error("Sticky ATC error", e);
+      stickyATC.textContent = "Error";
+      stickyATC.disabled = false;
+    }
   });
 
-  // Scroll logic (never exits)
-  const trigger = 400;
+  /* --------------------------------
+     SHOW ON SCROLL
+  -------------------------------- */
+  const triggerOffset = 400;
 
   window.addEventListener("scroll", () => {
-    bar.classList.toggle("visible", window.scrollY > trigger);
+    bar.classList.toggle("visible", window.scrollY > triggerOffset);
   });
 })();
