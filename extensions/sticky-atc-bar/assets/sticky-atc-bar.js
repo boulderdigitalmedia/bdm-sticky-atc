@@ -2,54 +2,72 @@
   const bar = document.getElementById("bdm-sticky-atc");
   if (!bar) return;
 
-  const productForm = document.querySelector('form[action="/cart/add"]');
-  if (!productForm) return;
-
-  const submitBtn = productForm.querySelector('[type="submit"]');
-  const variantSelect = productForm.querySelector('select[name="id"]');
-  const titleEl = document.querySelector("h1");
-  const priceEl = document.querySelector('[data-product-price], .price');
-
-  const stickyVariant = document.getElementById("bdm-variant");
-  const stickyQty = document.getElementById("bdm-qty");
   const stickyATC = document.getElementById("bdm-atc");
+  const stickyQty = document.getElementById("bdm-qty");
+  const stickyVariant = document.getElementById("bdm-variant");
   const stickyTitle = document.getElementById("bdm-title");
   const stickyPrice = document.getElementById("bdm-price");
 
-  if (titleEl) stickyTitle.textContent = titleEl.textContent;
-  if (priceEl) stickyPrice.textContent = priceEl.textContent;
+  /* -----------------------------
+     Get product data from Shopify
+  ------------------------------ */
+  const productJsonEl = document.querySelector('script[type="application/json"][data-product-json], script#ProductJson');
+  if (!productJsonEl) return;
 
-  if (variantSelect) {
-    variantSelect.querySelectorAll("option").forEach(opt => {
-      const o = document.createElement("option");
-      o.value = opt.value;
-      o.textContent = opt.textContent;
-      stickyVariant.appendChild(o);
-    });
+  const product = JSON.parse(productJsonEl.textContent);
 
-    stickyVariant.value = variantSelect.value;
+  stickyTitle.textContent = product.title;
 
-    stickyVariant.addEventListener("change", () => {
-      variantSelect.value = stickyVariant.value;
-      variantSelect.dispatchEvent(new Event("change", { bubbles: true }));
-    });
-  } else {
-    stickyVariant.style.display = "none";
-  }
-
-  stickyATC.addEventListener("click", () => {
-    let qtyInput = productForm.querySelector('input[name="quantity"]');
-    if (!qtyInput) {
-      qtyInput = document.createElement("input");
-      qtyInput.type = "hidden";
-      qtyInput.name = "quantity";
-      productForm.appendChild(qtyInput);
-    }
-    qtyInput.value = stickyQty.value;
-    submitBtn.click();
+  /* -----------------------------
+     Populate variants
+  ------------------------------ */
+  product.variants.forEach(v => {
+    const opt = document.createElement("option");
+    opt.value = v.id;
+    opt.textContent = v.title;
+    stickyVariant.appendChild(opt);
   });
 
-  const trigger = productForm.getBoundingClientRect().bottom + window.scrollY;
+  stickyVariant.value = product.variants.find(v => v.available)?.id || product.variants[0].id;
+
+  function updatePrice() {
+    const variant = product.variants.find(v => v.id == stickyVariant.value);
+    if (!variant) return;
+    stickyPrice.textContent =
+      (variant.price / 100).toLocaleString(undefined, {
+        style: "currency",
+        currency: product.currency || "USD",
+      });
+  }
+
+  updatePrice();
+  stickyVariant.addEventListener("change", updatePrice);
+
+  /* -----------------------------
+     Add to cart (robust method)
+  ------------------------------ */
+  stickyATC.addEventListener("click", async () => {
+    stickyATC.disabled = true;
+
+    await fetch("/cart/add.js", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: Number(stickyVariant.value),
+        quantity: Number(stickyQty.value || 1),
+      }),
+    });
+
+    stickyATC.disabled = false;
+
+    // Optional: open cart drawer
+    document.dispatchEvent(new CustomEvent("cart:refresh"));
+  });
+
+  /* -----------------------------
+     Show on scroll
+  ------------------------------ */
+  const trigger = document.querySelector("form[action='/cart/add']")?.getBoundingClientRect().bottom + window.scrollY || 400;
 
   window.addEventListener("scroll", () => {
     bar.classList.toggle("visible", window.scrollY > trigger);
