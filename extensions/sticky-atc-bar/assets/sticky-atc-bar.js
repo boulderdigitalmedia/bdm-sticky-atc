@@ -9,7 +9,7 @@
   const stickyPrice = document.getElementById("bdm-price");
 
   /* --------------------------------
-     PRODUCT INFO (safe selectors)
+     PRODUCT TITLE + PRICE
   -------------------------------- */
   const titleEl = document.querySelector("h1");
   if (titleEl) stickyTitle.textContent = titleEl.textContent;
@@ -22,21 +22,19 @@
   if (priceEl) stickyPrice.textContent = priceEl.textContent;
 
   /* --------------------------------
-     GET CURRENT VARIANT ID (theme-safe)
+     GET CURRENT VARIANT ID (SAFE)
   -------------------------------- */
   function getCurrentVariantId() {
-    // Modern themes (hidden input)
     const input = document.querySelector('input[name="id"]');
     if (input && input.value) return input.value;
 
-    // Legacy themes
     const select = document.querySelector('select[name="id"]');
     if (select && select.value) return select.value;
 
     return null;
   }
 
-  // If theme controls variants, hide sticky selector
+  // Hide variant selector if theme controls variants
   if (getCurrentVariantId()) {
     stickyVariant.style.display = "none";
   }
@@ -55,6 +53,7 @@
     stickyATC.textContent = "Adding…";
 
     try {
+      /* Add item */
       const res = await fetch("/cart/add.js", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -64,38 +63,50 @@
         }),
       });
 
-      const item = await res.json();
+      await res.json();
 
       /* --------------------------------
-         CART REFRESH EVENTS (important)
+         REFRESH CART DATA
       -------------------------------- */
-      document.dispatchEvent(new CustomEvent("cart:updated", { detail: item }));
-      document.dispatchEvent(new Event("cart:refresh"));
-      document.dispatchEvent(new Event("cart:change"));
+      const cart = await fetch("/cart.js").then(r => r.json());
 
-      // Fetch full cart as fallback
-      fetch("/cart.js")
-        .then(r => r.json())
-        .then(cart => {
-          document.dispatchEvent(
-            new CustomEvent("cart:updated", { detail: cart })
-          );
+      /* --------------------------------
+         UPDATE CART ICON / BADGE
+      -------------------------------- */
+      const count = cart.item_count;
+
+      const badgeSelectors = [
+        ".cart-count-bubble span",
+        ".cart-count",
+        "[data-cart-count]",
+        ".header__cart-count",
+        ".site-header__cart-count"
+      ];
+
+      badgeSelectors.forEach(selector => {
+        document.querySelectorAll(selector).forEach(el => {
+          el.textContent = count;
+          el.classList.remove("hidden");
+          el.style.display = "";
         });
+      });
+
+      // Dawn cart-count element
+      document.querySelectorAll("cart-count").forEach(el => {
+        el.textContent = count;
+      });
 
       /* --------------------------------
-         AUTO-OPEN CART DRAWER
+         OPEN CART DRAWER
       -------------------------------- */
-
-      // Dawn theme
       const drawer = document.querySelector("cart-drawer");
       if (drawer && typeof drawer.open === "function") {
         drawer.open();
+      } else {
+        document
+          .querySelector('[data-cart-drawer-toggle], a[href="/cart"]')
+          ?.click();
       }
-
-      // Generic fallback
-      document
-        .querySelector('[data-cart-drawer-toggle], a[href="/cart"]')
-        ?.click();
 
       /* --------------------------------
          BUTTON FEEDBACK
@@ -106,8 +117,8 @@
         stickyATC.disabled = false;
       }, 1400);
 
-    } catch (e) {
-      console.error("Sticky ATC error", e);
+    } catch (err) {
+      console.error("Sticky ATC error", err);
       stickyATC.textContent = "Error";
       stickyATC.disabled = false;
     }
