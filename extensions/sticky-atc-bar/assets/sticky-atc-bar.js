@@ -8,7 +8,9 @@
   const stickyTitle = document.getElementById("bdm-title");
   const stickyPrice = document.getElementById("bdm-price");
 
-  // --- Title + Price (best-effort, never fatal)
+  /* -------------------------------------------------
+     TITLE + PRICE (never fatal)
+  -------------------------------------------------- */
   const titleEl = document.querySelector("h1");
   if (titleEl) stickyTitle.textContent = titleEl.textContent;
 
@@ -17,21 +19,29 @@
     document.querySelector(".price") ||
     document.querySelector(".price-item");
 
-  const syncPriceFromTheme = () => {
+  function syncPriceFromTheme() {
     if (priceEl) stickyPrice.textContent = priceEl.textContent;
-  };
+  }
   syncPriceFromTheme();
 
-  // --- Find theme variant controls (covers most themes)
+  if (priceEl) {
+    new MutationObserver(syncPriceFromTheme).observe(priceEl, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+  }
+
+  /* -------------------------------------------------
+     THEME VARIANT HELPERS
+  -------------------------------------------------- */
+  const themeSelect = () => document.querySelector('select[name="id"]');
   const themeIdInput = () =>
     document.querySelector('input[name="id"]') ||
     document.querySelector('select[name="id"]');
 
-  const themeSelect = () => document.querySelector('select[name="id"]');
-
   function getCurrentVariantId() {
-    const el = themeIdInput();
-    return el?.value || null;
+    return themeIdInput()?.value || null;
   }
 
   function setThemeVariantId(id) {
@@ -52,61 +62,107 @@
     return false;
   }
 
-  // --- Populate sticky variant selector if possible
-  function populateStickyVariants() {
+  /* -------------------------------------------------
+     BUILD STICKY VARIANTS FROM <select name="id">
+  -------------------------------------------------- */
+  function populateFromSelect() {
+    const sel = themeSelect();
+    if (!sel) return false;
+
     stickyVariant.innerHTML = "";
 
-    const sel = themeSelect();
-    if (sel) {
-      // Build from <select name="id">
-      sel.querySelectorAll("option").forEach((opt) => {
-        const o = document.createElement("option");
-        o.value = opt.value;
-        o.textContent = opt.textContent;
-        stickyVariant.appendChild(o);
-      });
+    sel.querySelectorAll("option").forEach((opt) => {
+      if (!opt.value) return;
+      const o = document.createElement("option");
+      o.value = opt.value;
+      o.textContent = opt.textContent;
+      stickyVariant.appendChild(o);
+    });
 
+    stickyVariant.value = sel.value;
+
+    stickyVariant.addEventListener("change", () => {
+      setThemeVariantId(stickyVariant.value);
+      syncPriceFromTheme();
+    });
+
+    sel.addEventListener("change", () => {
       stickyVariant.value = sel.value;
+      syncPriceFromTheme();
+    });
 
-      // Sticky -> Theme
-      stickyVariant.addEventListener("change", () => {
-        setThemeVariantId(stickyVariant.value);
-        syncPriceFromTheme();
-      });
+    stickyVariant.style.display = "";
+    return true;
+  }
 
-      // Theme -> Sticky
-      sel.addEventListener("change", () => {
-        stickyVariant.value = sel.value;
-        syncPriceFromTheme();
-      });
+  /* -------------------------------------------------
+     BUILD STICKY VARIANTS FROM RADIOS (Dawn-style)
+  -------------------------------------------------- */
+  function populateFromRadios() {
+    const radios = document.querySelectorAll(
+      'input[type="radio"][name^="options"], input[type="radio"][name*="option"]'
+    );
 
-      stickyVariant.style.display = "";
-      return;
-    }
+    const hiddenId = document.querySelector('input[name="id"]');
+    if (!radios.length || !hiddenId) return false;
 
-    // If no select exists, many themes use radios + hidden input[name=id]
-    // In that case we *can’t reliably list all variants* without product JSON,
-    // so we hide the dropdown and rely on the theme’s own variant UI.
+    stickyVariant.innerHTML = "";
+    const seen = new Set();
+
+    radios.forEach((radio) => {
+      if (!radio.value || seen.has(radio.value)) return;
+      seen.add(radio.value);
+
+      const label =
+        document.querySelector(`label[for="${radio.id}"]`)?.innerText ||
+        radio.value;
+
+      const o = document.createElement("option");
+      o.value = radio.value;
+      o.textContent = label;
+      stickyVariant.appendChild(o);
+    });
+
+    if (!stickyVariant.options.length) return false;
+
+    stickyVariant.value = hiddenId.value;
+
+    stickyVariant.addEventListener("change", () => {
+      hiddenId.value = stickyVariant.value;
+      hiddenId.dispatchEvent(new Event("change", { bubbles: true }));
+      syncPriceFromTheme();
+    });
+
+    document.addEventListener("change", () => {
+      stickyVariant.value = hiddenId.value;
+      syncPriceFromTheme();
+    });
+
+    stickyVariant.style.display = "";
+    return true;
+  }
+
+  /* -------------------------------------------------
+     VARIANT INITIALIZATION (SAFE, ORDERED)
+  -------------------------------------------------- */
+  let variantsEnabled = populateFromSelect();
+
+  if (!variantsEnabled) {
+    variantsEnabled = populateFromRadios();
+  }
+
+  if (!variantsEnabled) {
     stickyVariant.style.display = "none";
   }
 
-  populateStickyVariants();
-
-  // Keep sticky price in sync if theme updates it dynamically
-  if (priceEl) {
-    new MutationObserver(syncPriceFromTheme).observe(priceEl, {
-      childList: true,
-      subtree: true,
-      characterData: true,
-    });
-  }
-
-  // --- Add to cart + open drawer + update badge
+  /* -------------------------------------------------
+     CART BADGE UPDATE
+  -------------------------------------------------- */
   async function updateCartBadge() {
     const cart = await fetch("/cart.js").then((r) => r.json());
     const count = cart.item_count;
 
-    const badgeSelectors = [
+    const selectors = [
       ".cart-count-bubble span",
       ".cart-count",
       "[data-cart-count]",
@@ -114,55 +170,44 @@
       ".site-header__cart-count",
     ];
 
-    badgeSelectors.forEach((selector) => {
-      document.querySelectorAll(selector).forEach((el) => {
+    selectors.forEach((s) => {
+      document.querySelectorAll(s).forEach((el) => {
         el.textContent = count;
         el.classList.remove("hidden");
         el.style.display = "";
       });
     });
 
-    // Dawn custom element sometimes used
     document.querySelectorAll("cart-count").forEach((el) => {
       el.textContent = count;
     });
-
-    return cart;
   }
 
   function openCartDrawer() {
-    // Dawn
     const drawer = document.querySelector("cart-drawer");
-    if (drawer && typeof drawer.open === "function") {
+    if (drawer?.open) {
       drawer.open();
-      return true;
-    }
-
-    // Common toggles
-    const toggle =
-      document.querySelector('[data-cart-drawer-toggle]') ||
-      document.querySelector('button[name="open-cart"], [aria-controls*="cart"]');
-
-    if (toggle) {
-      toggle.click();
-      return true;
-    }
-
-    return false;
-  }
-
-  stickyATC.addEventListener("click", async () => {
-    const variantId = stickyVariant.style.display === "none"
-      ? getCurrentVariantId()
-      : stickyVariant.value;
-
-    if (!variantId) {
-      console.warn("Sticky ATC: No variant ID found");
       return;
     }
 
-    stickyATC.disabled = true;
+    document
+      .querySelector('[data-cart-drawer-toggle], [aria-controls*="cart"]')
+      ?.click();
+  }
+
+  /* -------------------------------------------------
+     ADD TO CART
+  -------------------------------------------------- */
+  stickyATC.addEventListener("click", async () => {
+    const variantId =
+      stickyVariant.style.display === "none"
+        ? getCurrentVariantId()
+        : stickyVariant.value;
+
+    if (!variantId) return;
+
     const originalText = stickyATC.textContent;
+    stickyATC.disabled = true;
     stickyATC.textContent = "Adding…";
 
     try {
@@ -175,7 +220,6 @@
         }),
       });
 
-      // Theme hooks (best-effort)
       document.dispatchEvent(new Event("cart:refresh"));
       document.dispatchEvent(new Event("cart:change"));
 
@@ -197,7 +241,9 @@
     }
   });
 
-  // --- Show on scroll (never depends on product JSON)
+  /* -------------------------------------------------
+     SHOW ON SCROLL (unchanged, safe)
+  -------------------------------------------------- */
   const triggerOffset = 400;
   window.addEventListener("scroll", () => {
     bar.classList.toggle("visible", window.scrollY > triggerOffset);
