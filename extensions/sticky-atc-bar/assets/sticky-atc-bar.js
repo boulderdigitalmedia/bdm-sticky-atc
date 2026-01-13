@@ -106,7 +106,8 @@
     const hiddenId = document.querySelector('input[name="id"]');
     if (!radios.length || !hiddenId) return false;
 
-    stickyVariant.innerHTML = "";
+    stickyVariant.innerHTML.clear?.();
+
     const seen = new Set();
 
     radios.forEach((radio) => {
@@ -143,16 +144,35 @@
   }
 
   /* -------------------------------------------------
-     VARIANT INITIALIZATION (SAFE, ORDERED)
+     VARIANT INITIALIZATION
   -------------------------------------------------- */
   let variantsEnabled = populateFromSelect();
+  if (!variantsEnabled) variantsEnabled = populateFromRadios();
+  if (!variantsEnabled) stickyVariant.style.display = "none";
 
-  if (!variantsEnabled) {
-    variantsEnabled = populateFromRadios();
-  }
+  /* -------------------------------------------------
+     SELLING PLAN SUPPORT (NEW, SAFE)
+  -------------------------------------------------- */
+  const sellingPlanSelect = document.querySelector(
+    'select[name="selling_plan"]'
+  );
 
-  if (!variantsEnabled) {
-    stickyVariant.style.display = "none";
+  let activeSellingPlan = null;
+
+  if (sellingPlanSelect) {
+    // Default to first option if nothing selected
+    if (!sellingPlanSelect.value && sellingPlanSelect.options.length) {
+      sellingPlanSelect.selectedIndex = 0;
+      sellingPlanSelect.dispatchEvent(
+        new Event("change", { bubbles: true })
+      );
+    }
+
+    activeSellingPlan = sellingPlanSelect.value;
+
+    sellingPlanSelect.addEventListener("change", () => {
+      activeSellingPlan = sellingPlanSelect.value;
+    });
   }
 
   /* -------------------------------------------------
@@ -160,7 +180,6 @@
   -------------------------------------------------- */
   async function updateCartBadge() {
     const cart = await fetch("/cart.js").then((r) => r.json());
-    const count = cart.item_count;
 
     const selectors = [
       ".cart-count-bubble span",
@@ -172,14 +191,14 @@
 
     selectors.forEach((s) => {
       document.querySelectorAll(s).forEach((el) => {
-        el.textContent = count;
+        el.textContent = cart.item_count;
         el.classList.remove("hidden");
         el.style.display = "";
       });
     });
 
     document.querySelectorAll("cart-count").forEach((el) => {
-      el.textContent = count;
+      el.textContent = cart.item_count;
     });
   }
 
@@ -217,6 +236,7 @@
         body: JSON.stringify({
           id: Number(variantId),
           quantity: Number(stickyQty.value || 1),
+          ...(activeSellingPlan && { selling_plan: activeSellingPlan }),
         }),
       });
 
@@ -235,14 +255,11 @@
       console.error("Sticky ATC error", err);
       stickyATC.textContent = "Error";
       stickyATC.disabled = false;
-      setTimeout(() => {
-        stickyATC.textContent = originalText || "Add to cart";
-      }, 1400);
     }
   });
 
   /* -------------------------------------------------
-     SHOW ON SCROLL (unchanged, safe)
+     SHOW ON SCROLL
   -------------------------------------------------- */
   const triggerOffset = 400;
   window.addEventListener("scroll", () => {
