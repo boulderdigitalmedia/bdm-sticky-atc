@@ -8,87 +8,161 @@
   const stickyTitle = document.getElementById("bdm-title");
   const stickyPrice = document.getElementById("bdm-price");
 
-  /* --------------------------------
-     PRODUCT JSON (required for variants)
-  -------------------------------- */
-  const productJsonEl =
-    document.querySelector('script[type="application/json"][data-product-json]') ||
-    document.querySelector("#ProductJson");
+  // --- Title + Price (best-effort, never fatal)
+  const titleEl = document.querySelector("h1");
+  if (titleEl) stickyTitle.textContent = titleEl.textContent;
 
-  if (!productJsonEl) {
-    console.warn("Sticky ATC: product JSON not found");
-    return;
-  }
+  const priceEl =
+    document.querySelector("[data-product-price]") ||
+    document.querySelector(".price") ||
+    document.querySelector(".price-item");
 
-  const product = JSON.parse(productJsonEl.textContent);
+  const syncPriceFromTheme = () => {
+    if (priceEl) stickyPrice.textContent = priceEl.textContent;
+  };
+  syncPriceFromTheme();
 
-  stickyTitle.textContent = product.title;
+  // --- Find theme variant controls (covers most themes)
+  const themeIdInput = () =>
+    document.querySelector('input[name="id"]') ||
+    document.querySelector('select[name="id"]');
 
-  /* --------------------------------
-     VARIANT SELECTOR (STICKY BAR)
-  -------------------------------- */
-  product.variants.forEach(v => {
-    const opt = document.createElement("option");
-    opt.value = v.id;
-    opt.textContent = v.title;
-    stickyVariant.appendChild(opt);
-  });
-
-  function getThemeVariantInput() {
-    return (
-      document.querySelector('input[name="id"]') ||
-      document.querySelector('select[name="id"]')
-    );
-  }
-
-  function setThemeVariant(id) {
-    const input = getThemeVariantInput();
-    if (!input) return;
-    input.value = id;
-    input.dispatchEvent(new Event("change", { bubbles: true }));
-  }
+  const themeSelect = () => document.querySelector('select[name="id"]');
 
   function getCurrentVariantId() {
-    const input = getThemeVariantInput();
-    return input ? input.value : product.variants[0].id;
+    const el = themeIdInput();
+    return el?.value || null;
   }
 
-  stickyVariant.value = getCurrentVariantId();
+  function setThemeVariantId(id) {
+    const sel = themeSelect();
+    if (sel) {
+      sel.value = String(id);
+      sel.dispatchEvent(new Event("change", { bubbles: true }));
+      return true;
+    }
 
-  function updatePrice() {
-    const variant = product.variants.find(v => v.id == stickyVariant.value);
-    if (!variant) return;
+    const input = document.querySelector('input[name="id"]');
+    if (input) {
+      input.value = String(id);
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+      return true;
+    }
 
-    stickyPrice.textContent =
-      (variant.price / 100).toLocaleString(undefined, {
-        style: "currency",
-        currency: product.currency || "USD",
+    return false;
+  }
+
+  // --- Populate sticky variant selector if possible
+  function populateStickyVariants() {
+    stickyVariant.innerHTML = "";
+
+    const sel = themeSelect();
+    if (sel) {
+      // Build from <select name="id">
+      sel.querySelectorAll("option").forEach((opt) => {
+        const o = document.createElement("option");
+        o.value = opt.value;
+        o.textContent = opt.textContent;
+        stickyVariant.appendChild(o);
       });
+
+      stickyVariant.value = sel.value;
+
+      // Sticky -> Theme
+      stickyVariant.addEventListener("change", () => {
+        setThemeVariantId(stickyVariant.value);
+        syncPriceFromTheme();
+      });
+
+      // Theme -> Sticky
+      sel.addEventListener("change", () => {
+        stickyVariant.value = sel.value;
+        syncPriceFromTheme();
+      });
+
+      stickyVariant.style.display = "";
+      return;
+    }
+
+    // If no select exists, many themes use radios + hidden input[name=id]
+    // In that case we *can’t reliably list all variants* without product JSON,
+    // so we hide the dropdown and rely on the theme’s own variant UI.
+    stickyVariant.style.display = "none";
   }
 
-  updatePrice();
+  populateStickyVariants();
 
-  stickyVariant.addEventListener("change", () => {
-    setThemeVariant(stickyVariant.value);
-    updatePrice();
-  });
-
-  /* --------------------------------
-     SYNC WHEN THEME VARIANT CHANGES
-  -------------------------------- */
-  const themeVariantInput = getThemeVariantInput();
-  if (themeVariantInput) {
-    themeVariantInput.addEventListener("change", () => {
-      stickyVariant.value = themeVariantInput.value;
-      updatePrice();
+  // Keep sticky price in sync if theme updates it dynamically
+  if (priceEl) {
+    new MutationObserver(syncPriceFromTheme).observe(priceEl, {
+      childList: true,
+      subtree: true,
+      characterData: true,
     });
   }
 
-  /* --------------------------------
-     ADD TO CART
-  -------------------------------- */
+  // --- Add to cart + open drawer + update badge
+  async function updateCartBadge() {
+    const cart = await fetch("/cart.js").then((r) => r.json());
+    const count = cart.item_count;
+
+    const badgeSelectors = [
+      ".cart-count-bubble span",
+      ".cart-count",
+      "[data-cart-count]",
+      ".header__cart-count",
+      ".site-header__cart-count",
+    ];
+
+    badgeSelectors.forEach((selector) => {
+      document.querySelectorAll(selector).forEach((el) => {
+        el.textContent = count;
+        el.classList.remove("hidden");
+        el.style.display = "";
+      });
+    });
+
+    // Dawn custom element sometimes used
+    document.querySelectorAll("cart-count").forEach((el) => {
+      el.textContent = count;
+    });
+
+    return cart;
+  }
+
+  function openCartDrawer() {
+    // Dawn
+    const drawer = document.querySelector("cart-drawer");
+    if (drawer && typeof drawer.open === "function") {
+      drawer.open();
+      return true;
+    }
+
+    // Common toggles
+    const toggle =
+      document.querySelector('[data-cart-drawer-toggle]') ||
+      document.querySelector('button[name="open-cart"], [aria-controls*="cart"]');
+
+    if (toggle) {
+      toggle.click();
+      return true;
+    }
+
+    return false;
+  }
+
   stickyATC.addEventListener("click", async () => {
+    const variantId = stickyVariant.style.display === "none"
+      ? getCurrentVariantId()
+      : stickyVariant.value;
+
+    if (!variantId) {
+      console.warn("Sticky ATC: No variant ID found");
+      return;
+    }
+
     stickyATC.disabled = true;
+    const originalText = stickyATC.textContent;
     stickyATC.textContent = "Adding…";
 
     try {
@@ -96,53 +170,34 @@
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          id: Number(stickyVariant.value),
+          id: Number(variantId),
           quantity: Number(stickyQty.value || 1),
         }),
       });
 
-      const cart = await fetch("/cart.js").then(r => r.json());
+      // Theme hooks (best-effort)
+      document.dispatchEvent(new Event("cart:refresh"));
+      document.dispatchEvent(new Event("cart:change"));
 
-      /* Update cart badge */
-      const count = cart.item_count;
-      [
-        ".cart-count-bubble span",
-        ".cart-count",
-        "[data-cart-count]",
-        ".header__cart-count",
-        ".site-header__cart-count",
-      ].forEach(sel => {
-        document.querySelectorAll(sel).forEach(el => {
-          el.textContent = count;
-          el.classList.remove("hidden");
-        });
-      });
-
-      document.querySelectorAll("cart-count").forEach(el => {
-        el.textContent = count;
-      });
-
-      /* Open cart drawer */
-      const drawer = document.querySelector("cart-drawer");
-      if (drawer?.open) drawer.open();
-      else document.querySelector('[data-cart-drawer-toggle]')?.click();
+      await updateCartBadge();
+      openCartDrawer();
 
       stickyATC.textContent = "Added ✓";
       setTimeout(() => {
-        stickyATC.textContent = "Add to cart";
+        stickyATC.textContent = originalText || "Add to cart";
         stickyATC.disabled = false;
       }, 1400);
-
     } catch (err) {
       console.error("Sticky ATC error", err);
       stickyATC.textContent = "Error";
       stickyATC.disabled = false;
+      setTimeout(() => {
+        stickyATC.textContent = originalText || "Add to cart";
+      }, 1400);
     }
   });
 
-  /* --------------------------------
-     SHOW ON SCROLL
-  -------------------------------- */
+  // --- Show on scroll (never depends on product JSON)
   const triggerOffset = 400;
   window.addEventListener("scroll", () => {
     bar.classList.toggle("visible", window.scrollY > triggerOffset);
