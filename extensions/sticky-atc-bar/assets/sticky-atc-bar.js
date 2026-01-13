@@ -8,66 +8,51 @@
   const stickyTitle = document.getElementById("bdm-title");
   const stickyPrice = document.getElementById("bdm-price");
 
-  /* -----------------------------
-     Get product data from Shopify
-  ------------------------------ */
-  const productJsonEl = document.querySelector('script[type="application/json"][data-product-json], script#ProductJson');
-  if (!productJsonEl) return;
+  // Always show title
+  const titleEl = document.querySelector("h1");
+  if (titleEl) stickyTitle.textContent = titleEl.textContent;
 
-  const product = JSON.parse(productJsonEl.textContent);
+  // Try to detect variant ID from theme
+  function getCurrentVariantId() {
+    // Dawn / modern themes
+    const idInput = document.querySelector('input[name="id"]');
+    if (idInput) return idInput.value;
 
-  stickyTitle.textContent = product.title;
+    // Fallback: select
+    const select = document.querySelector('select[name="id"]');
+    if (select) return select.value;
 
-  /* -----------------------------
-     Populate variants
-  ------------------------------ */
-  product.variants.forEach(v => {
-    const opt = document.createElement("option");
-    opt.value = v.id;
-    opt.textContent = v.title;
-    stickyVariant.appendChild(opt);
-  });
-
-  stickyVariant.value = product.variants.find(v => v.available)?.id || product.variants[0].id;
-
-  function updatePrice() {
-    const variant = product.variants.find(v => v.id == stickyVariant.value);
-    if (!variant) return;
-    stickyPrice.textContent =
-      (variant.price / 100).toLocaleString(undefined, {
-        style: "currency",
-        currency: product.currency || "USD",
-      });
+    return null;
   }
 
-  updatePrice();
-  stickyVariant.addEventListener("change", updatePrice);
+  // Populate variant dropdown dynamically
+  const idInput = document.querySelector('input[name="id"]');
+  if (idInput) {
+    stickyVariant.style.display = "none";
+  }
 
-  /* -----------------------------
-     Add to cart (robust method)
-  ------------------------------ */
+  // Add to cart
   stickyATC.addEventListener("click", async () => {
-    stickyATC.disabled = true;
+    const variantId = getCurrentVariantId();
+    if (!variantId) {
+      console.warn("No variant ID found");
+      return;
+    }
 
     await fetch("/cart/add.js", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        id: Number(stickyVariant.value),
+        id: Number(variantId),
         quantity: Number(stickyQty.value || 1),
       }),
     });
 
-    stickyATC.disabled = false;
-
-    // Optional: open cart drawer
     document.dispatchEvent(new CustomEvent("cart:refresh"));
   });
 
-  /* -----------------------------
-     Show on scroll
-  ------------------------------ */
-  const trigger = document.querySelector("form[action='/cart/add']")?.getBoundingClientRect().bottom + window.scrollY || 400;
+  // Scroll logic (never exits)
+  const trigger = 400;
 
   window.addEventListener("scroll", () => {
     bar.classList.toggle("visible", window.scrollY > trigger);
