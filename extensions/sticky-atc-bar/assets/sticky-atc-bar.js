@@ -98,50 +98,52 @@
   /* -------------------------------------------------
      BUILD STICKY VARIANTS FROM RADIOS (Dawn-style)
   -------------------------------------------------- */
-  function populateFromRadios() {
-    const radios = document.querySelectorAll(
-      'input[type="radio"][name^="options"], input[type="radio"][name*="option"]'
+function populateFromRadios() {
+  const productJson =
+    window.Shopify?.product ||
+    JSON.parse(
+      document.querySelector('#ProductJson')?.textContent || 'null'
     );
 
-    const hiddenId = document.querySelector('input[name="id"]');
-    if (!radios.length || !hiddenId) return false;
+  if (!productJson || !productJson.variants) return false;
 
-    stickyVariant.innerHTML.clear?.();
+  const hiddenId = document.querySelector('input[name="id"]');
+  if (!hiddenId) return false;
 
-    const seen = new Set();
+  stickyVariant.innerHTML = "";
 
-    radios.forEach((radio) => {
-      if (!radio.value || seen.has(radio.value)) return;
-      seen.add(radio.value);
+  productJson.variants.forEach((variant) => {
+    if (!variant.available) return;
 
-      const label =
-        document.querySelector(`label[for="${radio.id}"]`)?.innerText ||
-        radio.value;
+    const label = variant.options.join(" / ");
 
-      const o = document.createElement("option");
-      o.value = radio.value;
-      o.textContent = label;
-      stickyVariant.appendChild(o);
-    });
+    const o = document.createElement("option");
+    o.value = variant.id; // ✅ REAL VARIANT ID
+    o.textContent = label;
 
-    if (!stickyVariant.options.length) return false;
+    stickyVariant.appendChild(o);
+  });
 
+  // Set initial value
+  stickyVariant.value = hiddenId.value;
+
+  // Sticky → Theme
+  stickyVariant.addEventListener("change", () => {
+    hiddenId.value = stickyVariant.value;
+    hiddenId.dispatchEvent(new Event("change", { bubbles: true }));
+    syncPriceFromTheme();
+  });
+
+  // Theme → Sticky
+  document.addEventListener("change", () => {
     stickyVariant.value = hiddenId.value;
+    syncPriceFromTheme();
+  });
 
-    stickyVariant.addEventListener("change", () => {
-      hiddenId.value = stickyVariant.value;
-      hiddenId.dispatchEvent(new Event("change", { bubbles: true }));
-      syncPriceFromTheme();
-    });
+  stickyVariant.style.display = "";
+  return true;
+}
 
-    document.addEventListener("change", () => {
-      stickyVariant.value = hiddenId.value;
-      syncPriceFromTheme();
-    });
-
-    stickyVariant.style.display = "";
-    return true;
-  }
 
   /* -------------------------------------------------
      VARIANT INITIALIZATION
