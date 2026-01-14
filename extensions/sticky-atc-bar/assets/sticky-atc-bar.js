@@ -8,116 +8,98 @@
   const stickyTitle = document.getElementById("bdm-title");
   const stickyPrice = document.getElementById("bdm-price");
 
-  /* -----------------------------
-     PRODUCT JSON (SOURCE OF TRUTH)
-  ------------------------------ */
-  const product =
-    window.Shopify?.product ||
-    (() => {
-      try {
-        return JSON.parse(
-          document.querySelector("#ProductJson")?.textContent || "null"
-        );
-      } catch {
-        return null;
-      }
-    })();
+  let product = null;
 
-  if (!product || !product.variants?.length) {
-    stickyVariant.style.display = "none";
+  /* -------------------------------------------------
+     LOAD PRODUCT JSON (THIS IS THE KEY PART YOU LOST)
+  -------------------------------------------------- */
+  async function loadProductJson() {
+    const handle = location.pathname.match(/\/products\/([^/]+)/)?.[1];
+    if (!handle) return null;
+
+    try {
+      const res = await fetch(`/products/${handle}.js`, {
+        credentials: "same-origin",
+        headers: { Accept: "application/json" },
+      });
+      return res.ok ? res.json() : null;
+    } catch {
+      return null;
+    }
   }
 
-  const hiddenIdInput = document.querySelector('input[name="id"]');
-
-  /* -----------------------------
+  /* -------------------------------------------------
      TITLE
-  ------------------------------ */
+  -------------------------------------------------- */
   const titleEl = document.querySelector("h1");
   if (titleEl) stickyTitle.textContent = titleEl.textContent;
 
-  /* -----------------------------
-     PRICE SYNC
-  ------------------------------ */
-  const priceEl =
-    document.querySelector("[data-product-price]") ||
-    document.querySelector(".price") ||
-    document.querySelector(".price-item");
+  /* -------------------------------------------------
+     VARIANT + PRICE HELPERS
+  -------------------------------------------------- */
+  function setThemeVariant(id) {
+    const input =
+      document.querySelector('input[name="id"]') ||
+      document.querySelector('select[name="id"]');
 
-  function syncPriceFromTheme() {
-    if (priceEl) stickyPrice.textContent = priceEl.textContent;
+    if (!input) return;
+    input.value = String(id);
+    input.dispatchEvent(new Event("change", { bubbles: true }));
   }
 
-  syncPriceFromTheme();
-
-  if (priceEl) {
-    new MutationObserver(syncPriceFromTheme).observe(priceEl, {
-      childList: true,
-      subtree: true,
-      characterData: true,
-    });
+  function updatePriceForVariant(variant) {
+    if (!variant) return;
+    stickyPrice.textContent =
+      typeof variant.price === "number"
+        ? `$${(variant.price / 100).toFixed(2)}`
+        : variant.price;
   }
 
-  /* -----------------------------
-     BUILD VARIANT DROPDOWN (CORRECT)
-  ------------------------------ */
-  if (product?.variants?.length > 1 && hiddenIdInput) {
+  /* -------------------------------------------------
+     BUILD VARIANT SELECT FROM PRODUCT JSON
+  -------------------------------------------------- */
+  function buildVariantSelect() {
     stickyVariant.innerHTML = "";
 
     product.variants.forEach((variant) => {
-      if (!variant.available) return;
-
-      const o = document.createElement("option");
-      o.value = variant.id;
-      o.textContent = variant.options.join(" / ");
-      stickyVariant.appendChild(o);
+      const opt = document.createElement("option");
+      opt.value = variant.id;
+      opt.textContent = variant.public_title || variant.title;
+      stickyVariant.appendChild(opt);
     });
 
-    // Default to current variant
-    stickyVariant.value = hiddenIdInput.value;
+    const initialVariant =
+      product.variants.find((v) => v.available) || product.variants[0];
 
-    // Sticky → Theme
+    stickyVariant.value = initialVariant.id;
+    updatePriceForVariant(initialVariant);
+    setThemeVariant(initialVariant.id);
+
     stickyVariant.addEventListener("change", () => {
-      hiddenIdInput.value = stickyVariant.value;
-      hiddenIdInput.dispatchEvent(new Event("change", { bubbles: true }));
-      syncPriceFromTheme();
+      const selected = product.variants.find(
+        (v) => String(v.id) === stickyVariant.value
+      );
+      updatePriceForVariant(selected);
+      setThemeVariant(selected.id);
     });
-
-    // Theme → Sticky
-    document.addEventListener("change", () => {
-      stickyVariant.value = hiddenIdInput.value;
-      syncPriceFromTheme();
-    });
-
-    stickyVariant.style.display = "";
-  } else {
-    stickyVariant.style.display = "none";
   }
 
-  /* -----------------------------
+  /* -------------------------------------------------
      CART BADGE
-  ------------------------------ */
+  -------------------------------------------------- */
   async function updateCartBadge() {
     const cart = await fetch("/cart.js").then((r) => r.json());
+    const count = cart.item_count;
 
-    const selectors = [
-      ".cart-count-bubble span",
-      ".cart-count",
-      "[data-cart-count]",
-      ".header__cart-count",
-      ".site-header__cart-count",
-    ];
-
-    selectors.forEach((s) => {
-      document.querySelectorAll(s).forEach((el) => {
-        el.textContent = cart.item_count;
+    document
+      .querySelectorAll(
+        ".cart-count-bubble span, .cart-count, [data-cart-count]"
+      )
+      .forEach((el) => {
+        el.textContent = count;
         el.classList.remove("hidden");
         el.style.display = "";
       });
-    });
-
-    document.querySelectorAll("cart-count").forEach((el) => {
-      el.textContent = cart.item_count;
-    });
   }
 
   function openCartDrawer() {
@@ -132,15 +114,15 @@
       ?.click();
   }
 
-  /* -----------------------------
+  /* -------------------------------------------------
      ADD TO CART
-  ------------------------------ */
+  -------------------------------------------------- */
   stickyATC.addEventListener("click", async () => {
-    const variantId = hiddenIdInput?.value;
+    const variantId = stickyVariant.value;
     if (!variantId) return;
 
-    const originalText = stickyATC.textContent;
     stickyATC.disabled = true;
+    const originalText = stickyATC.textContent;
     stickyATC.textContent = "Adding…";
 
     try {
@@ -153,29 +135,41 @@
         }),
       });
 
-      document.dispatchEvent(new Event("cart:refresh"));
-      document.dispatchEvent(new Event("cart:change"));
-
       await updateCartBadge();
       openCartDrawer();
 
       stickyATC.textContent = "Added ✓";
       setTimeout(() => {
-        stickyATC.textContent = originalText || "Add to cart";
+        stickyATC.textContent = originalText;
         stickyATC.disabled = false;
       }, 1400);
     } catch (err) {
-      console.error("Sticky ATC error", err);
+      console.error(err);
       stickyATC.textContent = "Error";
       stickyATC.disabled = false;
+      setTimeout(() => {
+        stickyATC.textContent = originalText;
+      }, 1400);
     }
   });
 
-  /* -----------------------------
+  /* -------------------------------------------------
      SHOW ON SCROLL
-  ------------------------------ */
+  -------------------------------------------------- */
   const triggerOffset = 400;
   window.addEventListener("scroll", () => {
     bar.classList.toggle("visible", window.scrollY > triggerOffset);
   });
+
+  /* -------------------------------------------------
+     INIT
+  -------------------------------------------------- */
+  (async function init() {
+    product = await loadProductJson();
+    if (!product || !product.variants?.length) {
+      stickyVariant.style.display = "none";
+      return;
+    }
+    buildVariantSelect();
+  })();
 })();
