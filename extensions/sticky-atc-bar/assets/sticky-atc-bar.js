@@ -8,149 +8,141 @@
   const stickyTitle = document.getElementById("bdm-title");
   const stickyPrice = document.getElementById("bdm-price");
 
+  let product = null;
+
   /* -------------------------------------------------
-     TITLE + PRICE (never fatal)
+     LOAD PRODUCT JSON (RESTORED – THIS IS THE KEY)
+  -------------------------------------------------- */
+  async function loadProductJson() {
+    const handle = location.pathname.match(/\/products\/([^/]+)/)?.[1];
+    if (!handle) return null;
+
+    try {
+      const res = await fetch(`/products/${handle}.js`, {
+        credentials: "same-origin",
+        headers: { Accept: "application/json" },
+      });
+      return res.ok ? res.json() : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /* -------------------------------------------------
+     TITLE
   -------------------------------------------------- */
   const titleEl = document.querySelector("h1");
   if (titleEl) stickyTitle.textContent = titleEl.textContent;
 
-  const priceEl =
-    document.querySelector("[data-product-price]") ||
-    document.querySelector(".price") ||
-    document.querySelector(".price-item");
-
-  function syncPriceFromTheme() {
-    if (priceEl) stickyPrice.textContent = priceEl.textContent;
+  /* -------------------------------------------------
+     PRICE
+  -------------------------------------------------- */
+  function formatMoney(cents) {
+    return typeof cents === "number"
+      ? `$${(cents / 100).toFixed(2)}`
+      : cents;
   }
-  syncPriceFromTheme();
 
-  if (priceEl) {
-    new MutationObserver(syncPriceFromTheme).observe(priceEl, {
-      childList: true,
-      subtree: true,
-      characterData: true,
-    });
+  function setPriceFromVariant(variant) {
+    if (variant) stickyPrice.textContent = formatMoney(variant.price);
   }
 
   /* -------------------------------------------------
-     THEME VARIANT HELPERS
+     THEME VARIANT SYNC
   -------------------------------------------------- */
-  const themeSelect = () => document.querySelector('select[name="id"]');
-  const themeIdInput = () =>
-    document.querySelector('input[name="id"]') ||
-    document.querySelector('select[name="id"]');
+  function setThemeVariant(id) {
+    const input =
+      document.querySelector('input[name="id"]') ||
+      document.querySelector('select[name="id"]');
 
-  function getCurrentVariantId() {
-    return themeIdInput()?.value || null;
+    if (!input) return;
+    input.value = String(id);
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    input.dispatchEvent(new Event("input", { bubbles: true }));
   }
 
-  function setThemeVariantId(id) {
-    const sel = themeSelect();
-    if (sel) {
-      sel.value = String(id);
-      sel.dispatchEvent(new Event("change", { bubbles: true }));
-      return true;
-    }
-
-    const input = document.querySelector('input[name="id"]');
-    if (input) {
-      input.value = String(id);
-      input.dispatchEvent(new Event("change", { bubbles: true }));
-      return true;
-    }
-
-    return false;
-  }
-
-  /* -------------------------------------------------
-     BUILD STICKY VARIANTS FROM <select name="id">
-  -------------------------------------------------- */
-  function populateFromSelect() {
-    const sel = themeSelect();
-    if (!sel) return false;
-
-    stickyVariant.innerHTML = "";
-
-    sel.querySelectorAll("option").forEach((opt) => {
-      if (!opt.value) return;
-      const o = document.createElement("option");
-      o.value = opt.value;
-      o.textContent = opt.textContent;
-      stickyVariant.appendChild(o);
-    });
-
-    stickyVariant.value = sel.value;
-
-    stickyVariant.addEventListener("change", () => {
-      setThemeVariantId(stickyVariant.value);
-      syncPriceFromTheme();
-    });
-
-    sel.addEventListener("change", () => {
-      stickyVariant.value = sel.value;
-      syncPriceFromTheme();
-    });
-
-    stickyVariant.style.display = "";
-    return true;
-  }
-
-  /* -------------------------------------------------
-     BUILD STICKY VARIANTS FROM RADIOS (Dawn-style)
-  -------------------------------------------------- */
-  function populateFromRadios() {
-    const radios = document.querySelectorAll(
-      'input[type="radio"][name^="options"], input[type="radio"][name*="option"]'
+  function getThemeVariantId() {
+    return (
+      document.querySelector('input[name="id"]')?.value ||
+      document.querySelector('select[name="id"]')?.value ||
+      null
     );
-
-    const hiddenId = document.querySelector('input[name="id"]');
-    if (!radios.length || !hiddenId) return false;
-
-    stickyVariant.innerHTML = "";
-    const seen = new Set();
-
-    radios.forEach((radio) => {
-      if (!radio.value || seen.has(radio.value)) return;
-      seen.add(radio.value);
-
-      const label =
-        document.querySelector(`label[for="${radio.id}"]`)?.innerText ||
-        radio.value;
-
-      const o = document.createElement("option");
-      o.value = radio.value;
-      o.textContent = label;
-      stickyVariant.appendChild(o);
-    });
-
-    if (!stickyVariant.options.length) return false;
-
-    stickyVariant.value = hiddenId.value;
-
-    stickyVariant.addEventListener("change", () => {
-      hiddenId.value = stickyVariant.value;
-      hiddenId.dispatchEvent(new Event("change", { bubbles: true }));
-      syncPriceFromTheme();
-    });
-
-    document.addEventListener("change", () => {
-      stickyVariant.value = hiddenId.value;
-      syncPriceFromTheme();
-    });
-
-    stickyVariant.style.display = "";
-    return true;
   }
 
   /* -------------------------------------------------
-     VARIANT INITIALIZATION (SAFE ORDER)
+     BUILD VARIANT SELECT (FROM PRODUCT JSON)
   -------------------------------------------------- */
-  let variantsEnabled = populateFromSelect();
-  if (!variantsEnabled) variantsEnabled = populateFromRadios();
-  if (!variantsEnabled) stickyVariant.style.display = "none";
+  function buildVariantSelect() {
+    if (!product?.variants?.length) {
+      stickyVariant.style.display = "none";
+      return;
+    }
+
+    // Hide if single-variant product
+    if (product.variants.length === 1) {
+      stickyVariant.style.display = "none";
+      setThemeVariant(product.variants[0].id);
+      setPriceFromVariant(product.variants[0]);
+      return;
+    }
+
+    stickyVariant.innerHTML = "";
+
+    product.variants.forEach((variant) => {
+      const opt = document.createElement("option");
+      opt.value = variant.id;
+      opt.textContent = variant.public_title || variant.title;
+      stickyVariant.appendChild(opt);
+    });
+
+    const initialId =
+      getThemeVariantId() || product.variants.find(v => v.available)?.id || product.variants[0].id;
+
+    stickyVariant.value = String(initialId);
+    setThemeVariant(initialId);
+
+    const initialVariant = product.variants.find(
+      (v) => String(v.id) === String(initialId)
+    );
+    setPriceFromVariant(initialVariant);
+
+    // Sticky → Theme
+    stickyVariant.addEventListener("change", () => {
+      const selected = product.variants.find(
+        (v) => String(v.id) === stickyVariant.value
+      );
+      setThemeVariant(selected.id);
+      setPriceFromVariant(selected);
+    });
+
+    stickyVariant.style.display = "";
+  }
 
   /* -------------------------------------------------
-     CART BADGE UPDATE
+     SELLING PLANS (DOM-BASED, SAFE)
+  -------------------------------------------------- */
+  const sellingPlanSelect = document.querySelector(
+    'select[name="selling_plan"]'
+  );
+  let activeSellingPlan = null;
+
+  if (sellingPlanSelect) {
+    if (!sellingPlanSelect.value && sellingPlanSelect.options.length) {
+      sellingPlanSelect.selectedIndex = 0;
+      sellingPlanSelect.dispatchEvent(
+        new Event("change", { bubbles: true })
+      );
+    }
+
+    activeSellingPlan = sellingPlanSelect.value;
+
+    sellingPlanSelect.addEventListener("change", () => {
+      activeSellingPlan = sellingPlanSelect.value;
+    });
+  }
+
+  /* -------------------------------------------------
+     CART BADGE + DRAWER
   -------------------------------------------------- */
   async function updateCartBadge() {
     const cart = await fetch("/cart.js").then((r) => r.json());
@@ -169,37 +161,25 @@
         el.style.display = "";
       });
     });
-
-    document.querySelectorAll("cart-count").forEach((el) => {
-      el.textContent = count;
-    });
-
-    return cart;
   }
 
   function openCartDrawer() {
     const drawer = document.querySelector("cart-drawer");
     if (drawer?.open) {
       drawer.open();
-      return true;
+      return;
     }
 
     document
       .querySelector('[data-cart-drawer-toggle], [aria-controls*="cart"]')
       ?.click();
-
-    return false;
   }
 
   /* -------------------------------------------------
-     ADD TO CART (FIXED + BULLETPROOF)
+     ADD TO CART (FIXED)
   -------------------------------------------------- */
   stickyATC.addEventListener("click", async () => {
-    const variantId =
-      stickyVariant.style.display === "none"
-        ? getCurrentVariantId()
-        : stickyVariant.value;
-
+    const variantId = stickyVariant.value || getThemeVariantId();
     if (!variantId) return;
 
     const originalText = stickyATC.textContent;
@@ -216,16 +196,16 @@
         body: JSON.stringify({
           id: Number(variantId),
           quantity: Number(stickyQty.value || 1),
+          ...(activeSellingPlan && { selling_plan: activeSellingPlan }),
         }),
       });
 
-      if (!res.ok) throw new Error("Add to cart failed");
+      if (!res.ok) throw new Error("Add failed");
 
       const addedItem = await res.json();
 
-      /* ---- THEME CART LIFECYCLE ---- */
       document.dispatchEvent(
-        new CustomEvent("cart:updated", { detail: { item: addedItem } })
+        new CustomEvent("cart:updated", { detail: addedItem })
       );
       document.dispatchEvent(new Event("cart:refresh"));
       document.dispatchEvent(new Event("cart:change"));
@@ -234,22 +214,29 @@
       openCartDrawer();
 
       stickyATC.textContent = "Added ✓";
-    } catch (err) {
-      console.error("Sticky ATC error", err);
+    } catch (e) {
+      console.error(e);
       stickyATC.textContent = "Error";
     } finally {
       setTimeout(() => {
-        stickyATC.textContent = originalText || "Add to cart";
+        stickyATC.textContent = originalText;
         stickyATC.disabled = false;
       }, 1200);
     }
   });
 
   /* -------------------------------------------------
-     SHOW ON SCROLL
+     SCROLL VISIBILITY
   -------------------------------------------------- */
-  const triggerOffset = 400;
   window.addEventListener("scroll", () => {
-    bar.classList.toggle("visible", window.scrollY > triggerOffset);
+    bar.classList.toggle("visible", window.scrollY > 400);
   });
+
+  /* -------------------------------------------------
+     INIT
+  -------------------------------------------------- */
+  (async function init() {
+    product = await loadProductJson();
+    buildVariantSelect();
+  })();
 })();
