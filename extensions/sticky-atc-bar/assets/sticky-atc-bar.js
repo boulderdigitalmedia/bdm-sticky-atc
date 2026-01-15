@@ -277,15 +277,20 @@
 
       if (!res.ok) throw new Error("Add failed");
 
-      await refreshCartUI();
-      openCartDrawer();
-
       stickyATC.textContent = "Added ✓";
 
       resetTimer = setTimeout(() => {
         stickyATC.textContent = originalText || "Add to cart";
         stickyATC.disabled = false;
       }, 1500);
+
+      refreshCartUI()
+        .then(() => {
+          openCartDrawer();
+        })
+        .catch((error) => {
+          console.warn("Sticky ATC: refresh failed", error);
+        });
     } catch (err) {
       console.error("Sticky ATC error", err);
       stickyATC.textContent = "Error";
