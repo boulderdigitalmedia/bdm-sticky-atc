@@ -50,8 +50,47 @@
     );
   }
 
+  const variantsData = (() => {
+    if (bar.dataset.variants) {
+      try {
+        return JSON.parse(bar.dataset.variants);
+      } catch (error) {
+        console.warn("Sticky ATC: failed to parse variants data", error);
+      }
+    }
+
+    return window.ShopifyAnalytics?.meta?.product?.variants || [];
+  })();
+
+  function formatMoney(cents) {
+    if (typeof Shopify?.formatMoney === "function") {
+      return Shopify.formatMoney(cents);
+    }
+
+    return (Number(cents || 0) / 100).toLocaleString(undefined, {
+      style: "currency",
+      currency: Shopify?.currency?.active || "USD",
+    });
+  }
+
+  function findVariant(id) {
+    return variantsData.find((variant) => String(variant.id) === String(id));
+  }
+
+  function syncPriceFromVariant(variantId, priceFallbackEl) {
+    const variant = findVariant(variantId);
+    if (variant?.price != null) {
+      stickyPrice.textContent = formatMoney(variant.price);
+      return;
+    }
+
+    if (priceFallbackEl) {
+      stickyPrice.textContent = priceFallbackEl.textContent;
+    }
+  }
+
   /* -------------------------------------------------
-     INIT TITLE + PRICE
+     INIT TITLE + PRICE + VARIANTS
   -------------------------------------------------- */
   waitForProductForm(() => {
     const titleEl = document.querySelector("h1");
@@ -59,6 +98,12 @@
 
     const priceEl = getPriceEl();
     const syncPrice = () => {
+      const activeVariantId = getVariantId();
+      if (activeVariantId) {
+        syncPriceFromVariant(activeVariantId, priceEl);
+        return;
+      }
+
       if (priceEl) stickyPrice.textContent = priceEl.textContent;
     };
     syncPrice();
@@ -71,10 +116,47 @@
       });
     }
 
-    // IMPORTANT:
-    // We do NOT allow variant/selling plan selection in the bar.
-    // The bar mirrors the product form only.
-    stickyVariant.style.display = "none";
+    const form = getForm();
+    const variantInput = form?.querySelector('input[name="id"], select[name="id"]');
+
+    if (variantsData.length > 1) {
+      stickyVariant.innerHTML = "";
+      variantsData.forEach((variant) => {
+        const option = document.createElement("option");
+        option.value = variant.id;
+        option.textContent =
+          variant.public_title || variant.title || `Variant ${variant.id}`;
+        stickyVariant.appendChild(option);
+      });
+
+      const initialVariantId = variantInput?.value || variantsData[0]?.id;
+      if (initialVariantId) {
+        stickyVariant.value = String(initialVariantId);
+        syncPriceFromVariant(initialVariantId, priceEl);
+      }
+
+      stickyVariant.style.display = "";
+
+      stickyVariant.addEventListener("change", () => {
+        const nextVariantId = stickyVariant.value;
+        if (variantInput) {
+          variantInput.value = nextVariantId;
+          variantInput.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+        syncPriceFromVariant(nextVariantId, priceEl);
+      });
+
+      variantInput?.addEventListener("change", () => {
+        if (!variantInput.value) return;
+        stickyVariant.value = String(variantInput.value);
+        syncPriceFromVariant(variantInput.value, priceEl);
+      });
+    } else {
+      stickyVariant.style.display = "none";
+      if (variantInput?.value) {
+        syncPriceFromVariant(variantInput.value, priceEl);
+      }
+    }
   });
 
   /* -------------------------------------------------

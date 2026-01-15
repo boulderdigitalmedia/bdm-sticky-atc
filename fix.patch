@@ -1,0 +1,167 @@
+diff --git a/extensions/sticky-atc-bar/assets/sticky-atc-bar.js b/extensions/sticky-atc-bar/assets/sticky-atc-bar.js
+index 3b2ed6f98128c58929a28036c865774c12333e67..d7b4a1ac9c17da62eda99e0ef77ccf1f294d3de9 100644
+--- a/extensions/sticky-atc-bar/assets/sticky-atc-bar.js
++++ b/extensions/sticky-atc-bar/assets/sticky-atc-bar.js
+@@ -28,75 +28,157 @@
+   /* -------------------------------------------------
+      LIVE READ HELPERS (always source of truth)
+   -------------------------------------------------- */
+   function getForm() {
+     return document.querySelector('form[action*="/cart/add"]');
+   }
+ 
+   function getVariantId() {
+     return getForm()?.querySelector('input[name="id"], select[name="id"]')?.value || null;
+   }
+ 
+   function getSellingPlanId() {
+     return (
+       getForm()?.querySelector('select[name="selling_plan"]')?.value || ""
+     );
+   }
+ 
+   function getPriceEl() {
+     return (
+       document.querySelector("[data-product-price]") ||
+       document.querySelector(".price") ||
+       document.querySelector(".price-item")
+     );
+   }
+ 
++  const variantsData = (() => {
++    if (bar.dataset.variants) {
++      try {
++        return JSON.parse(bar.dataset.variants);
++      } catch (error) {
++        console.warn("Sticky ATC: failed to parse variants data", error);
++      }
++    }
++
++    return window.ShopifyAnalytics?.meta?.product?.variants || [];
++  })();
++
++  function formatMoney(cents) {
++    if (typeof Shopify?.formatMoney === "function") {
++      return Shopify.formatMoney(cents);
++    }
++
++    return (Number(cents || 0) / 100).toLocaleString(undefined, {
++      style: "currency",
++      currency: Shopify?.currency?.active || "USD",
++    });
++  }
++
++  function findVariant(id) {
++    return variantsData.find((variant) => String(variant.id) === String(id));
++  }
++
++  function syncPriceFromVariant(variantId, priceFallbackEl) {
++    const variant = findVariant(variantId);
++    if (variant?.price != null) {
++      stickyPrice.textContent = formatMoney(variant.price);
++      return;
++    }
++
++    if (priceFallbackEl) {
++      stickyPrice.textContent = priceFallbackEl.textContent;
++    }
++  }
++
+   /* -------------------------------------------------
+-     INIT TITLE + PRICE
++     INIT TITLE + PRICE + VARIANTS
+   -------------------------------------------------- */
+   waitForProductForm(() => {
+     const titleEl = document.querySelector("h1");
+     if (titleEl) stickyTitle.textContent = titleEl.textContent;
+ 
+     const priceEl = getPriceEl();
+     const syncPrice = () => {
++      const activeVariantId = getVariantId();
++      if (activeVariantId) {
++        syncPriceFromVariant(activeVariantId, priceEl);
++        return;
++      }
++
+       if (priceEl) stickyPrice.textContent = priceEl.textContent;
+     };
+     syncPrice();
+ 
+     if (priceEl) {
+       new MutationObserver(syncPrice).observe(priceEl, {
+         childList: true,
+         subtree: true,
+         characterData: true,
+       });
+     }
+ 
+-    // IMPORTANT:
+-    // We do NOT allow variant/selling plan selection in the bar.
+-    // The bar mirrors the product form only.
+-    stickyVariant.style.display = "none";
++    const form = getForm();
++    const variantInput = form?.querySelector('input[name="id"], select[name="id"]');
++
++    if (variantsData.length > 1) {
++      stickyVariant.innerHTML = "";
++      variantsData.forEach((variant) => {
++        const option = document.createElement("option");
++        option.value = variant.id;
++        option.textContent =
++          variant.public_title || variant.title || `Variant ${variant.id}`;
++        stickyVariant.appendChild(option);
++      });
++
++      const initialVariantId = variantInput?.value || variantsData[0]?.id;
++      if (initialVariantId) {
++        stickyVariant.value = String(initialVariantId);
++        syncPriceFromVariant(initialVariantId, priceEl);
++      }
++
++      stickyVariant.style.display = "";
++
++      stickyVariant.addEventListener("change", () => {
++        const nextVariantId = stickyVariant.value;
++        if (variantInput) {
++          variantInput.value = nextVariantId;
++          variantInput.dispatchEvent(new Event("change", { bubbles: true }));
++        }
++        syncPriceFromVariant(nextVariantId, priceEl);
++      });
++
++      variantInput?.addEventListener("change", () => {
++        if (!variantInput.value) return;
++        stickyVariant.value = String(variantInput.value);
++        syncPriceFromVariant(variantInput.value, priceEl);
++      });
++    } else {
++      stickyVariant.style.display = "none";
++      if (variantInput?.value) {
++        syncPriceFromVariant(variantInput.value, priceEl);
++      }
++    }
+   });
+ 
+   /* -------------------------------------------------
+      CART UI REFRESH (Dawn-safe)
+   -------------------------------------------------- */
+   async function fetchCart() {
+     const r = await fetch("/cart.js", {
+       headers: { Accept: "application/json" },
+     });
+     return r.json();
+   }
+ 
+   function updateBadges(count) {
+     const selectors = [
+       ".cart-count-bubble span",
+       ".cart-count",
+       "[data-cart-count]",
+       ".header__cart-count",
+       ".site-header__cart-count",
+       "#cart-icon-bubble span",
+     ];
+ 
+     selectors.forEach((s) => {
+       document.querySelectorAll(s).forEach((el) => {
+         el.textContent = count;
