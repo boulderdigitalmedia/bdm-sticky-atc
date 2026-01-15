@@ -2,6 +2,31 @@
   const bar = document.getElementById("bdm-sticky-atc");
   if (!bar) return;
 
+  const shopDomain = Shopify?.shop;
+  const productId = window.ShopifyAnalytics?.meta?.product?.id;
+
+  function trackEvent(event, data = {}) {
+    if (!shopDomain) return;
+    const url = `/apps/bdm-sticky-atc/track?shop=${encodeURIComponent(
+      shopDomain
+    )}`;
+    try {
+      fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        keepalive: true,
+        body: JSON.stringify({
+          event,
+          productId,
+          timestamp: Date.now(),
+          ...data,
+        }),
+      });
+    } catch (error) {
+      console.warn("Sticky ATC: tracking failed", error);
+    }
+  }
+
   const stickyATC = document.getElementById("bdm-atc");
   const stickyQty = document.getElementById("bdm-qty");
   const stickyVariant = document.getElementById("bdm-variant");
@@ -144,6 +169,7 @@
           variantInput.dispatchEvent(new Event("change", { bubbles: true }));
         }
         syncPriceFromVariant(nextVariantId, priceEl);
+        trackEvent("variant_change", { variantId: nextVariantId });
       });
 
       variantInput?.addEventListener("change", () => {
@@ -252,6 +278,9 @@
     if (!variantId) return;
 
     const sellingPlanId = getSellingPlanId();
+    const selectedVariant = findVariant(variantId);
+    const price = selectedVariant?.price ?? null;
+    const quantity = Number(stickyQty.value || 1);
 
     const originalText = stickyATC.textContent;
     stickyATC.disabled = true;
@@ -262,9 +291,15 @@
     try {
       const payload = {
         id: Number(variantId),
-        quantity: Number(stickyQty.value || 1),
+        quantity,
       };
       if (sellingPlanId) payload.selling_plan = sellingPlanId;
+
+      trackEvent("add_to_cart", {
+        variantId,
+        quantity,
+        price,
+      });
 
       const res = await fetch("/cart/add.js", {
         method: "POST",
@@ -318,4 +353,6 @@
   window.addEventListener("scroll", () => {
     bar.classList.toggle("visible", window.scrollY > 400);
   });
+
+  trackEvent("page_view");
 })();
