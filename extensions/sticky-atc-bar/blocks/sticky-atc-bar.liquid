@@ -1,6 +1,11 @@
 {% if request.page_type == 'product' %}
 
-<div id="bdm-sticky-atc" aria-hidden="true" data-sticky-atc>
+<div
+  id="bdm-sticky-atc"
+  aria-hidden="true"
+  data-sticky-atc
+  data-variants='{{ product.variants | json }}'
+>
   <div class="bdm-inner">
     <div class="bdm-left">
       <div id="bdm-title"></div>
