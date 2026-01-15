@@ -30,6 +30,7 @@ app.use("/attribution", attributionRouter);
 initShopify(app);
 
 // ✅ 5. FRONTEND (serve built admin UI)
+app.use("/web", express.static(path.join(__dirname, "public")));
 app.use(
   express.static(path.join(__dirname, "frontend", "dist"))
 );
