@@ -7,7 +7,7 @@
 
   function trackEvent(event, data = {}) {
     if (!shopDomain) return;
-    const url = `/apps/bdm-sticky-atc/track?shop=${encodeURIComponent(
+    const url = `https://sticky-add-to-cart-bar-pro.onrender.com/apps/bdm-sticky-atc/track?shop=${encodeURIComponent(
       shopDomain
     )}`;
     try {
