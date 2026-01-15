@@ -15,10 +15,8 @@ Captures checkout token before redirect
           timestamp: Date.now()
         };
 
-        navigator.sendBeacon(
-          "https://sticky-add-to-cart-bar-pro.onrender.com/attribution",
-          JSON.stringify(payload)
-        );
+        const url = `https://sticky-add-to-cart-bar-pro.onrender.com/apps/bdm-sticky-atc/checkout?shop=${encodeURIComponent(payload.shop)}`;
+        navigator.sendBeacon(url, JSON.stringify(payload));
       } catch (e) {
         console.warn("Sticky ATC attribution error", e);
       }
