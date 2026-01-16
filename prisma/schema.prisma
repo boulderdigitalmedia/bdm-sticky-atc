@@ -65,3 +65,52 @@ model ShopSettings {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }
+
+model StickyEvent {
+  id        String   @id
+  shop      String
+  event     String
+  productId String?
+  variantId String?
+  quantity  Int?
+  price     Float?
+  timestamp DateTime @default(now())
+
+  @@index([shop])
+  @@index([event])
+  @@index([timestamp])
+}
+
+model StickyMetricsDaily {
+  id          String   @id
+  shop        String
+  date        DateTime
+  pageViews   Int      @default(0)
+  addToCart   Int      @default(0)
+  conversions Int      @default(0)
+  revenue     Float    @default(0)
+
+  @@index([shop])
+  @@index([date])
+}
+
+model StickyAttribution {
+  id            Int    @id @default(autoincrement())
+  shop          String
+  checkoutToken String @unique
+  productId     String
+  variantId     String
+  timestamp     BigInt
+}
+
+model StickyConversion {
+  id         String   @id
+  shop       String
+  orderId    String
+  revenue    Float
+  currency   String
+  occurredAt DateTime
+  createdAt  DateTime @default(now())
+
+  @@index([shop])
+}
