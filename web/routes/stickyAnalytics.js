@@ -3,6 +3,10 @@ import express from "express";
 import prisma from "../prisma.js";
 
 const router = express.Router();
+const generateId = () =>
+  crypto.randomUUID
+    ? crypto.randomUUID()
+    : crypto.randomBytes(16).toString("hex");
 
 /**
  * POST /apps/bdm-sticky-atc/track
@@ -32,7 +36,7 @@ router.post("/track", async (req, res) => {
 
     await prisma.stickyEvent.create({
       data: {
-        id: crypto.randomUUID(),
+        id: generateId(),
         shop: String(shop),
         event: String(event),
         productId: productId ? String(productId) : null,
@@ -42,6 +46,7 @@ router.post("/track", async (req, res) => {
         timestamp: timestamp ? new Date(timestamp) : undefined,
       },
     });
+    return res.json({ ok: true });
   } catch (err) {
     console.error("track error:", err);
     return res.status(500).json({ error: "Track failed" });
@@ -91,7 +96,7 @@ router.post("/checkout", async (req, res) => {
     // Optional event log for analytics
     await prisma.stickyEvent.create({
       data: {
-        id: crypto.randomUUID(),
+        id: generateId(),
         shop: String(shop),
         event: "checkout_completed",
         productId: productId ? String(productId) : null,

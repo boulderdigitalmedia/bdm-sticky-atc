@@ -1,6 +1,11 @@
 import crypto from "crypto";
 import prisma from "../prisma.js";
 
+const generateId = () =>
+  crypto.randomUUID
+    ? crypto.randomUUID()
+    : crypto.randomBytes(16).toString("hex");
+
 export async function ordersPaidHandler(shop, payload) {
   if (!shop || !payload?.id) return;
 
@@ -16,7 +21,7 @@ export async function ordersPaidHandler(shop, payload) {
   // 1️⃣ Write conversion record
   await prisma.stickyConversion.create({
     data: {
-      id: crypto.randomUUID(),
+      id: generateId(),
       shop,
       orderId,
       revenue,
@@ -29,7 +34,7 @@ export async function ordersPaidHandler(shop, payload) {
   for (const item of payload.line_items || []) {
     await prisma.stickyEvent.create({
       data: {
-        id: crypto.randomUUID(),
+        id: generateId(),
         shop,
         event: "purchase",
         productId: item.product_id ? String(item.product_id) : null,
