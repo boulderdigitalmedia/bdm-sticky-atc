@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import express from "express";
 import prisma from "../prisma.js";
 
@@ -31,6 +32,7 @@ router.post("/track", async (req, res) => {
 
     await prisma.stickyEvent.create({
       data: {
+        id: crypto.randomUUID(),
         shop: String(shop),
         event: String(event),
         productId: productId ? String(productId) : null,
@@ -89,6 +91,7 @@ router.post("/checkout", async (req, res) => {
     // Optional event log for analytics
     await prisma.stickyEvent.create({
       data: {
+        id: crypto.randomUUID(),
         shop: String(shop),
         event: "checkout_completed",
         productId: productId ? String(productId) : null,

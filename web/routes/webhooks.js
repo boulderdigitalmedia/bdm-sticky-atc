@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import prisma from "../prisma.js";
 
 export async function ordersCreate(req, res) {
@@ -22,6 +23,7 @@ export async function ordersCreate(req, res) {
 
     await prisma.stickyConversion.create({
       data: {
+        id: crypto.randomUUID(),
         shop: attribution.shop,
         orderId: order.id.toString(),
         revenue: parseFloat(order.total_price),
