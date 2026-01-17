@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node web/index.js",
+    "start": "npx prisma migrate deploy && node web/index.js",
     "build": "npm --prefix web/frontend install && npm --prefix web/frontend run build",
     "postinstall": "prisma generate"
   },
