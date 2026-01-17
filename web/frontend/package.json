@@ -1,23 +1,21 @@
 {
-  "name": "bdm-sticky-atc-frontend",
+  "name": "bdm-sticky-atc",
   "private": true,
-  "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "start": "npx prisma migrate deploy && node web/index.js",
+    "build": "npm --prefix web/frontend install && npm --prefix web/frontend run build",
+    "postinstall": "prisma generate"
   },
-
   "dependencies": {
-  "@shopify/app-bridge": "3.7.0",
-  "@shopify/app-bridge-react": "3.2.0",
-  "@shopify/polaris": "^12.0.0",
-  "react": "^18.2.0",
-  "react-dom": "^18.2.0",
-  "react-router-dom": "^6.22.3",
-  "vite": "^7.3.0",
-  "@vitejs/plugin-react": "^4.7.0"
-}
-
+    "@shopify/shopify-api": "^9.7.2",
+    "@prisma/client": "^5.22.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "prisma": "^5.22.0",
+    "dotenv-cli": "^7.4.2"
+  }
 }

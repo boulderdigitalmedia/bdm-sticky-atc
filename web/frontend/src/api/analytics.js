@@ -17,4 +17,3 @@ export async function fetchAnalytics() {
     revenue: data.revenue ?? null
   };
 }
-

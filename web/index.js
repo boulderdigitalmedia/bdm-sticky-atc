@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import fs from "fs";
 import bodyParser from "body-parser";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -36,10 +37,17 @@ app.use(
 );
 
 app.get("*", (_req, res) => {
-  res.sendFile(
-    path.join(__dirname, "frontend", "dist", "index.html")
-  );
+  const indexPath = path.join(__dirname, "frontend", "dist", "index.html");
+  const apiKey = process.env.SHOPIFY_API_KEY || "";
+  const html = fs
+    .readFileSync(indexPath, "utf8")
+    .replace(
+      "</head>",
+      `<script>window.__SHOPIFY_API_KEY__ = ${JSON.stringify(apiKey)};</script></head>`
+    );
+  res.send(html);
 });
+
 
 // ✅ 6. START SERVER
 const PORT = process.env.PORT || 3000;

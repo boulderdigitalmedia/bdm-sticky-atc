@@ -14,13 +14,13 @@ import App from "./App.jsx";
 const urlParams = new URLSearchParams(window.location.search);
 const host = urlParams.get("host");
 
-const apiKey = import.meta.env.VITE_SHOPIFY_API_KEY;
+const apiKey = import.meta.env.VITE_SHOPIFY_API_KEY || window.__SHOPIFY_API_KEY__;
 
 // Fail loudly instead of silently
 if (!apiKey) {
   document.body.innerHTML =
-    "<h1>Missing VITE_SHOPIFY_API_KEY</h1><p>Check frontend env vars.</p>";
-  throw new Error("Missing VITE_SHOPIFY_API_KEY");
+    "<h1>Missing Shopify API key</h1><p>Check frontend env vars or server config.</p>";
+  throw new Error("Missing Shopify API key");
 }
 
 if (!host) {
