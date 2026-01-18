@@ -9,7 +9,6 @@ export async function fetchAnalytics() {
   if (!res.ok) {
     throw new Error("Failed to load analytics");
   }
-
   const data = await res.json();
   return {
     clicks: data.addToCart ?? data.clicks ?? 0,

@@ -10,6 +10,7 @@ import settingsRouter from "./routes/settings.js";
 import trackRouter from "./routes/track.js";
 import stickyAnalyticsRouter from "./routes/stickyAnalytics.js";
 import attributionRouter from "./routes/attribution.js";
+import { ordersCreate } from "./routes/webhooks.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -26,6 +27,7 @@ app.use("/api/settings", settingsRouter);
 app.use("/api/track", trackRouter);
 app.use("/apps/bdm-sticky-atc", stickyAnalyticsRouter);
 app.use("/attribution", attributionRouter);
+app.post("/webhooks/orders/create", ordersCreate);
 
 // ✅ 4. SHOPIFY (after app exists)
 initShopify(app);

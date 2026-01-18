@@ -1,5 +1,5 @@
 import "@shopify/shopify-api/adapters/node";
-import { shopifyApi, LATEST_API_VERSION } from "@shopify/shopify-api";
+import { shopifyApi, LATEST_API_VERSION, DeliveryMethod } from "@shopify/shopify-api";
 import { restResources } from "@shopify/shopify-api/rest/admin/2024-01";
 import { prismaSessionStorage } from "./shopifySessionStoragePrisma.js";
 
@@ -25,10 +25,7 @@ export function initShopify(app) {
     restResources,
     sessionStorage: prismaSessionStorage()
   });
-
-  // Begin OAuth
-  app.get("/auth", async (req, res) => {
-    const shop = req.query.shop;
+@@ -32,43 +32,52 @@ export function initShopify(app) {
     if (!shop) return res.status(400).send("Missing shop parameter");
 
     const redirectUrl = await shopify.auth.begin({
@@ -53,6 +50,15 @@ export function initShopify(app) {
       // session is stored by sessionStorage automatically by callback() in most flows,
       // but storeSession is safe to ensure persistence.
       await shopify.sessionStorage.storeSession(session);
+
+      await shopify.webhooks.register({
+        session,
+        topic: "ORDERS_CREATE",
+        webhook: {
+          deliveryMethod: DeliveryMethod.Http,
+          callbackUrl: "/webhooks/orders/create",
+        },
+      });
 
       // Shopify admin passes host param on embedded loads
       const host = req.query.host;
