@@ -25,7 +25,10 @@ export function initShopify(app) {
     restResources,
     sessionStorage: prismaSessionStorage()
   });
-@@ -32,43 +32,52 @@ export function initShopify(app) {
+
+  // Begin OAuth
+  app.get("/auth", async (req, res) => {
+    const shop = req.query.shop;
     if (!shop) return res.status(400).send("Missing shop parameter");
 
     const redirectUrl = await shopify.auth.begin({
@@ -56,8 +59,8 @@ export function initShopify(app) {
         topic: "ORDERS_CREATE",
         webhook: {
           deliveryMethod: DeliveryMethod.Http,
-          callbackUrl: "/webhooks/orders/create",
-        },
+          callbackUrl: "/webhooks/orders/create"
+        }
       });
 
       // Shopify admin passes host param on embedded loads
