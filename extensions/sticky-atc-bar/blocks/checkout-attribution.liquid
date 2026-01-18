@@ -16,7 +16,10 @@ Captures checkout token before redirect
         };
 
         const url = `https://sticky-add-to-cart-bar-pro.onrender.com/apps/bdm-sticky-atc/checkout?shop=${encodeURIComponent(payload.shop)}`;
-        navigator.sendBeacon(url, JSON.stringify(payload));
+        const body = new Blob([JSON.stringify(payload)], {
+          type: "application/json"
+        });
+        navigator.sendBeacon(url, body);
       } catch (e) {
         console.warn("Sticky ATC attribution error", e);
       }
