@@ -7,11 +7,15 @@ Captures checkout token before redirect
   (function () {
     function sendAttribution() {
       try {
-        if (!window.Shopify || !Shopify.checkout) return;
+        const checkoutToken = window.Shopify?.checkout?.token || null;
+        const cartToken = "{{ cart.token | escape }}";
+
+        if (!checkoutToken && !cartToken) return;
 
         const payload = {
           shop: "{{ shop.permanent_domain }}",
-          checkoutToken: Shopify.checkout.token,
+          checkoutToken,
+          cartToken: cartToken || null,
           timestamp: Date.now()
         };
 
@@ -27,6 +31,17 @@ Captures checkout token before redirect
 
     document.addEventListener("submit", function (e) {
       if (e.target.action && e.target.action.includes("/checkout")) {
+        sendAttribution();
+      }
+    });
+
+    document.addEventListener("click", function (e) {
+      const link = e.target.closest('a[href*="/checkout"]');
+      const button =
+        e.target.closest('button[name="checkout"]') ||
+        e.target.closest('input[name="checkout"]');
+
+      if (link || button) {
         sendAttribution();
       }
     });

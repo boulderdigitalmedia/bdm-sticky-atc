@@ -62,6 +62,7 @@ router.post("/checkout", async (req, res) => {
   try {
     const {
       checkoutToken,
+      cartToken,
       productId,
       variantId,
       occurredAt,
@@ -72,12 +73,14 @@ router.post("/checkout", async (req, res) => {
       req.query.shop ||
       null;
 
-    if (!shop || !checkoutToken) {
-      return res.status(400).json({ error: "Missing shop or checkoutToken" });
+    const attributionToken = checkoutToken || cartToken;
+
+    if (!shop || !attributionToken) {
+      return res.status(400).json({ error: "Missing shop or attribution token" });
     }
 
     await prisma.stickyAttribution.upsert({
-      where: { checkoutToken: String(checkoutToken) },
+      where: { checkoutToken: String(attributionToken) },
       update: {
         shop: String(shop),
         productId: productId ? String(productId) : "unknown",
@@ -86,7 +89,7 @@ router.post("/checkout", async (req, res) => {
       },
       create: {
         shop: String(shop),
-        checkoutToken: String(checkoutToken),
+        checkoutToken: String(attributionToken),
         productId: productId ? String(productId) : "unknown",
         variantId: variantId ? String(variantId) : "unknown",
         timestamp: BigInt(Date.now()),
@@ -238,5 +241,3 @@ router.get("/timeseries", async (req, res) => {
     return res.status(500).json({ error: "Timeseries failed" });
   }
 });
-
-export default router;

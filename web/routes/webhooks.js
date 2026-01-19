@@ -10,11 +10,13 @@ export async function ordersCreate(req, res) {
   try {
     const order = req.body;
     const checkoutToken = order.checkout_token;
+    const cartToken = order.cart_token;
+    const attributionToken = checkoutToken || cartToken;
 
-    if (!checkoutToken) return res.sendStatus(200);
+    if (!attributionToken) return res.sendStatus(200);
 
     const attribution = await prisma.stickyAttribution.findUnique({
-      where: { checkoutToken }
+      where: { checkoutToken: attributionToken }
     });
 
     if (!attribution) return res.sendStatus(200);
