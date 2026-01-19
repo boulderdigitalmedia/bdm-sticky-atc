@@ -5,8 +5,12 @@ Captures checkout token before redirect
 
 <script>
   (function () {
+    let sent = false;
+
     function sendAttribution() {
       try {
+        if (sent) return;
+
         const checkoutToken = window.Shopify?.checkout?.token || null;
         const cartToken = "{{ cart.token | escape }}";
 
@@ -23,7 +27,17 @@ Captures checkout token before redirect
         const body = new Blob([JSON.stringify(payload)], {
           type: "application/json"
         });
-        navigator.sendBeacon(url, body);
+        if (navigator.sendBeacon) {
+          sent = navigator.sendBeacon(url, body);
+        } else {
+          sent = true;
+          fetch(url, {
+            method: "POST",
+            body,
+            headers: { "Content-Type": "application/json" },
+            keepalive: true
+          }).catch(() => {});
+        }
       } catch (e) {
         console.warn("Sticky ATC attribution error", e);
       }
@@ -42,6 +56,20 @@ Captures checkout token before redirect
         e.target.closest('input[name="checkout"]');
 
       if (link || button) {
+        sendAttribution();
+      }
+    });
+
+    if (window.Shopify?.checkout?.token) {
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", sendAttribution);
+      } else {
+        sendAttribution();
+      }
+    }
+
+    document.addEventListener("visibilitychange", function () {
+      if (document.visibilityState === "hidden") {
         sendAttribution();
       }
     });
