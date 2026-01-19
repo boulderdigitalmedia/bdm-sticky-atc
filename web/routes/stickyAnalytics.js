@@ -241,3 +241,6 @@ router.get("/timeseries", async (req, res) => {
     return res.status(500).json({ error: "Timeseries failed" });
   }
 });
+
+export { router };
+export default router;
