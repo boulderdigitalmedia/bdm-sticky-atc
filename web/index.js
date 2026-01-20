@@ -19,7 +19,14 @@ const __dirname = path.dirname(__filename);
 const app = express();
 
 // ✅ 2. MIDDLEWARE
-app.use(cors());
+app.use(
+  cors({
+    origin: true,
+    methods: ["GET", "POST", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "X-Shopify-Shop-Domain"]
+  })
+);
+app.options("*", cors());
 app.use(bodyParser.json());
 
 // ✅ 3. ROUTES
@@ -49,7 +56,6 @@ app.get("*", (_req, res) => {
     );
   res.send(html);
 });
-
 
 // ✅ 6. START SERVER
 const PORT = process.env.PORT || 3000;
