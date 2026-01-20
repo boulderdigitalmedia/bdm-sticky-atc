@@ -70,7 +70,10 @@ Captures checkout token before redirect
       const link = e.target.closest('a[href*="/checkout"]');
       const button =
         e.target.closest('button[name="checkout"]') ||
-        e.target.closest('input[name="checkout"]');
+        e.target.closest('input[name="checkout"]') ||
+        e.target.closest('[data-checkout]') ||
+        e.target.closest('[data-action="checkout"]') ||
+        e.target.closest('[data-cart-checkout]');
 
       if (link || button) {
         sendAttribution();
@@ -92,6 +95,17 @@ Captures checkout token before redirect
     });
 
     window.addEventListener("pagehide", sendAttribution);
+
+    if (window.location.pathname.startsWith("/cart")) {
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", sendAttribution);
+      } else {
+        sendAttribution();
+      }
+    }
+
+    document.addEventListener("cart:checkout", sendAttribution);
+    document.addEventListener("checkout", sendAttribution);
   })();
 </script>
 
