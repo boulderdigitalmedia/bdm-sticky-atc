@@ -7,12 +7,27 @@ Captures checkout token before redirect
   (function () {
     let sent = false;
 
-    function sendAttribution() {
+    async function resolveCartToken() {
+      const liquidToken = "{{ cart.token | escape }}";
+      if (liquidToken) return liquidToken;
+      const analyticsToken = window.ShopifyAnalytics?.meta?.cartToken;
+      if (analyticsToken) return analyticsToken;
+      try {
+        const res = await fetch("/cart.js", { credentials: "same-origin" });
+        if (!res.ok) return null;
+        const data = await res.json();
+        return data?.token || null;
+      } catch (_err) {
+        return null;
+      }
+    }
+
+    async function sendAttribution() {
       try {
         if (sent) return;
 
         const checkoutToken = window.Shopify?.checkout?.token || null;
-        const cartToken = "{{ cart.token | escape }}";
+        const cartToken = await resolveCartToken();
 
         if (!checkoutToken && !cartToken) return;
 
@@ -29,7 +44,9 @@ Captures checkout token before redirect
         });
         if (navigator.sendBeacon) {
           sent = navigator.sendBeacon(url, body);
-        } else {
+        }
+
+        if (!sent) {
           sent = true;
           fetch(url, {
             method: "POST",
@@ -73,6 +90,8 @@ Captures checkout token before redirect
         sendAttribution();
       }
     });
+
+    window.addEventListener("pagehide", sendAttribution);
   })();
 </script>
 
