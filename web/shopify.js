@@ -59,7 +59,7 @@ export function initShopify(app) {
         topic: "ORDERS_CREATE",
         webhook: {
           deliveryMethod: DeliveryMethod.Http,
-          callbackUrl: "/webhooks/orders/create"
+          callbackUrl: new URL("/webhooks/orders/create", appUrl).toString()
         }
       });
 
