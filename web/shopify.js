@@ -54,14 +54,19 @@ export function initShopify(app) {
       // but storeSession is safe to ensure persistence.
       await shopify.sessionStorage.storeSession(session);
 
-      await shopify.webhooks.register({
-        session,
-        topic: "ORDERS_CREATE",
-        webhook: {
-          deliveryMethod: DeliveryMethod.Http,
-          callbackUrl: new URL("/webhooks/orders/create", appUrl).toString()
-        }
-      });
+      try {
+        const registerResult = await shopify.webhooks.register({
+          session,
+          topic: "ORDERS_CREATE",
+          webhook: {
+            deliveryMethod: DeliveryMethod.Http,
+            callbackUrl: new URL("/webhooks/orders/create", appUrl).toString()
+          }
+        });
+        console.log("Webhook register result:", registerResult);
+      } catch (err) {
+        console.error("Webhook registration failed:", err);
+      }
 
       // Shopify admin passes host param on embedded loads
       const host = req.query.host;
