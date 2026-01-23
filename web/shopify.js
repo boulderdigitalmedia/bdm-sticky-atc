@@ -39,7 +39,11 @@ export function initShopify(app) {
       rawResponse: res
     });
 
-    return res.redirect(redirectUrl);
+    if (res.headersSent) return;
+    if (redirectUrl) {
+      return res.redirect(redirectUrl);
+    }
+    return res.sendStatus(200);
   });
 
   // OAuth callback
