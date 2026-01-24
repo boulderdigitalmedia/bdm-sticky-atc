@@ -79,7 +79,7 @@ export function initShopify(app) {
 
       let accessSession = session;
       if (!accessSession?.accessToken) {
-        const offlineSessionId = shopify.session.getOfflineId(session.shop);
+        const offlineSessionId = shopify.session.getOfflineId(sanitizedShop);
         const storedSession = await shopify.sessionStorage.loadSession(offlineSessionId);
         if (storedSession?.accessToken) {
           accessSession = storedSession;
