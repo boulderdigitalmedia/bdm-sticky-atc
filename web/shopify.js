@@ -12,24 +12,32 @@ function requiredEnv(name) {
 export function initShopify(app) {
   const apiKey = requiredEnv("SHOPIFY_API_KEY");
   const apiSecretKey = requiredEnv("SHOPIFY_API_SECRET");
-  const appUrl = requiredEnv("SHOPIFY_APP_URL");
+  const appUrl = new URL(requiredEnv("SHOPIFY_APP_URL"));
   const scopes = requiredEnv("SCOPES").split(",").map((s) => s.trim()).filter(Boolean);
 
   const shopify = shopifyApi({
     apiKey,
     apiSecretKey,
     scopes,
-    hostName: new URL(appUrl).host,
+    hostName: appUrl.host,
+    hostScheme: appUrl.protocol.replace(":", ""),
     apiVersion: LATEST_API_VERSION,
     isEmbeddedApp: true,
     restResources,
     sessionStorage: prismaSessionStorage()
   });
 
+  if (appUrl.protocol !== "https:") {
+    console.warn(
+      "SHOPIFY_APP_URL should use https for webhook registration. Current value:",
+      appUrl.toString()
+    );
+  }
+
   shopify.webhooks.addHandlers({
     ORDERS_CREATE: {
       deliveryMethod: DeliveryMethod.Http,
-      callbackUrl: new URL("/webhooks/orders/create", appUrl).toString(),
+      callbackUrl: "/webhooks/orders/create",
       callback: async () => {}
     }
   });
@@ -68,6 +76,14 @@ export function initShopify(app) {
 
       try {
         const registerResult = await shopify.webhooks.register({ session });
+        const failures = Object.entries(registerResult).flatMap(([topic, results]) =>
+          results
+            .filter((result) => !result.success)
+            .map((result) => ({ topic, ...result }))
+        );
+        if (failures.length) {
+          console.error("Webhook registration failures:", failures);
+        }
         console.log("Webhook register result:", registerResult);
       } catch (err) {
         console.error("Webhook registration failed:", err);
