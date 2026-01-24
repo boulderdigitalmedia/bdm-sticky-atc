@@ -46,9 +46,11 @@ export function initShopify(app) {
   app.get("/auth", async (req, res) => {
     const shop = req.query.shop;
     if (!shop) return res.status(400).send("Missing shop parameter");
+    const sanitizedShop = shopify.utils.sanitizeShop(shop.toString(), true);
+    if (!sanitizedShop) return res.status(400).send("Invalid shop parameter");
 
     const redirectUrl = await shopify.auth.begin({
-      shop,
+      shop: sanitizedShop,
       callbackPath: "/auth/callback",
       isOnline: false,
       rawRequest: req,
@@ -65,6 +67,11 @@ export function initShopify(app) {
   // OAuth callback
   app.get("/auth/callback", async (req, res) => {
     try {
+      const shop = req.query.shop;
+      if (!shop) return res.status(400).send("Missing shop parameter");
+      const sanitizedShop = shopify.utils.sanitizeShop(shop.toString(), true);
+      if (!sanitizedShop) return res.status(400).send("Invalid shop parameter");
+
       const session = await shopify.auth.callback({
         rawRequest: req,
         rawResponse: res
