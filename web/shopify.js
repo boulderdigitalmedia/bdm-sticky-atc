@@ -70,10 +70,6 @@ export function initShopify(app) {
         rawResponse: res
       });
 
-      // session is stored by sessionStorage automatically by callback() in most flows,
-      // but storeSession is safe to ensure persistence.
-      await shopify.sessionStorage.storeSession(session);
-
       try {
         const registerResult = await shopify.webhooks.register({ session });
         const failures = Object.entries(registerResult).flatMap(([topic, results]) =>
