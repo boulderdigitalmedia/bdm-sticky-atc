@@ -26,6 +26,14 @@ export function initShopify(app) {
     sessionStorage: prismaSessionStorage()
   });
 
+  shopify.webhooks.addHandlers({
+    ORDERS_CREATE: {
+      deliveryMethod: DeliveryMethod.Http,
+      callbackUrl: new URL("/webhooks/orders/create", appUrl).toString(),
+      callback: async () => {}
+    }
+  });
+
   // Begin OAuth
   app.get("/auth", async (req, res) => {
     const shop = req.query.shop;
@@ -59,14 +67,7 @@ export function initShopify(app) {
       await shopify.sessionStorage.storeSession(session);
 
       try {
-        const registerResult = await shopify.webhooks.register({
-          session,
-          topic: "ORDERS_CREATE",
-          webhook: {
-            deliveryMethod: DeliveryMethod.Http,
-            callbackUrl: new URL("/webhooks/orders/create", appUrl).toString()
-          }
-        });
+        const registerResult = await shopify.webhooks.register({ session });
         console.log("Webhook register result:", registerResult);
       } catch (err) {
         console.error("Webhook registration failed:", err);
