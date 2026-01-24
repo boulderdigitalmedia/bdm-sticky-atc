@@ -105,14 +105,14 @@ export function initShopify(app) {
 
       // Shopify admin passes host param on embedded loads
       const host = req.query.host;
-      const shop = session.shop;
+      const shopDomain = session.shop;
 
       if (!host) {
         // If host missing, redirect to Shopify Admin to re-open embedded context
-        return res.redirect(`https://${shop}/admin/apps/${apiKey}`);
+        return res.redirect(`https://${shopDomain}/admin/apps/${apiKey}`);
       }
 
-      return res.redirect(`/?shop=${shop}&host=${host}`);
+      return res.redirect(`/?shop=${shopDomain}&host=${host}`);
     } catch (err) {
       console.error("Auth callback error:", err);
       return res.status(500).send("Shopify auth failed");
