@@ -77,15 +77,22 @@ export function initShopify(app) {
         rawResponse: res
       });
 
-      if (!session?.accessToken) {
-        console.error(
-          "Missing access token after OAuth callback for shop:",
-          session?.shop ?? sanitizedShop
-        );
+      let accessSession = session;
+      if (!accessSession?.accessToken) {
+        const offlineSessionId = shopify.session.getOfflineId(sanitizedShop);
+        const storedSession = await shopify.config.sessionStorage.loadSession(offlineSessionId);
+        if (storedSession?.accessToken) {
+          accessSession = storedSession;
+        } else {
+          console.error(
+            "Missing access token after OAuth callback for shop:",
+            session?.shop ?? sanitizedShop
+          );
+        }
       }
 
       try {
-        const registerResult = await shopify.webhooks.register({ session });
+        const registerResult = await shopify.webhooks.register({ session: accessSession });
         const failures = Object.entries(registerResult).flatMap(([topic, results]) =>
           results
             .filter((result) => !result.success)
