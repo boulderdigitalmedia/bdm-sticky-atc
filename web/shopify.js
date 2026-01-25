@@ -1,5 +1,5 @@
 import "@shopify/shopify-api/adapters/node";
-import { shopifyApi, ApiVersion, DeliveryMethod } from "@shopify/shopify-api";
+import { ApiVersion, DeliveryMethod } from "@shopify/shopify-api";
 import { restResources } from "@shopify/shopify-api/rest/admin/2024-01";
 import { shopifyApp } from "@shopify/shopify-app-express";
 import { prismaSessionStorage } from "./shopifySessionStoragePrisma.js";
@@ -30,21 +30,34 @@ export function initShopify(app) {
     apiVersion: "ApiVersion.January24",
   });
 
-  // ✅ IMPORTANT: must be an explicit ApiVersion enum
-  const shopify = shopifyApi({
-    apiKey,
-    apiSecretKey,
-    scopes,
-    hostName: appUrl.host,
-    hostScheme: appUrl.protocol.replace(":", ""),
-    apiVersion: ApiVersion.January24,
-    isEmbeddedApp: true,
-    restResources,
-    sessionStorage: prismaSessionStorage(),
+  // ✅ IMPORTANT:
+  // Let shopifyApp() create the internal shopifyApi instance.
+  // This avoids the "apiVersion missing" crash you're getting.
+  const shopify = shopifyApp({
+    api: {
+      apiKey,
+      apiSecretKey,
+      scopes,
+      hostName: appUrl.host,
+      hostScheme: appUrl.protocol.replace(":", ""),
+      apiVersion: ApiVersion.January24,
+      isEmbeddedApp: true,
+      restResources,
+      sessionStorage: prismaSessionStorage(),
+    },
+
+    auth: {
+      path: "/auth",
+      callbackPath: "/auth/callback",
+    },
+
+    webhooks: {
+      path: "/webhooks",
+    },
   });
 
   // Webhook handler definitions
-  shopify.webhooks.addHandlers({
+  shopify.api.webhooks.addHandlers({
     ORDERS_CREATE: {
       deliveryMethod: DeliveryMethod.Http,
       callbackUrl: "/webhooks/orders/create",
@@ -52,25 +65,13 @@ export function initShopify(app) {
     },
   });
 
-  // Shopify Express integration (stable OAuth)
-  const shopifyExpress = shopifyApp({
-    api: shopify,
-    auth: {
-      path: "/auth",
-      callbackPath: "/auth/callback",
-    },
-    webhooks: {
-      path: "/webhooks",
-    },
-  });
-
   // OAuth begin
-  app.use("/auth", shopifyExpress.auth.begin());
+  app.use("/auth", shopify.auth.begin());
 
   // OAuth callback
   app.use(
     "/auth/callback",
-    shopifyExpress.auth.callback(),
+    shopify.auth.callback(),
     async (req, res) => {
       try {
         const session = res.locals.shopify.session;
@@ -86,9 +87,9 @@ export function initShopify(app) {
           return res.status(500).send("Shopify auth failed (missing access token)");
         }
 
-        // Register webhooks after auth
+        // Register webhooks
         try {
-          const registerResult = await shopify.webhooks.register({ session });
+          const registerResult = await shopify.api.webhooks.register({ session });
           console.log("📌 Webhook register result:", JSON.stringify(registerResult, null, 2));
         } catch (err) {
           console.error("❌ Webhook registration failed:", err);
@@ -109,8 +110,8 @@ export function initShopify(app) {
     }
   );
 
-  // Webhook processing route
-  app.post("/webhooks/*", shopifyExpress.webhooks.process());
+  // Webhook receiver
+  app.post("/webhooks/*", shopify.webhooks.process());
 
-  return shopify;
+  return shopify.api;
 }
