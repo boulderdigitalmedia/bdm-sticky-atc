@@ -78,6 +78,15 @@ export function initShopify(app) {
       });
 
       let accessSession = session;
+      if (!accessSession?.shop) {
+        accessSession.shop = sanitizedShop;
+      }
+      if (!accessSession?.id) {
+        accessSession.id = shopify.session.getOfflineId(sanitizedShop);
+      }
+      if (accessSession?.isOnline == null) {
+        accessSession.isOnline = false;
+      }
       await shopify.config.sessionStorage.storeSession(session);
       if (!accessSession?.accessToken) {
         const offlineSessionId = shopify.session.getOfflineId(sanitizedShop);
