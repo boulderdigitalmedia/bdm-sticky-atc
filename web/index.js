@@ -15,12 +15,13 @@ import { ordersCreate } from "./routes/webhooks.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// ✅ 1) CREATE APP
 const app = express();
 
-// ✅ REQUIRED on Render for embedded cookies + redirects
+// ✅ 2) REQUIRED FOR RENDER / EMBEDDED COOKIE + HTTPS BEHAVIOR
 app.set("trust proxy", 1);
 
-// CORS
+// ✅ 3) CORS
 app.use(
   cors({
     origin: true,
@@ -31,61 +32,28 @@ app.use(
 );
 app.options("*", cors());
 
-// ✅ WEBHOOKS MUST BE RAW BODY
+// ✅ 4) WEBHOOK ROUTES MUST BE RAW BODY (BEFORE JSON PARSING)
+// Shopify webhook verification requires the exact raw body.
 app.post("/webhooks/orders/create", express.raw({ type: "*/*" }), ordersCreate);
 
-// JSON parsing for everything else
+// ✅ 5) JSON PARSING FOR EVERYTHING ELSE
 app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
 
-// -----------------------------
-// ✅ TOP-LEVEL REDIRECT HELPER
-// -----------------------------
-// This is the key fix for "browser cookies" errors.
-// Shopify embedded apps must be able to break out of the iframe to set cookies.
-app.get("/exitiframe", (req, res) => {
-  const shop = req.query.shop;
-  const host = req.query.host;
-
-  if (!shop) return res.status(400).send("Missing shop");
-
-  // If host is missing, still allow OAuth start
-  const redirect = host
-    ? `/auth?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`
-    : `/auth?shop=${encodeURIComponent(shop)}`;
-
-  // This HTML forces a top-level navigation (not inside the iframe)
-  return res.status(200).send(`
-    <!DOCTYPE html>
-    <html>
-      <head><meta charset="utf-8" /></head>
-      <body>
-        <script>
-          if (window.top === window.self) {
-            window.location.href = ${JSON.stringify(redirect)};
-          } else {
-            window.top.location.href = ${JSON.stringify(redirect)};
-          }
-        </script>
-      </body>
-    </html>
-  `);
-});
-
-// -----------------------------
-// ROUTES
-// -----------------------------
+// ✅ 6) ROUTES
 app.use("/api/settings", settingsRouter);
 app.use("/api/track", trackRouter);
 app.use("/apps/bdm-sticky-atc", stickyAnalyticsRouter);
 app.use("/attribution", attributionRouter);
 
-// Shopify auth + webhook registration
+// ✅ 7) SHOPIFY ROUTES (auth + webhook registration + webhook process route)
 initShopify(app);
 
-// Frontend
+// ✅ 8) FRONTEND (serve built admin UI)
 app.use("/web", express.static(path.join(__dirname, "public")));
 app.use(express.static(path.join(__dirname, "frontend", "dist"), { index: false }));
 
+// Serve SPA + inject Shopify API key for App Bridge (if you use it)
 app.get("*", (_req, res) => {
   const indexPath = path.join(__dirname, "frontend", "dist", "index.html");
   const apiKey = process.env.SHOPIFY_API_KEY || "";
@@ -100,7 +68,7 @@ app.get("*", (_req, res) => {
   res.send(html);
 });
 
-// Start server
+// ✅ 9) START SERVER
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`✅ App running on port ${PORT}`);
