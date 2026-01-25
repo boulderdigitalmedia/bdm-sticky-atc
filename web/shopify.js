@@ -1,18 +1,13 @@
-import express from "express";
 import { createRequire } from "module";
 import { ApiVersion, DeliveryMethod } from "@shopify/shopify-api";
 import { prismaSessionStorage } from "./shopifySessionStoragePrisma.js";
 
 const require = createRequire(import.meta.url);
 
-// ✅ CJS import that works in ESM projects
+// CJS import (works in ESM projects)
 const shopifyAppModule = require("@shopify/shopify-app-express");
-
-// Depending on version, the function may be default export OR module itself
 const shopifyApp =
-  shopifyAppModule?.default ||
-  shopifyAppModule?.shopifyApp ||
-  shopifyAppModule;
+  shopifyAppModule?.default || shopifyAppModule?.shopifyApp || shopifyAppModule;
 
 function requiredEnv(name) {
   const v = process.env[name];
@@ -58,6 +53,8 @@ export function initShopify(app) {
 
     sessionStorage: prismaSessionStorage(),
 
+    // This registers the webhook subscription in Shopify during auth,
+    // but does NOT create an endpoint handler for you.
     webhooks: {
       ORDERS_CREATE: {
         deliveryMethod: DeliveryMethod.Http,
@@ -70,8 +67,7 @@ export function initShopify(app) {
   app.use(shopify.auth.begin());
   app.use(shopify.auth.callback(), shopify.redirectToShopifyOrAppRoot());
 
-  // Webhook processing route
-  app.post("/webhooks/*", shopify.webhooks.process());
+  // 🚫 DO NOT call shopify.webhooks.process() (undefined in your version)
 
   return shopify;
 }
