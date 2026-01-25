@@ -15,13 +15,12 @@ import { ordersCreate } from "./routes/webhooks.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ✅ 1. CREATE APP FIRST
 const app = express();
 
-// ✅ 1.5 REQUIRED FOR RENDER / EMBEDDED COOKIES
+// ✅ REQUIRED on Render for embedded cookies + redirects
 app.set("trust proxy", 1);
 
-// ✅ 2. CORS
+// CORS
 app.use(
   cors({
     origin: true,
@@ -32,27 +31,58 @@ app.use(
 );
 app.options("*", cors());
 
-// ✅ 2.5 WEBHOOKS MUST BE RAW BODY (BEFORE JSON PARSING)
-// Shopify needs the raw request body to validate webhook HMAC signatures.
-app.post(
-  "/webhooks/orders/create",
-  express.raw({ type: "*/*" }),
-  ordersCreate
-);
+// ✅ WEBHOOKS MUST BE RAW BODY
+app.post("/webhooks/orders/create", express.raw({ type: "*/*" }), ordersCreate);
 
-// ✅ 2.6 NOW JSON PARSING FOR EVERYTHING ELSE
+// JSON parsing for everything else
 app.use(bodyParser.json());
 
-// ✅ 3. ROUTES
+// -----------------------------
+// ✅ TOP-LEVEL REDIRECT HELPER
+// -----------------------------
+// This is the key fix for "browser cookies" errors.
+// Shopify embedded apps must be able to break out of the iframe to set cookies.
+app.get("/exitiframe", (req, res) => {
+  const shop = req.query.shop;
+  const host = req.query.host;
+
+  if (!shop) return res.status(400).send("Missing shop");
+
+  // If host is missing, still allow OAuth start
+  const redirect = host
+    ? `/auth?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`
+    : `/auth?shop=${encodeURIComponent(shop)}`;
+
+  // This HTML forces a top-level navigation (not inside the iframe)
+  return res.status(200).send(`
+    <!DOCTYPE html>
+    <html>
+      <head><meta charset="utf-8" /></head>
+      <body>
+        <script>
+          if (window.top === window.self) {
+            window.location.href = ${JSON.stringify(redirect)};
+          } else {
+            window.top.location.href = ${JSON.stringify(redirect)};
+          }
+        </script>
+      </body>
+    </html>
+  `);
+});
+
+// -----------------------------
+// ROUTES
+// -----------------------------
 app.use("/api/settings", settingsRouter);
 app.use("/api/track", trackRouter);
 app.use("/apps/bdm-sticky-atc", stickyAnalyticsRouter);
 app.use("/attribution", attributionRouter);
 
-// ✅ 4. SHOPIFY (after app exists)
+// Shopify auth + webhook registration
 initShopify(app);
 
-// ✅ 5. FRONTEND (serve built admin UI)
+// Frontend
 app.use("/web", express.static(path.join(__dirname, "public")));
 app.use(express.static(path.join(__dirname, "frontend", "dist"), { index: false }));
 
@@ -70,7 +100,7 @@ app.get("*", (_req, res) => {
   res.send(html);
 });
 
-// ✅ 6. START SERVER
+// Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`✅ App running on port ${PORT}`);
