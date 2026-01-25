@@ -78,6 +78,7 @@ export function initShopify(app) {
       });
 
       let accessSession = session;
+      await shopify.config.sessionStorage.storeSession(session);
       if (!accessSession?.accessToken) {
         const offlineSessionId = shopify.session.getOfflineId(sanitizedShop);
         const storedSession = await shopify.config.sessionStorage.loadSession(offlineSessionId);
@@ -88,6 +89,7 @@ export function initShopify(app) {
             "Missing access token after OAuth callback for shop:",
             session?.shop ?? sanitizedShop
           );
+          return res.status(500).send("Shopify auth failed");
         }
       }
 
