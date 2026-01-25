@@ -1,5 +1,5 @@
 import express from "express";
-import shopifyApp from "@shopify/shopify-app-express";
+import shopifyAppPkg from "@shopify/shopify-app-express";
 import { ApiVersion, DeliveryMethod } from "@shopify/shopify-api";
 import { prismaSessionStorage } from "./shopifySessionStoragePrisma.js";
 
@@ -21,12 +21,15 @@ export function initShopify(app) {
     .map((s) => s.trim())
     .filter(Boolean);
 
+  // ✅ ESM/CJS interop: the function lives on .default
+  const shopifyApp = shopifyAppPkg.default ?? shopifyAppPkg;
+
   const shopify = shopifyApp({
     api: {
       apiKey,
       apiSecretKey,
       scopes,
-      apiVersion: ApiVersion.January24, // 👈 MUST be explicit
+      apiVersion: ApiVersion.January24, // MUST be explicit
       isEmbeddedApp: true,
       hostName: new URL(appUrl).host,
       hostScheme: new URL(appUrl).protocol.replace(":", ""),
@@ -47,11 +50,11 @@ export function initShopify(app) {
     },
   });
 
-  // ✅ Shopify Auth routes (handled correctly for embedded apps)
+  // Auth routes
   app.use(shopify.auth.begin());
   app.use(shopify.auth.callback(), shopify.redirectToShopifyOrAppRoot());
 
-  // ✅ Webhook processing (this exists here, unlike your current flow)
+  // Webhook processing route (Shopify verified)
   app.post("/webhooks/*", shopify.webhooks.process());
 
   return shopify;
