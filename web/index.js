@@ -1,3 +1,4 @@
+console.log("🧠 Node version:", process.version);
 import express from "express";
 import cors from "cors";
 import fs from "fs";
