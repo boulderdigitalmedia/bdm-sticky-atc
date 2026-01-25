@@ -10,6 +10,7 @@ import settingsRouter from "./routes/settings.js";
 import trackRouter from "./routes/track.js";
 import stickyAnalyticsRouter from "./routes/stickyAnalytics.js";
 import attributionRouter from "./routes/attribution.js";
+import { ordersCreate } from "./routes/webhooks.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,7 +18,6 @@ const __dirname = path.dirname(__filename);
 const app = express();
 app.set("trust proxy", 1);
 
-// CORS
 app.use(
   cors({
     origin: true,
@@ -28,10 +28,10 @@ app.use(
 );
 app.options("*", cors);
 
-// ✅ Shopify auth + webhook processing MUST be registered BEFORE json parsing
-initShopify(app);
+// ✅ Webhook route MUST be raw body BEFORE json parsing
+app.post("/webhooks/orders/create", express.raw({ type: "*/*" }), ordersCreate);
 
-// ✅ JSON parsing ONLY for non-webhook routes
+// JSON parsing for everything else
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
@@ -40,6 +40,9 @@ app.use("/api/settings", settingsRouter);
 app.use("/api/track", trackRouter);
 app.use("/apps/bdm-sticky-atc", stickyAnalyticsRouter);
 app.use("/attribution", attributionRouter);
+
+// Shopify auth + webhook subscription registration
+initShopify(app);
 
 // Frontend
 app.use("/web", express.static(path.join(__dirname, "public")));
