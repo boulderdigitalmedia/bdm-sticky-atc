@@ -1,15 +1,7 @@
 import "@shopify/shopify-api/adapters/node";
-import express from "express";
-import {
-  shopifyApi,
-  LATEST_API_VERSION,
-  DeliveryMethod,
-} from "@shopify/shopify-api";
+import { shopifyApi, LATEST_API_VERSION, DeliveryMethod } from "@shopify/shopify-api";
 import { restResources } from "@shopify/shopify-api/rest/admin/2024-01";
-import {
-  shopifyApp,
-  LATEST_API_VERSION as APP_LATEST_API_VERSION,
-} from "@shopify/shopify-app-express";
+import { shopifyAuth } from "@shopify/shopify-api/express";
 import { prismaSessionStorage } from "./shopifySessionStoragePrisma.js";
 
 function requiredEnv(name) {
@@ -19,6 +11,13 @@ function requiredEnv(name) {
 }
 
 export function initShopify(app) {
+  // Render/proxies: required for correct secure cookies + redirects
+  try {
+    app.set("trust proxy", 1);
+  } catch (_) {
+    // ignore if app is not an express instance
+  }
+
   const apiKey = requiredEnv("SHOPIFY_API_KEY");
   const apiSecretKey = requiredEnv("SHOPIFY_API_SECRET");
   const appUrl = new URL(requiredEnv("SHOPIFY_APP_URL"));
@@ -34,6 +33,8 @@ export function initShopify(app) {
     hostName: appUrl.host,
     hostScheme: appUrl.protocol.replace(":", ""),
     scopes,
+    apiVersion: LATEST_API_VERSION,
+    embedded: true,
   });
 
   const shopify = shopifyApi({
@@ -56,7 +57,7 @@ export function initShopify(app) {
   }
 
   // -----------------------------
-  // Webhook Handlers
+  // Webhook handler definitions (registration config)
   // -----------------------------
   shopify.webhooks.addHandlers({
     ORDERS_CREATE: {
@@ -67,52 +68,64 @@ export function initShopify(app) {
   });
 
   // -----------------------------
-  // Shopify Express App Middleware (fixes OAuth/session issues)
+  // AUTH ROUTES (Shopify Express middleware)
   // -----------------------------
-  const shopifyExpress = shopifyApp({
-    api: shopify,
-    auth: {
-      path: "/auth",
-      callbackPath: "/auth/callback",
-    },
-    webhooks: {
-      path: "/webhooks",
-    },
-  });
+  // Begin OAuth (offline token)
+  app.get(
+    "/auth",
+    shopifyAuth({
+      shopify,
+      isOnline: false,
+    })
+  );
 
-  // This handles /auth automatically
-  app.use("/auth", shopifyExpress.auth.begin());
-
-  // This handles /auth/callback automatically
-  app.use(
+  // OAuth callback (offline token)
+  app.get(
     "/auth/callback",
-    shopifyExpress.auth.callback(),
+    shopifyAuth({
+      shopify,
+      isOnline: false,
+    }),
     async (req, res) => {
       try {
-        // The session is now guaranteed to exist
-        const session = res.locals.shopify.session;
+        const session = res.locals?.shopify?.session;
 
-        console.log("✅ OAuth completed with session:", {
+        console.log("✅ OAuth callback session:", {
           id: session?.id,
           shop: session?.shop,
           isOnline: session?.isOnline,
           scope: session?.scope,
+          expires: session?.expires,
           hasAccessToken: Boolean(session?.accessToken),
         });
 
         if (!session?.accessToken) {
-          console.error("❌ OAuth completed but accessToken missing");
+          console.error("❌ OAuth completed but access token missing.");
           return res.status(500).send("Shopify auth failed (missing access token)");
         }
 
-        // Register webhooks after auth
+        // Register webhooks
         try {
           const registerResult = await shopify.webhooks.register({ session });
+
           console.log("📌 Webhook register result:", JSON.stringify(registerResult, null, 2));
+
+          const failures = Object.entries(registerResult).flatMap(([topic, results]) =>
+            results
+              .filter((r) => !r.success)
+              .map((r) => ({ topic, ...r }))
+          );
+
+          if (failures.length) {
+            console.error("❌ Webhook registration failures:", failures);
+          } else {
+            console.log("✅ Webhooks registered successfully");
+          }
         } catch (err) {
-          console.error("❌ Webhook registration failed:", err);
+          console.error("❌ Webhook registration threw:", err);
         }
 
+        // Redirect back into embedded app context
         const host = req.query.host;
         const shopDomain = session.shop;
 
@@ -122,14 +135,19 @@ export function initShopify(app) {
 
         return res.redirect(`/?shop=${shopDomain}&host=${host}`);
       } catch (err) {
-        console.error("❌ Post-auth handler error:", err);
+        console.error("❌ Post-auth callback error:", err);
         return res.status(500).send("Shopify auth failed");
       }
     }
   );
 
-  // This processes incoming webhooks at /webhooks/*
-  app.post("/webhooks/*", shopifyExpress.webhooks.process());
+  // -----------------------------
+  // WEBHOOK RECEIVER (simple stub)
+  // Replace with full verification later; this avoids 404s for now.
+  // -----------------------------
+  app.post("/webhooks/orders/create", async (_req, res) => {
+    return res.status(200).send("ok");
+  });
 
   return shopify;
 }
