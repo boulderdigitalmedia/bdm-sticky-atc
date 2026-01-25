@@ -28,13 +28,13 @@ export function initShopify(app) {
     isEmbeddedApp: true,
     restResources,
 
-    // ✅ FIX: correct Prisma session storage function
+    // ✅ IMPORTANT: this must be your real Prisma-backed session storage
     sessionStorage: prismaSessionStorage(),
   });
 
   if (appUrl.protocol !== "https:") {
     console.warn(
-      "⚠️ SHOPIFY_APP_URL should use https for webhook registration. Current value:",
+      "⚠️ SHOPIFY_APP_URL should use https for OAuth + webhook registration. Current value:",
       appUrl.toString()
     );
   }
@@ -43,12 +43,12 @@ export function initShopify(app) {
   // Webhook Handlers
   // -----------------------------
   shopify.webhooks.addHandlers({
-    // ✅ Using string topic is the most reliable across versions
     ORDERS_CREATE: {
       deliveryMethod: DeliveryMethod.Http,
       callbackUrl: "/webhooks/orders/create",
       callback: async () => {
-        // This callback is only used if you wire up processWebhooks middleware elsewhere.
+        // Note: This callback only runs if you wire up shopify.processWebhooks()
+        // somewhere else in your app.
       },
     },
   });
@@ -80,13 +80,13 @@ export function initShopify(app) {
 
       return res.sendStatus(200);
     } catch (err) {
-      console.error("Auth begin error:", err);
+      console.error("❌ Auth begin error:", err);
       return res.status(500).send("Shopify auth failed");
     }
   });
 
   // -----------------------------
-  // OAuth callback
+  // OAuth Callback
   // -----------------------------
   app.get("/auth/callback", async (req, res) => {
     try {
@@ -96,58 +96,63 @@ export function initShopify(app) {
       const sanitizedShop = shopify.utils.sanitizeShop(shop.toString());
       if (!sanitizedShop) return res.status(400).send("Invalid shop parameter");
 
+      // 1) Complete OAuth
       const session = await shopify.auth.callback({
         rawRequest: req,
         rawResponse: res,
       });
 
-      // Make sure we have a usable offline session
-      let accessSession = session;
+      console.log("✅ OAuth callback returned session:", {
+        id: session?.id,
+        shop: session?.shop,
+        isOnline: session?.isOnline,
+        hasAccessToken: Boolean(session?.accessToken),
+        scope: session?.scope,
+        expires: session?.expires,
+      });
 
-      // These guardrails help if callback returns incomplete session data
-      if (!accessSession?.shop) {
-        accessSession.shop = sanitizedShop;
-      }
-      if (!accessSession?.id) {
-        accessSession.id = shopify.session.getOfflineId(sanitizedShop);
-      }
-      if (accessSession?.isOnline == null) {
-        accessSession.isOnline = false;
-      }
-
-      // ✅ FIX: store the correct session object (the one we will use)
-      await shopify.config.sessionStorage.storeSession(accessSession);
-
-      // If for any reason accessToken isn't present, try to reload from storage
-      if (!accessSession?.accessToken) {
-        const offlineSessionId = shopify.session.getOfflineId(sanitizedShop);
-        const storedSession = await shopify.config.sessionStorage.loadSession(offlineSessionId);
-
-        if (storedSession?.accessToken) {
-          accessSession = storedSession;
-        } else {
-          console.error(
-            "❌ Missing access token after OAuth callback for shop:",
-            session?.shop ?? sanitizedShop
-          );
-          return res.status(500).send("Shopify auth failed");
-        }
+      // 2) Hard fail if no access token (this should not happen if config is correct)
+      if (!session?.accessToken) {
+        console.error(
+          "❌ OAuth completed but session.accessToken is missing. This usually means session storage/config mismatch or bad app credentials."
+        );
+        return res.status(500).send("Shopify auth failed (missing access token)");
       }
 
-      // -----------------------------
-      // Register webhooks
-      // -----------------------------
+      // 3) Store the session (offline session)
+      const storedOk = await shopify.config.sessionStorage.storeSession(session);
+      console.log("💾 storeSession() result:", storedOk);
+
+      // 4) Immediately load back from storage (this confirms Prisma storage works)
+      const offlineSessionId = shopify.session.getOfflineId(session.shop);
+      const storedSession = await shopify.config.sessionStorage.loadSession(offlineSessionId);
+
+      console.log("🔁 Loaded offline session after storing:", {
+        id: storedSession?.id,
+        shop: storedSession?.shop,
+        isOnline: storedSession?.isOnline,
+        hasAccessToken: Boolean(storedSession?.accessToken),
+      });
+
+      if (!storedSession?.accessToken) {
+        console.error(
+          "❌ Session storage failed: offline session was not persisted correctly. Fix shopifySessionStoragePrisma.js"
+        );
+        return res.status(500).send("Shopify auth failed (session not persisted)");
+      }
+
+      // 5) Register webhooks using the stored offline session
       try {
         const registerResult = await shopify.webhooks.register({
-          session: accessSession,
+          session: storedSession,
         });
 
-        console.log("Webhook register result:", JSON.stringify(registerResult, null, 2));
+        console.log("📌 Webhook register result:", JSON.stringify(registerResult, null, 2));
 
         const failures = Object.entries(registerResult).flatMap(([topic, results]) =>
           results
-            .filter((result) => !result.success)
-            .map((result) => ({ topic, ...result }))
+            .filter((r) => !r.success)
+            .map((r) => ({ topic, ...r }))
         );
 
         if (failures.length) {
@@ -156,14 +161,12 @@ export function initShopify(app) {
           console.log("✅ Webhooks registered successfully");
         }
       } catch (err) {
-        console.error("❌ Webhook registration failed:", err);
+        console.error("❌ Webhook registration threw error:", err);
       }
 
-      // -----------------------------
-      // Redirect back into embedded app context
-      // -----------------------------
+      // 6) Redirect into embedded context
       const host = req.query.host;
-      const shopDomain = accessSession.shop;
+      const shopDomain = session.shop;
 
       if (!host) {
         // If host missing, redirect to Shopify Admin to re-open embedded context
@@ -172,7 +175,7 @@ export function initShopify(app) {
 
       return res.redirect(`/?shop=${shopDomain}&host=${host}`);
     } catch (err) {
-      console.error("Auth callback error:", err);
+      console.error("❌ Auth callback error:", err);
       return res.status(500).send("Shopify auth failed");
     }
   });
