@@ -17,6 +17,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 app.set("trust proxy", 1);
 
+// CORS
 app.use(
   cors({
     origin: true,
@@ -25,9 +26,12 @@ app.use(
     credentials: true,
   })
 );
-app.options("*", cors());
+app.options("*", cors);
 
-// JSON parsing for your API routes
+// ✅ Shopify auth + webhook processing MUST be registered BEFORE json parsing
+initShopify(app);
+
+// ✅ JSON parsing ONLY for non-webhook routes
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
@@ -36,9 +40,6 @@ app.use("/api/settings", settingsRouter);
 app.use("/api/track", trackRouter);
 app.use("/apps/bdm-sticky-atc", stickyAnalyticsRouter);
 app.use("/attribution", attributionRouter);
-
-// Shopify auth + webhook processing
-initShopify(app);
 
 // Frontend
 app.use("/web", express.static(path.join(__dirname, "public")));
