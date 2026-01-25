@@ -14,6 +14,10 @@ function safeString(v) {
   return String(v);
 }
 
+// ✅ Prevent duplicate OAuth begins per shop
+const oauthInFlight = new Map();
+// { shopDomain: timestamp }
+
 export function initShopify(app) {
   app.set("trust proxy", 1);
 
@@ -38,7 +42,7 @@ export function initShopify(app) {
     sessionStorage: prismaSessionStorage(),
   });
 
-  // Webhook config
+  // Webhook registration config
   const webhookPath = "/webhooks/orders/create";
   const webhookCallbackUrl = new URL(webhookPath, appUrl).toString();
 
@@ -50,7 +54,9 @@ export function initShopify(app) {
     },
   });
 
+  // -----------------------------
   // OAuth begin
+  // -----------------------------
   app.get("/auth", async (req, res) => {
     try {
       const shop = req.query.shop;
@@ -58,6 +64,17 @@ export function initShopify(app) {
 
       const sanitizedShop = shopify.utils.sanitizeShop(safeString(shop));
       if (!sanitizedShop) return res.status(400).send("Invalid shop parameter");
+
+      // ✅ Block double /auth spam within 3 seconds
+      const now = Date.now();
+      const last = oauthInFlight.get(sanitizedShop);
+      if (last && now - last < 3000) {
+        console.warn("⚠️ Duplicate /auth blocked:", sanitizedShop);
+        return res.status(429).send("Auth already in progress. Please wait.");
+      }
+      oauthInFlight.set(sanitizedShop, now);
+
+      console.log("➡️ /auth begin:", { shop: sanitizedShop });
 
       const redirectUrl = await shopify.auth.begin({
         shop: sanitizedShop,
@@ -76,14 +93,26 @@ export function initShopify(app) {
     }
   });
 
+  // -----------------------------
   // OAuth callback
+  // -----------------------------
   app.get("/auth/callback", async (req, res) => {
     try {
       const shop = req.query.shop;
+      const code = req.query.code;
+
       if (!shop) return res.status(400).send("Missing shop parameter");
+      if (!code) return res.status(400).send("Missing code parameter");
 
       const sanitizedShop = shopify.utils.sanitizeShop(safeString(shop));
       if (!sanitizedShop) return res.status(400).send("Invalid shop parameter");
+
+      console.log("⬅️ /auth/callback hit:", {
+        shop: sanitizedShop,
+        codePresent: Boolean(code),
+        hostPresent: Boolean(req.query.host),
+        timestamp: req.query.timestamp,
+      });
 
       const session = await shopify.auth.callback({
         rawRequest: req,
@@ -98,62 +127,50 @@ export function initShopify(app) {
         hasAccessToken: Boolean(session?.accessToken),
       });
 
-      // Store whatever we got
+      // Always clear in-flight flag after callback attempt
+      oauthInFlight.delete(sanitizedShop);
+
+      // If callback returned empty session, we hard fail with better message
+      if (!session?.accessToken || !session?.id || !session?.shop) {
+        console.error("❌ OAuth callback returned empty session (token exchange failed).", {
+          expectedShop: sanitizedShop,
+          gotShop: session?.shop,
+          hasAccessToken: Boolean(session?.accessToken),
+          note:
+            "This is usually caused by Node 22 incompatibility or double OAuth begins. Use Node 20 on Render.",
+        });
+        return res.status(500).send("Shopify auth failed (empty session)");
+      }
+
+      // Store session
       await shopify.config.sessionStorage.storeSession(session);
 
-      // Load offline session (this is what webhooks need)
-      const shopDomain = session?.shop || sanitizedShop;
-      const offlineSessionId = shopify.session.getOfflineId(shopDomain);
+      // Load offline session for webhook registration
+      const offlineSessionId = shopify.session.getOfflineId(session.shop);
       const offlineSession = await shopify.config.sessionStorage.loadSession(offlineSessionId);
 
-      console.log("🔁 Loaded offline session:", {
-        id: offlineSession?.id,
-        shop: offlineSession?.shop,
-        isOnline: offlineSession?.isOnline,
-        scope: offlineSession?.scope,
-        hasAccessToken: Boolean(offlineSession?.accessToken),
-      });
-
-      // If BOTH missing, auth really failed
-      if (!session?.accessToken && !offlineSession?.accessToken) {
-        console.error("❌ Missing access token after OAuth callback:", {
-          shop: shopDomain,
-          note:
-            "This is commonly caused by double-callback (code already used), or session storage not persisting.",
+      if (!offlineSession?.accessToken) {
+        console.error("❌ Missing OFFLINE access token after OAuth:", {
+          shop: session.shop,
+          offlineSessionId,
         });
-        return res.status(500).send("Shopify auth failed (missing access token)");
-      }
-
-      // Register webhooks using offline token if possible
-      const accessSession = offlineSession?.accessToken ? offlineSession : session;
-
-      try {
-        const registerResult = await shopify.webhooks.register({ session: accessSession });
-        console.log("📌 Webhook register result:", JSON.stringify(registerResult, null, 2));
-
-        const failures = Object.entries(registerResult).flatMap(([topic, results]) =>
-          results
-            .filter((r) => !r.success)
-            .map((r) => ({ topic, ...r }))
-        );
-
-        if (failures.length) {
-          console.error("❌ Webhook registration failures:", failures);
-        } else {
-          console.log("✅ Webhooks registered successfully");
+      } else {
+        try {
+          const registerResult = await shopify.webhooks.register({
+            session: offlineSession,
+          });
+          console.log("📌 Webhook register result:", JSON.stringify(registerResult, null, 2));
+        } catch (err) {
+          console.error("❌ Webhook registration failed:", err);
         }
-      } catch (err) {
-        console.error("❌ Webhook registration failed:", err);
       }
 
-      // Redirect into embedded context
+      // Redirect back into embedded context
       const host = req.query.host;
-
       if (!host) {
-        return res.redirect(`https://${shopDomain}/admin/apps/${apiKey}`);
+        return res.redirect(`https://${session.shop}/admin/apps/${apiKey}`);
       }
-
-      return res.redirect(`/?shop=${shopDomain}&host=${host}`);
+      return res.redirect(`/?shop=${session.shop}&host=${host}`);
     } catch (err) {
       console.error("❌ Auth callback error:", err);
       return res.status(500).send("Shopify auth failed");
