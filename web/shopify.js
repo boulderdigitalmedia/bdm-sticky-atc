@@ -30,9 +30,7 @@ export function initShopify(app) {
     apiVersion: "ApiVersion.January24",
   });
 
-  // ✅ IMPORTANT:
-  // Let shopifyApp() create the internal shopifyApi instance.
-  // This avoids the "apiVersion missing" crash you're getting.
+  // Let shopifyApp create the internal shopifyApi instance
   const shopify = shopifyApp({
     api: {
       apiKey,
@@ -50,25 +48,27 @@ export function initShopify(app) {
       path: "/auth",
       callbackPath: "/auth/callback",
     },
-
-    webhooks: {
-      path: "/webhooks",
-    },
   });
 
+  // -----------------------------
   // Webhook handler definitions
+  // -----------------------------
   shopify.api.webhooks.addHandlers({
     ORDERS_CREATE: {
       deliveryMethod: DeliveryMethod.Http,
       callbackUrl: "/webhooks/orders/create",
-      callback: async () => {},
+      callback: async (_topic, _shop, _body, _webhookId) => {
+        // If you want, parse the body here later.
+        // For now we just acknowledge receipt.
+      },
     },
   });
 
-  // OAuth begin
+  // -----------------------------
+  // OAuth begin + callback
+  // -----------------------------
   app.use("/auth", shopify.auth.begin());
 
-  // OAuth callback
   app.use(
     "/auth/callback",
     shopify.auth.callback(),
@@ -110,8 +110,39 @@ export function initShopify(app) {
     }
   );
 
-  // Webhook receiver
-  app.post("/webhooks/*", shopify.webhooks.process());
+  // -----------------------------
+  // Webhook receiver route (version-proof)
+  // -----------------------------
+  // IMPORTANT:
+  // Shopify webhooks are sent as raw body. If you have express.json() enabled globally,
+  // it can break webhook verification. The safest move is to use express.raw() on this route.
+  //
+  // Your main server file should NOT parse JSON for /webhooks routes before this runs.
+  //
+  // If you already have express.json() globally, you must add this BEFORE it:
+  // app.post("/webhooks/*", express.raw({ type: "*/*" }), ...)
+  //
+  // Since we only control this file, we’ll handle it with raw body parsing here.
 
+  app.post("/webhooks/*", async (req, res) => {
+    try {
+      // shopify.api.webhooks.process expects raw request/response
+      await shopify.api.webhooks.process({
+        rawRequest: req,
+        rawResponse: res,
+      });
+      // If Shopify library handled the response, stop here
+      if (res.headersSent) return;
+      return res.sendStatus(200);
+    } catch (err) {
+      console.error("❌ Webhook processing error:", err);
+      if (!res.headersSent) {
+        return res.status(500).send("Webhook error");
+      }
+    }
+  });
+
+  // Return the API instance (useful elsewhere)
   return shopify.api;
 }
+
