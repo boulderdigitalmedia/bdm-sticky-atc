@@ -82,6 +82,10 @@ export function initShopify(app) {
           "Missing access token after OAuth callback for shop:",
           session?.shop ?? sanitizedShop
         );
+        const params = new URLSearchParams({ shop: sanitizedShop });
+        const hostParam = req.query.host;
+        if (hostParam) params.set("host", hostParam.toString());
+        return res.redirect(`/auth?${params.toString()}`);
       }
 
       if (session?.accessToken) {
