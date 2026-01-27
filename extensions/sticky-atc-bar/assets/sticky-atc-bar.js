@@ -1,358 +1,166 @@
-(function () {
-  const bar = document.getElementById("bdm-sticky-atc");
-  if (!bar) return;
+(() => {
+  const BAR_ID = "bdm-sticky-atc";
+  const CONFIG = window.BDM_STICKY_ATC_CONFIG || {};
 
-  const shopDomain = Shopify?.shop;
-  const productId = window.ShopifyAnalytics?.meta?.product?.id;
+  /* ---------------- Helpers ---------------- */
 
-  function trackEvent(event, data = {}) {
-    if (!shopDomain) return;
-    const url = `https://sticky-add-to-cart-bar-pro.onrender.com/apps/bdm-sticky-atc/track?shop=${encodeURIComponent(
-      shopDomain
-    )}`;
-    try {
-      fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        keepalive: true,
-        body: JSON.stringify({
-          event,
-          productId,
-          timestamp: Date.now(),
-          ...data,
-        }),
-      });
-    } catch (error) {
-      console.warn("Sticky ATC: tracking failed", error);
-    }
+  function $(sel, root = document) {
+    return root.querySelector(sel);
   }
 
-  const stickyATC = document.getElementById("bdm-atc");
-  const stickyQty = document.getElementById("bdm-qty");
-  const stickyVariant = document.getElementById("bdm-variant");
-  const stickyTitle = document.getElementById("bdm-title");
-  const stickyPrice = document.getElementById("bdm-price");
-
-  /* -------------------------------------------------
-     WAIT FOR PRODUCT FORM (variants + selling plans)
-  -------------------------------------------------- */
-  function waitForProductForm(cb) {
-    const start = Date.now();
-    const max = 8000;
-
-    (function tick() {
-      const form = document.querySelector('form[action*="/cart/add"]');
-      const variantInput =
-        form?.querySelector('input[name="id"], select[name="id"]');
-
-      if (form && variantInput) return cb(form);
-      if (Date.now() - start < max) requestAnimationFrame(tick);
-    })();
+  function isMobile() {
+    return window.matchMedia("(max-width: 768px)").matches;
   }
 
-  /* -------------------------------------------------
-     LIVE READ HELPERS (always source of truth)
-  -------------------------------------------------- */
-  function getForm() {
-    return document.querySelector('form[action*="/cart/add"]');
+  function shouldRender() {
+    if (isMobile() && CONFIG.enableMobile === false) return false;
+    if (!isMobile() && CONFIG.enableDesktop === false) return false;
+    return true;
   }
-
-  function getVariantId() {
-    return getForm()?.querySelector('input[name="id"], select[name="id"]')?.value || null;
-  }
-
-  function getSellingPlanId() {
-    return (
-      getForm()?.querySelector('select[name="selling_plan"]')?.value || ""
-    );
-  }
-
-  function getPriceEl() {
-    return (
-      document.querySelector("[data-product-price]") ||
-      document.querySelector(".price") ||
-      document.querySelector(".price-item")
-    );
-  }
-
-  const variantsData = (() => {
-    if (bar.dataset.variants) {
-      try {
-        return JSON.parse(bar.dataset.variants);
-      } catch (error) {
-        console.warn("Sticky ATC: failed to parse variants data", error);
-      }
-    }
-
-    return window.ShopifyAnalytics?.meta?.product?.variants || [];
-  })();
 
   function formatMoney(cents) {
-    if (typeof Shopify?.formatMoney === "function") {
-      return Shopify.formatMoney(cents);
-    }
+    if (typeof cents !== "number") return "";
+    return `$${(cents / 100).toFixed(2)}`;
+  }
 
-    return (Number(cents || 0) / 100).toLocaleString(undefined, {
-      style: "currency",
-      currency: Shopify?.currency?.active || "USD",
+  function getProductJson() {
+    const script =
+      document.querySelector('script[type="application/json"][data-product-json]') ||
+      document.querySelector("#ProductJson");
+
+    if (!script) return null;
+
+    try {
+      return JSON.parse(script.textContent);
+    } catch {
+      return null;
+    }
+  }
+
+  /* ---------------- Abort if disabled ---------------- */
+
+  if (!shouldRender()) return;
+
+  const product = getProductJson();
+  if (!product) return;
+
+  /* ---------------- DOM ---------------- */
+
+  const bar = document.createElement("div");
+  bar.id = BAR_ID;
+
+  bar.innerHTML = `
+    <div class="bdm-atc-inner">
+      <div class="bdm-atc-info">
+        <span class="bdm-atc-title">${product.title}</span>
+        <span class="bdm-atc-price">${formatMoney(product.price)}</span>
+      </div>
+
+      <div class="bdm-atc-controls"></div>
+
+      <button class="bdm-atc-button">Add to cart</button>
+    </div>
+  `;
+
+  document.body.appendChild(bar);
+
+  /* ---------------- Styles ---------------- */
+
+  if (CONFIG.backgroundColor) bar.style.backgroundColor = CONFIG.backgroundColor;
+  if (CONFIG.textColor) bar.style.color = CONFIG.textColor;
+
+  const button = bar.querySelector(".bdm-atc-button");
+  if (button && CONFIG.buttonColor) {
+    button.style.backgroundColor = CONFIG.buttonColor;
+  }
+
+  /* ---------------- Controls ---------------- */
+
+  const controls = bar.querySelector(".bdm-atc-controls");
+
+  let quantity = 1;
+  let selectedVariantId = product.variants[0]?.id;
+  let selectedSellingPlanId = null;
+
+  if (CONFIG.showQuantity !== false) {
+    const qty = document.createElement("input");
+    qty.type = "number";
+    qty.min = "1";
+    qty.value = "1";
+    qty.className = "bdm-atc-qty";
+
+    qty.addEventListener("change", () => {
+      quantity = Math.max(1, parseInt(qty.value, 10) || 1);
     });
+
+    controls.appendChild(qty);
   }
 
-  function findVariant(id) {
-    return variantsData.find((variant) => String(variant.id) === String(id));
+  if (CONFIG.showVariants !== false && product.variants.length > 1) {
+    const select = document.createElement("select");
+    select.className = "bdm-atc-variants";
+
+    product.variants.forEach((v) => {
+      const opt = document.createElement("option");
+      opt.value = v.id;
+      opt.textContent = v.title;
+      select.appendChild(opt);
+    });
+
+    select.addEventListener("change", () => {
+      selectedVariantId = select.value;
+    });
+
+    controls.appendChild(select);
   }
 
-  function syncPriceFromVariant(variantId, priceFallbackEl) {
-    const variant = findVariant(variantId);
-    if (variant?.price != null) {
-      stickyPrice.textContent = formatMoney(variant.price);
-      return;
-    }
+  if (
+    CONFIG.showSubscription !== false &&
+    product.selling_plan_groups?.length
+  ) {
+    const sub = document.createElement("select");
+    sub.className = "bdm-atc-subscription";
 
-    if (priceFallbackEl) {
-      stickyPrice.textContent = priceFallbackEl.textContent;
-    }
-  }
+    const oneTime = document.createElement("option");
+    oneTime.value = "";
+    oneTime.textContent = "One-time purchase";
+    sub.appendChild(oneTime);
 
-  /* -------------------------------------------------
-     INIT TITLE + PRICE + VARIANTS
-  -------------------------------------------------- */
-  waitForProductForm(() => {
-    const titleEl = document.querySelector("h1");
-    if (titleEl) stickyTitle.textContent = titleEl.textContent;
-
-    const priceEl = getPriceEl();
-    const syncPrice = () => {
-      const activeVariantId = getVariantId();
-      if (activeVariantId) {
-        syncPriceFromVariant(activeVariantId, priceEl);
-        return;
-      }
-
-      if (priceEl) stickyPrice.textContent = priceEl.textContent;
-    };
-    syncPrice();
-
-    if (priceEl) {
-      new MutationObserver(syncPrice).observe(priceEl, {
-        childList: true,
-        subtree: true,
-        characterData: true,
+    product.selling_plan_groups.forEach((group) => {
+      group.selling_plans.forEach((plan) => {
+        const opt = document.createElement("option");
+        opt.value = plan.id;
+        opt.textContent = plan.name;
+        sub.appendChild(opt);
       });
-    }
+    });
 
-    const form = getForm();
-    const variantInput = form?.querySelector('input[name="id"], select[name="id"]');
+    sub.addEventListener("change", () => {
+      selectedSellingPlanId = sub.value || null;
+    });
 
-    if (variantsData.length > 1) {
-      stickyVariant.innerHTML = "";
-      variantsData.forEach((variant) => {
-        const option = document.createElement("option");
-        option.value = variant.id;
-        option.textContent =
-          variant.public_title || variant.title || `Variant ${variant.id}`;
-        stickyVariant.appendChild(option);
-      });
+    controls.appendChild(sub);
+  }
 
-      const initialVariantId = variantInput?.value || variantsData[0]?.id;
-      if (initialVariantId) {
-        stickyVariant.value = String(initialVariantId);
-        syncPriceFromVariant(initialVariantId, priceEl);
-      }
+  /* ---------------- Add to cart ---------------- */
 
-      stickyVariant.style.display = "";
-
-      stickyVariant.addEventListener("change", () => {
-        const nextVariantId = stickyVariant.value;
-        if (variantInput) {
-          variantInput.value = nextVariantId;
-          variantInput.dispatchEvent(new Event("change", { bubbles: true }));
+  button.addEventListener("click", async () => {
+    const payload = {
+      items: [
+        {
+          id: selectedVariantId,
+          quantity,
+          selling_plan: selectedSellingPlanId
         }
-        syncPriceFromVariant(nextVariantId, priceEl);
-        trackEvent("variant_change", { variantId: nextVariantId });
-      });
+      ]
+    };
 
-      variantInput?.addEventListener("change", () => {
-        if (!variantInput.value) return;
-        stickyVariant.value = String(variantInput.value);
-        syncPriceFromVariant(variantInput.value, priceEl);
-      });
-    } else {
-      stickyVariant.style.display = "none";
-      if (variantInput?.value) {
-        syncPriceFromVariant(variantInput.value, priceEl);
-      }
-    }
-  });
-
-  /* -------------------------------------------------
-     CART UI REFRESH (Dawn-safe)
-  -------------------------------------------------- */
-  async function fetchCart() {
-    const r = await fetch("/cart.js", {
-      headers: { Accept: "application/json" },
-    });
-    return r.json();
-  }
-
-  function updateBadges(count) {
-    const selectors = [
-      ".cart-count-bubble span",
-      ".cart-count",
-      "[data-cart-count]",
-      ".header__cart-count",
-      ".site-header__cart-count",
-      "#cart-icon-bubble span",
-    ];
-
-    selectors.forEach((s) => {
-      document.querySelectorAll(s).forEach((el) => {
-        el.textContent = count;
-        el.classList.remove("hidden");
-        el.style.display = "";
-      });
+    await fetch("/cart/add.js", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
     });
 
-    document.querySelectorAll("cart-count").forEach((el) => {
-      el.textContent = count;
-    });
-  }
-
-  async function fetchSections(ids) {
-    const root = (window.Shopify?.routes?.root || "/").replace(/\/?$/, "/");
-    const url = `${root}?sections=${encodeURIComponent(ids.join(","))}`;
-    const r = await fetch(url, { headers: { Accept: "application/json" } });
-    return r.json();
-  }
-
-  async function refreshCartUI() {
-    const cart = await fetchCart();
-    updateBadges(cart.item_count);
-
-    try {
-      const sections = await fetchSections(["cart-drawer", "cart-icon-bubble"]);
-
-      if (sections["cart-drawer"]) {
-        const doc = new DOMParser().parseFromString(
-          sections["cart-drawer"],
-          "text/html"
-        );
-        const incoming = doc.querySelector("cart-drawer");
-        const existing = document.querySelector("cart-drawer");
-        if (incoming && existing) existing.replaceWith(incoming);
-      }
-
-      if (sections["cart-icon-bubble"]) {
-        const doc = new DOMParser().parseFromString(
-          sections["cart-icon-bubble"],
-          "text/html"
-        );
-        const incoming = doc.querySelector("#cart-icon-bubble");
-        const existing = document.querySelector("#cart-icon-bubble");
-        if (incoming && existing) existing.replaceWith(incoming);
-      }
-    } catch (e) {
-      console.warn("Sticky ATC: section refresh failed", e);
-    }
-
-    return cart;
-  }
-
-  function openCartDrawer() {
-    const drawer = document.querySelector("cart-drawer");
-    if (drawer?.open) {
-      drawer.open();
-      return;
-    }
-
-    document
-      .querySelector('[data-cart-drawer-toggle], [aria-controls*="cart"]')
-      ?.click();
-  }
-
-  /* -------------------------------------------------
-     ADD TO CART (variant + selling plan together)
-  -------------------------------------------------- */
-  stickyATC.addEventListener("click", async () => {
-    const variantId = getVariantId();
-    if (!variantId) return;
-
-    const sellingPlanId = getSellingPlanId();
-    const selectedVariant = findVariant(variantId);
-    const price = selectedVariant?.price ?? null;
-    const quantity = Number(stickyQty.value || 1);
-
-    const originalText = stickyATC.textContent;
-    stickyATC.disabled = true;
-    stickyATC.textContent = "Adding…";
-
-    let resetTimer;
-
-    try {
-      const payload = {
-        id: Number(variantId),
-        quantity,
-      };
-      if (sellingPlanId) payload.selling_plan = sellingPlanId;
-
-      trackEvent("add_to_cart", {
-        variantId,
-        quantity,
-        price,
-      });
-
-      const res = await fetch("/cart/add.js", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) throw new Error("Add failed");
-
-      stickyATC.textContent = "Added ✓";
-
-      resetTimer = setTimeout(() => {
-        stickyATC.textContent = originalText || "Add to cart";
-        stickyATC.disabled = false;
-      }, 1500);
-
-      refreshCartUI()
-        .then(() => {
-          openCartDrawer();
-        })
-        .catch((error) => {
-          console.warn("Sticky ATC: refresh failed", error);
-        });
-    } catch (err) {
-      console.error("Sticky ATC error", err);
-      stickyATC.textContent = "Error";
-      resetTimer = setTimeout(() => {
-        stickyATC.textContent = originalText || "Add to cart";
-        stickyATC.disabled = false;
-      }, 1500);
-    }
-
-    // Safety reset if drawer re-renders
-    document.addEventListener(
-      "cart:refresh",
-      () => {
-        clearTimeout(resetTimer);
-        stickyATC.textContent = originalText || "Add to cart";
-        stickyATC.disabled = false;
-      },
-      { once: true }
-    );
+    window.location.href = "/cart";
   });
-
-  /* -------------------------------------------------
-     SHOW ON SCROLL
-  -------------------------------------------------- */
-  window.addEventListener("scroll", () => {
-    bar.classList.toggle("visible", window.scrollY > 400);
-  });
-
-  trackEvent("page_view");
 })();
