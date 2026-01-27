@@ -16,12 +16,13 @@ export function initShopify(app) {
     scopes: requiredEnv("SCOPES").split(","),
     hostName: new URL(requiredEnv("SHOPIFY_APP_URL")).host,
     apiVersion: LATEST_API_VERSION,
-    isEmbeddedApp: false, // 🔑 IMPORTANT — non-embedded baseline
+    isEmbeddedApp: false, // 🔑 baseline, non-embedded
     restResources,
     sessionStorage: prismaSessionStorage(),
   });
 
-  // ---------------- AUTH BEGIN ----------------
+  /* ================= AUTH BEGIN ================= */
+
   app.get("/auth", async (req, res) => {
     const { shop } = req.query;
     if (!shop) return res.status(400).send("Missing shop parameter");
@@ -34,18 +35,22 @@ export function initShopify(app) {
       rawResponse: res,
     });
 
-    // Shopify SDK may already respond
+    // Shopify SDK may have already responded
     if (res.headersSent) return;
     return res.redirect(redirectUrl);
   });
 
-  // ---------------- AUTH CALLBACK ----------------
+  /* ================= AUTH CALLBACK ================= */
+
   app.get("/auth/callback", async (req, res) => {
     try {
-      const session = await shopify.auth.callback({
+      const result = await shopify.auth.callback({
         rawRequest: req,
         rawResponse: res,
       });
+
+      // 🔑 Handle both return shapes safely
+      const session = result?.session ?? result;
 
       if (!session?.accessToken) {
         console.error("❌ OAuth failed — missing access token", session);
@@ -58,9 +63,11 @@ export function initShopify(app) {
       console.log("✅ OAuth success", {
         shop: session.shop,
         hasAccessToken: true,
+        isOnline: session.isOnline,
+        scope: session.scope,
       });
 
-      // Shopify may already have responded
+      // Shopify may have already responded
       if (res.headersSent) return;
 
       return res.redirect(`/?shop=${session.shop}`);
