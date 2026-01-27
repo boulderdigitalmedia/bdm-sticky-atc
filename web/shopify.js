@@ -16,16 +16,15 @@ export function initShopify(app) {
     scopes: requiredEnv("SCOPES").split(","),
     hostName: new URL(requiredEnv("SHOPIFY_APP_URL")).host,
     apiVersion: LATEST_API_VERSION,
-    isEmbeddedApp: false, // 🔑 IMPORTANT — not embedded
+    isEmbeddedApp: false, // 🔑 IMPORTANT — non-embedded baseline
     restResources,
     sessionStorage: prismaSessionStorage(),
   });
 
-  /* ---------------- OAUTH BEGIN ---------------- */
-
+  // ---------------- AUTH BEGIN ----------------
   app.get("/auth", async (req, res) => {
     const { shop } = req.query;
-    if (!shop) return res.status(400).send("Missing shop");
+    if (!shop) return res.status(400).send("Missing shop parameter");
 
     const redirectUrl = await shopify.auth.begin({
       shop,
@@ -35,11 +34,12 @@ export function initShopify(app) {
       rawResponse: res,
     });
 
+    // Shopify SDK may already respond
+    if (res.headersSent) return;
     return res.redirect(redirectUrl);
   });
 
-  /* ---------------- OAUTH CALLBACK ---------------- */
-
+  // ---------------- AUTH CALLBACK ----------------
   app.get("/auth/callback", async (req, res) => {
     try {
       const session = await shopify.auth.callback({
@@ -48,8 +48,11 @@ export function initShopify(app) {
       });
 
       if (!session?.accessToken) {
-        console.error("❌ OAuth failed — no access token", session);
-        return res.status(500).send("OAuth failed");
+        console.error("❌ OAuth failed — missing access token", session);
+        if (!res.headersSent) {
+          return res.status(500).send("OAuth failed");
+        }
+        return;
       }
 
       console.log("✅ OAuth success", {
@@ -57,11 +60,15 @@ export function initShopify(app) {
         hasAccessToken: true,
       });
 
-      // Redirect back to app root
+      // Shopify may already have responded
+      if (res.headersSent) return;
+
       return res.redirect(`/?shop=${session.shop}`);
     } catch (err) {
       console.error("❌ OAuth callback error:", err);
-      return res.status(500).send("OAuth error");
+      if (!res.headersSent) {
+        return res.status(500).send("OAuth error");
+      }
     }
   });
 
