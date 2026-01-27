@@ -26,8 +26,7 @@ async function ordersPaidWebhook(topic, shop, body, webhookId) {
       orderId: order.id,
       orderNumber: order.order_number,
       totalPrice: order.total_price,
-      currency: order.currency,
-      webhookId
+      currency: order.currency
     });
 
     for (const item of order.line_items || []) {
@@ -39,7 +38,7 @@ async function ordersPaidWebhook(topic, shop, body, webhookId) {
       });
     }
 
-    // TODO: attribution logic
+    // TODO: revenue attribution logic
   } catch (err) {
     console.error("ORDERS_PAID handler failed", err);
     throw err;
@@ -59,6 +58,9 @@ export function initShopify(app) {
     .map(s => s.trim())
     .filter(Boolean);
 
+  // 🔑 IMPORTANT: create session storage ONCE and keep reference
+  const sessionStorage = prismaSessionStorage();
+
   const shopify = shopifyApi({
     apiKey,
     apiSecretKey,
@@ -68,7 +70,7 @@ export function initShopify(app) {
     apiVersion: LATEST_API_VERSION,
     isEmbeddedApp: true,
     restResources,
-    sessionStorage: prismaSessionStorage()
+    sessionStorage
   });
 
   /* ────────────────────────────────────────────── */
@@ -94,7 +96,7 @@ export function initShopify(app) {
     const sanitizedShop = shopify.utils.sanitizeShop(shop.toString());
     if (!sanitizedShop) return res.status(400).send("Invalid shop");
 
-    // IMPORTANT: Shopify controls the response here
+    // Shopify controls the response lifecycle here
     await shopify.auth.begin({
       shop: sanitizedShop,
       callbackPath: "/auth/callback",
@@ -105,12 +107,12 @@ export function initShopify(app) {
   });
 
   /* ────────────────────────────────────────────── */
-  /* AUTH CALLBACK */
+  /* AUTH CALLBACK (FIXED) */
   /* ────────────────────────────────────────────── */
 
   app.get("/auth/callback", async (req, res) => {
     try {
-      // 1. Complete OAuth (does NOT return session in v9+)
+      // 1. Complete OAuth
       await shopify.auth.callback({
         rawRequest: req,
         rawResponse: res
@@ -119,9 +121,9 @@ export function initShopify(app) {
       const shop = shopify.utils.sanitizeShop(req.query.shop);
       if (!shop) throw new Error("Invalid shop in callback");
 
-      // 2. Load OFFLINE session manually
+      // 2. Load OFFLINE session via OUR sessionStorage reference
       const offlineSessionId = shopify.session.getOfflineId(shop);
-      const session = await shopify.sessionStorage.loadSession(offlineSessionId);
+      const session = await sessionStorage.loadSession(offlineSessionId);
 
       if (!session?.accessToken) {
         console.error("Offline session missing after OAuth", { shop });
@@ -141,7 +143,7 @@ export function initShopify(app) {
         console.log("Webhooks registered successfully", registerResult);
       }
 
-      // 4. Redirect back into embedded app
+      // 4. Redirect back to embedded app
       const host = req.query.host;
       if (!host) {
         return res.redirect(`https://${shop}/admin/apps/${apiKey}`);
