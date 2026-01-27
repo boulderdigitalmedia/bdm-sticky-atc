@@ -10,7 +10,6 @@ import { initShopify } from "./shopify.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Create app FIRST
 const app = express();
 app.set("trust proxy", 1);
 
@@ -21,17 +20,15 @@ app.use(bodyParser.urlencoded({ extended: true }));
 // Initialize Shopify OAuth
 initShopify(app);
 
-// Serve frontend build
+// Serve frontend
 app.use(express.static(path.join(__dirname, "frontend", "dist"), { index: false }));
 
-// Catch-all
 app.get("*", (_req, res) => {
   const indexPath = path.join(__dirname, "frontend", "dist", "index.html");
   const html = fs.readFileSync(indexPath, "utf8");
   res.send(html);
 });
 
-// Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
