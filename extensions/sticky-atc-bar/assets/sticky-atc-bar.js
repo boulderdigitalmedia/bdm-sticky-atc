@@ -37,6 +37,39 @@
     }
   }
 
+  /* ---------------- Attribution helpers ---------------- */
+
+  function getStickyAtcSessionId() {
+    const KEY = "bdm_sticky_atc_session_id";
+    let id = localStorage.getItem(KEY);
+    if (!id) {
+      id = crypto.randomUUID();
+      localStorage.setItem(KEY, id);
+    }
+    return id;
+  }
+
+  function trackStickyAtcClick({ productId, variantId }) {
+    try {
+      fetch("/apps/bdm-sticky-atc/track", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          shop: window.Shopify?.shop,
+          event: "sticky_atc_click",
+          data: {
+            productId,
+            variantId,
+            checkoutToken: window.Shopify?.checkout?.token || null,
+            sessionId: getStickyAtcSessionId()
+          }
+        })
+      }).catch(() => {});
+    } catch {
+      // Never block ATC
+    }
+  }
+
   /* ---------------- Abort if disabled ---------------- */
 
   if (!shouldRender()) return;
@@ -145,6 +178,12 @@
   /* ---------------- Add to cart ---------------- */
 
   button.addEventListener("click", async () => {
+    // 🔹 Fire attribution event FIRST (non-blocking)
+    trackStickyAtcClick({
+      productId: product.id,
+      variantId: selectedVariantId
+    });
+
     const payload = {
       items: [
         {
