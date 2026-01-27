@@ -20,12 +20,29 @@ app.use(bodyParser.urlencoded({ extended: true }));
 // Initialize Shopify OAuth
 initShopify(app);
 
-// Serve frontend
+// Serve frontend static assets
 app.use(express.static(path.join(__dirname, "frontend", "dist"), { index: false }));
 
+// Inject API key into index.html
 app.get("*", (_req, res) => {
   const indexPath = path.join(__dirname, "frontend", "dist", "index.html");
-  const html = fs.readFileSync(indexPath, "utf8");
+  const apiKey = process.env.SHOPIFY_API_KEY;
+
+  if (!apiKey) {
+    console.error("❌ SHOPIFY_API_KEY missing on server");
+    return res.status(500).send("Missing Shopify API key");
+  }
+
+  let html = fs.readFileSync(indexPath, "utf8");
+
+  html = html.replace(
+    "</head>",
+    `<script>
+      window.__SHOPIFY_API_KEY__ = ${JSON.stringify(apiKey)};
+    </script></head>`
+  );
+
+  res.setHeader("Content-Type", "text/html");
   res.send(html);
 });
 
