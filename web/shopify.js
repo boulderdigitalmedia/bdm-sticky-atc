@@ -1,81 +1,117 @@
 import "@shopify/shopify-api/adapters/node";
-import { shopifyApi, LATEST_API_VERSION } from "@shopify/shopify-api";
+import { shopifyApi, LATEST_API_VERSION, DeliveryMethod } from "@shopify/shopify-api";
 import { restResources } from "@shopify/shopify-api/rest/admin/2024-01";
 import { prismaSessionStorage } from "./shopifySessionStoragePrisma.js";
 
 function requiredEnv(name) {
-  const value = process.env[name];
-  if (!value) throw new Error(`Missing env var: ${name}`);
-  return value;
+  const v = process.env[name];
+  if (!v) throw new Error(`Missing required env var: ${name}`);
+  return v;
 }
 
 export function initShopify(app) {
+  const apiKey = requiredEnv("SHOPIFY_API_KEY");
+  const apiSecretKey = requiredEnv("SHOPIFY_API_SECRET");
+  const appUrl = new URL(requiredEnv("SHOPIFY_APP_URL"));
+  const scopes = requiredEnv("SCOPES").split(",").map((s) => s.trim()).filter(Boolean);
+
   const shopify = shopifyApi({
-    apiKey: requiredEnv("SHOPIFY_API_KEY"),
-    apiSecretKey: requiredEnv("SHOPIFY_API_SECRET"),
-    scopes: requiredEnv("SCOPES").split(","),
-    hostName: new URL(requiredEnv("SHOPIFY_APP_URL")).host,
+    apiKey,
+    apiSecretKey,
+    scopes,
+    hostName: appUrl.host,
+    hostScheme: appUrl.protocol.replace(":", ""),
     apiVersion: LATEST_API_VERSION,
-    isEmbeddedApp: false, // 🔑 baseline, non-embedded
+    isEmbeddedApp: true,
     restResources,
-    sessionStorage: prismaSessionStorage(),
+    sessionStorage: prismaSessionStorage()
   });
 
-  /* ================= AUTH BEGIN ================= */
+  if (appUrl.protocol !== "https:") {
+    console.warn(
+      "SHOPIFY_APP_URL should use https for webhook registration. Current value:",
+      appUrl.toString()
+    );
+  }
 
+  shopify.webhooks.addHandlers({
+    ORDERS_CREATE: {
+      deliveryMethod: DeliveryMethod.Http,
+      callbackUrl: "/webhooks/orders/create",
+      callback: async () => {}
+    }
+  });
+
+  // Begin OAuth
   app.get("/auth", async (req, res) => {
-    const { shop } = req.query;
+    const shop = req.query.shop;
     if (!shop) return res.status(400).send("Missing shop parameter");
+    const sanitizedShop = shopify.utils.sanitizeShop(shop.toString());
+    if (!sanitizedShop) return res.status(400).send("Invalid shop parameter");
 
     const redirectUrl = await shopify.auth.begin({
-      shop,
+      shop: sanitizedShop,
       callbackPath: "/auth/callback",
       isOnline: false,
       rawRequest: req,
-      rawResponse: res,
+      rawResponse: res
     });
 
-    // Shopify SDK may have already responded
     if (res.headersSent) return;
-    return res.redirect(redirectUrl);
+    if (redirectUrl) {
+      return res.redirect(redirectUrl);
+    }
+    return res.sendStatus(200);
   });
 
-  /* ================= AUTH CALLBACK ================= */
-
+  // OAuth callback
   app.get("/auth/callback", async (req, res) => {
     try {
-      const result = await shopify.auth.callback({
-        rawRequest: req,
-        rawResponse: res,
-      });
+      const shop = req.query.shop;
+      if (!shop) return res.status(400).send("Missing shop parameter");
+      const sanitizedShop = shopify.utils.sanitizeShop(shop.toString());
+      if (!sanitizedShop) return res.status(400).send("Invalid shop parameter");
 
-      // 🔑 Handle both return shapes safely
-      const session = result?.session ?? result;
+      const session = await shopify.auth.callback({
+        rawRequest: req,
+        rawResponse: res
+      });
 
       if (!session?.accessToken) {
-        console.error("❌ OAuth failed — missing access token", session);
-        if (!res.headersSent) {
-          return res.status(500).send("OAuth failed");
+        console.error(
+          "Missing access token after OAuth callback for shop:",
+          session?.shop ?? sanitizedShop
+        );
+      }
+
+      try {
+        const registerResult = await shopify.webhooks.register({ session });
+        const failures = Object.entries(registerResult).flatMap(([topic, results]) =>
+          results
+            .filter((result) => !result.success)
+            .map((result) => ({ topic, ...result }))
+        );
+        if (failures.length) {
+          console.error("Webhook registration failures:", failures);
         }
-        return;
+        console.log("Webhook register result:", registerResult);
+      } catch (err) {
+        console.error("Webhook registration failed:", err);
       }
 
-      console.log("✅ OAuth success", {
-        shop: session.shop,
-        hasAccessToken: true,
-        isOnline: session.isOnline,
-        scope: session.scope,
-      });
+      // Shopify admin passes host param on embedded loads
+      const host = req.query.host;
+      const shopDomain = session.shop;
 
-      // Shopify may have already responded
-      if (res.headersSent) return;
+      if (!host) {
+        // If host missing, redirect to Shopify Admin to re-open embedded context
+        return res.redirect(`https://${shopDomain}/admin/apps/${apiKey}`);
+      }
 
-      return res.redirect(`/?shop=${session.shop}`);
+      return res.redirect(`/?shop=${shopDomain}&host=${host}`);
     } catch (err) {
-      console.error("❌ OAuth callback error:", err);
-      if (!res.headersSent) {
-        return res.status(500).send("OAuth error");
-      }
+      console.error("Auth callback error:", err);
+      return res.status(500).send("Shopify auth failed");
     }
   });
 
