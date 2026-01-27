@@ -8,7 +8,7 @@ datasource db {
 }
 
 /* ────────────────────────────────────────────── */
-/* SHOPIFY SESSION STORAGE (KEEP AS-IS) */
+/* SHOPIFY SESSION STORAGE */
 /* ────────────────────────────────────────────── */
 
 model ShopifySession {
@@ -36,7 +36,7 @@ model ShopifySession {
 }
 
 /* ────────────────────────────────────────────── */
-/* GENERIC ANALYTICS EVENTS (KEEP AS-IS) */
+/* GENERIC ANALYTICS EVENTS */
 /* ────────────────────────────────────────────── */
 
 model AnalyticsEvent {
@@ -52,7 +52,7 @@ model AnalyticsEvent {
 }
 
 /* ────────────────────────────────────────────── */
-/* SHOP SETTINGS (KEEP AS-IS) */
+/* SHOP SETTINGS */
 /* ────────────────────────────────────────────── */
 
 model ShopSettings {
@@ -69,15 +69,15 @@ model ShopSettings {
 
   position        String   @default("bottom") // bottom | top
 
-  includePages    String?  // JSON array
-  excludePages    String?  // JSON array
+  includePages    String?
+  excludePages    String?
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }
 
 /* ────────────────────────────────────────────── */
-/* STICKY ATC CLICK / INTENT EVENTS (NEW – CORE) */
+/* STICKY ATC CLICK / INTENT EVENTS */
 /* ────────────────────────────────────────────── */
 
 model StickyAtcEvent {
@@ -99,7 +99,7 @@ model StickyAtcEvent {
 }
 
 /* ────────────────────────────────────────────── */
-/* STICKY ATC ATTRIBUTED REVENUE (NEW – CORE) */
+/* STICKY ATC ATTRIBUTED REVENUE */
 /* ────────────────────────────────────────────── */
 
 model StickyConversion {
@@ -115,13 +115,15 @@ model StickyConversion {
   occurredAt    DateTime
   createdAt     DateTime @default(now())
 
-  @@unique([shop, orderId])
+  // 🔑 IMPORTANT: named compound unique index
+  @@unique([shop, orderId], name: "shop_orderId")
+
   @@index([shop])
   @@index([occurredAt])
 }
 
 /* ────────────────────────────────────────────── */
-/* OPTIONAL: DAILY METRICS (UNCHANGED) */
+/* DAILY METRICS */
 /* ────────────────────────────────────────────── */
 
 model StickyMetricsDaily {
