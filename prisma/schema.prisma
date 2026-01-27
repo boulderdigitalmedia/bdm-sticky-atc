@@ -7,10 +7,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/* ────────────────────────────────────────────── */
-/* SHOPIFY SESSION STORAGE */
-/* ────────────────────────────────────────────── */
-
+// Shopify session storage
 model ShopifySession {
   id            String   @id
   shop          String
@@ -35,10 +32,7 @@ model ShopifySession {
   @@index([shop])
 }
 
-/* ────────────────────────────────────────────── */
-/* GENERIC ANALYTICS EVENTS */
-/* ────────────────────────────────────────────── */
-
+// Generic analytics events
 model AnalyticsEvent {
   id        String   @id @default(cuid())
   shop      String
@@ -51,10 +45,7 @@ model AnalyticsEvent {
   @@index([createdAt])
 }
 
-/* ────────────────────────────────────────────── */
-/* SHOP SETTINGS */
-/* ────────────────────────────────────────────── */
-
+// Shop configuration
 model ShopSettings {
   id              String   @id @default(cuid())
   shop            String   @unique
@@ -76,10 +67,7 @@ model ShopSettings {
   updatedAt       DateTime @updatedAt
 }
 
-/* ────────────────────────────────────────────── */
-/* STICKY ATC CLICK / INTENT EVENTS */
-/* ────────────────────────────────────────────── */
-
+// Sticky ATC click / intent events
 model StickyAtcEvent {
   id            String   @id @default(cuid())
   shop          String
@@ -98,10 +86,7 @@ model StickyAtcEvent {
   @@index([createdAt])
 }
 
-/* ────────────────────────────────────────────── */
-/* STICKY ATC ATTRIBUTED REVENUE */
-/* ────────────────────────────────────────────── */
-
+// Sticky ATC attributed revenue
 model StickyConversion {
   id            String   @id @default(cuid())
   shop          String
@@ -115,17 +100,14 @@ model StickyConversion {
   occurredAt    DateTime
   createdAt     DateTime @default(now())
 
-  // 🔑 IMPORTANT: named compound unique index
+  // Named compound unique index (required for findUnique)
   @@unique([shop, orderId], name: "shop_orderId")
 
   @@index([shop])
   @@index([occurredAt])
 }
 
-/* ────────────────────────────────────────────── */
-/* DAILY METRICS */
-/* ────────────────────────────────────────────── */
-
+// Optional daily rollups
 model StickyMetricsDaily {
   id          String   @id @default(cuid())
   shop        String
