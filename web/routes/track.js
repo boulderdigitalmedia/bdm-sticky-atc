@@ -3,22 +3,14 @@ import prisma from "../prisma.js";
 
 const router = express.Router();
 
-/**
- * POST /track
- *
- * Generic analytics + Sticky ATC attribution
- */
 router.post("/track", express.json(), async (req, res) => {
   try {
     const { shop, event, data } = req.body || {};
-
     if (!shop || !event) {
-      return res.status(400).json({ ok: false, error: "Missing shop or event" });
+      return res.status(400).json({ ok: false });
     }
 
-    /**
-     * Always store the generic analytics event (unchanged behavior)
-     */
+    // Always store generic analytics
     await prisma.analyticsEvent.create({
       data: {
         shop,
@@ -27,25 +19,14 @@ router.post("/track", express.json(), async (req, res) => {
       }
     });
 
-    /**
-     * Sticky ATC attribution event
-     */
-    if (event === "sticky_atc_click") {
-      const {
-        productId,
-        variantId,
-        checkoutToken,
-        sessionId
-      } = data || {};
+    // Sticky ATC attribution intent
+    if (
+      event === "sticky_atc_click" ||
+      event === "sticky_atc_success"
+    ) {
+      const { productId, variantId, checkoutToken, sessionId } = data || {};
 
-      if (!variantId || !sessionId) {
-        // Do not fail the request — just skip attribution
-        console.warn("Sticky ATC event missing attribution fields", {
-          shop,
-          variantId,
-          sessionId
-        });
-      } else {
+      if (variantId && sessionId) {
         await prisma.stickyAtcEvent.create({
           data: {
             shop,
@@ -60,8 +41,8 @@ router.post("/track", express.json(), async (req, res) => {
 
     return res.json({ ok: true });
   } catch (err) {
-    console.error("Track error:", err);
-    return res.status(500).json({ ok: false, error: "Tracking failed" });
+    console.error("Track error", err);
+    return res.status(500).json({ ok: false });
   }
 });
 
