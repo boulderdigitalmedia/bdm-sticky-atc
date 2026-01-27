@@ -7,7 +7,10 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Shopify session storage for public apps
+/* ────────────────────────────────────────────── */
+/* SHOPIFY SESSION STORAGE (KEEP AS-IS) */
+/* ────────────────────────────────────────────── */
+
 model ShopifySession {
   id            String   @id
   shop          String
@@ -32,7 +35,10 @@ model ShopifySession {
   @@index([shop])
 }
 
-// Simple analytics event store
+/* ────────────────────────────────────────────── */
+/* GENERIC ANALYTICS EVENTS (KEEP AS-IS) */
+/* ────────────────────────────────────────────── */
+
 model AnalyticsEvent {
   id        String   @id @default(cuid())
   shop      String
@@ -44,6 +50,10 @@ model AnalyticsEvent {
   @@index([event])
   @@index([createdAt])
 }
+
+/* ────────────────────────────────────────────── */
+/* SHOP SETTINGS (KEEP AS-IS) */
+/* ────────────────────────────────────────────── */
 
 model ShopSettings {
   id              String   @id @default(cuid())
@@ -66,25 +76,59 @@ model ShopSettings {
   updatedAt       DateTime @updatedAt
 }
 
-model StickyEvent {
-  id        String   @id
-  shop      String
-  event     String
-  productId String?
-  variantId String?
-  quantity  Int?
-  price     Float?
-  timestamp DateTime @default(now())
+/* ────────────────────────────────────────────── */
+/* STICKY ATC CLICK / INTENT EVENTS (NEW – CORE) */
+/* ────────────────────────────────────────────── */
+
+model StickyAtcEvent {
+  id            String   @id @default(cuid())
+  shop          String
+
+  productId     BigInt?
+  variantId     BigInt
+
+  checkoutToken String?
+  sessionId     String
+
+  createdAt     DateTime @default(now())
 
   @@index([shop])
-  @@index([event])
-  @@index([timestamp])
+  @@index([shop, checkoutToken])
+  @@index([shop, variantId])
+  @@index([createdAt])
 }
 
+/* ────────────────────────────────────────────── */
+/* STICKY ATC ATTRIBUTED REVENUE (NEW – CORE) */
+/* ────────────────────────────────────────────── */
+
+model StickyConversion {
+  id            String   @id @default(cuid())
+  shop          String
+
+  orderId       BigInt
+  checkoutToken String
+
+  revenue       Float
+  currency      String
+
+  occurredAt    DateTime
+  createdAt     DateTime @default(now())
+
+  @@unique([shop, orderId])
+  @@index([shop])
+  @@index([occurredAt])
+}
+
+/* ────────────────────────────────────────────── */
+/* OPTIONAL: DAILY METRICS (UNCHANGED) */
+/* ────────────────────────────────────────────── */
+
 model StickyMetricsDaily {
-  id          String   @id
+  id          String   @id @default(cuid())
   shop        String
   date        DateTime
+
   pageViews   Int      @default(0)
   addToCart   Int      @default(0)
   conversions Int      @default(0)
@@ -92,25 +136,4 @@ model StickyMetricsDaily {
 
   @@index([shop])
   @@index([date])
-}
-
-model StickyAttribution {
-  id            Int    @id @default(autoincrement())
-  shop          String
-  checkoutToken String @unique
-  productId     String
-  variantId     String
-  timestamp     BigInt
-}
-
-model StickyConversion {
-  id         String   @id
-  shop       String
-  orderId    String
-  revenue    Float
-  currency   String
-  occurredAt DateTime
-  createdAt  DateTime @default(now())
-
-  @@index([shop])
 }
