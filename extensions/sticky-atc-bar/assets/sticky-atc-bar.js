@@ -4,10 +4,6 @@
 
   /* ---------------- Helpers ---------------- */
 
-  function $(sel, root = document) {
-    return root.querySelector(sel);
-  }
-
   function isMobile() {
     return window.matchMedia("(max-width: 768px)").matches;
   }
@@ -29,7 +25,6 @@
       document.querySelector("#ProductJson");
 
     if (!script) return null;
-
     try {
       return JSON.parse(script.textContent);
     } catch {
@@ -49,25 +44,21 @@
     return id;
   }
 
-  function trackStickyAtcClick({ productId, variantId }) {
+  function track(event, data = {}) {
     try {
       fetch("/apps/bdm-sticky-atc/track", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           shop: window.Shopify?.shop,
-          event: "sticky_atc_click",
+          event,
           data: {
-            productId,
-            variantId,
-            checkoutToken: window.Shopify?.checkout?.token || null,
+            ...data,
             sessionId: getStickyAtcSessionId()
           }
         })
       }).catch(() => {});
-    } catch {
-      // Never block ATC
-    }
+    } catch {}
   }
 
   /* ---------------- Abort if disabled ---------------- */
@@ -88,14 +79,18 @@
         <span class="bdm-atc-title">${product.title}</span>
         <span class="bdm-atc-price">${formatMoney(product.price)}</span>
       </div>
-
       <div class="bdm-atc-controls"></div>
-
       <button class="bdm-atc-button">Add to cart</button>
     </div>
   `;
 
   document.body.appendChild(bar);
+
+  /* ---------------- Impression tracking ---------------- */
+
+  track("sticky_atc_impression", {
+    productId: product.id
+  });
 
   /* ---------------- Styles ---------------- */
 
@@ -147,41 +142,14 @@
     controls.appendChild(select);
   }
 
-  if (
-    CONFIG.showSubscription !== false &&
-    product.selling_plan_groups?.length
-  ) {
-    const sub = document.createElement("select");
-    sub.className = "bdm-atc-subscription";
-
-    const oneTime = document.createElement("option");
-    oneTime.value = "";
-    oneTime.textContent = "One-time purchase";
-    sub.appendChild(oneTime);
-
-    product.selling_plan_groups.forEach((group) => {
-      group.selling_plans.forEach((plan) => {
-        const opt = document.createElement("option");
-        opt.value = plan.id;
-        opt.textContent = plan.name;
-        sub.appendChild(opt);
-      });
-    });
-
-    sub.addEventListener("change", () => {
-      selectedSellingPlanId = sub.value || null;
-    });
-
-    controls.appendChild(sub);
-  }
-
   /* ---------------- Add to cart ---------------- */
 
   button.addEventListener("click", async () => {
-    // 🔹 Fire attribution event FIRST (non-blocking)
-    trackStickyAtcClick({
+    // click intent
+    track("sticky_atc_click", {
       productId: product.id,
-      variantId: selectedVariantId
+      variantId: selectedVariantId,
+      checkoutToken: window.Shopify?.checkout?.token || null
     });
 
     const payload = {
@@ -194,11 +162,19 @@
       ]
     };
 
-    await fetch("/cart/add.js", {
+    const res = await fetch("/cart/add.js", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     });
+
+    // successful ATC
+    if (res.ok) {
+      track("sticky_atc_success", {
+        productId: product.id,
+        variantId: selectedVariantId
+      });
+    }
 
     window.location.href = "/cart";
   });
