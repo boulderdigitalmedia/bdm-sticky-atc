@@ -38,7 +38,7 @@ async function ordersPaidWebhook(topic, shop, body, webhookId) {
       });
     }
 
-    // TODO: revenue attribution logic
+    // TODO: attribution logic
   } catch (err) {
     console.error("ORDERS_PAID handler failed", err);
     throw err;
@@ -58,7 +58,6 @@ export function initShopify(app) {
     .map(s => s.trim())
     .filter(Boolean);
 
-  // 🔑 IMPORTANT: create session storage ONCE and keep reference
   const sessionStorage = prismaSessionStorage();
 
   const shopify = shopifyApi({
@@ -96,7 +95,6 @@ export function initShopify(app) {
     const sanitizedShop = shopify.utils.sanitizeShop(shop.toString());
     if (!sanitizedShop) return res.status(400).send("Invalid shop");
 
-    // Shopify controls the response lifecycle here
     await shopify.auth.begin({
       shop: sanitizedShop,
       callbackPath: "/auth/callback",
@@ -107,30 +105,23 @@ export function initShopify(app) {
   });
 
   /* ────────────────────────────────────────────── */
-  /* AUTH CALLBACK (FIXED) */
+  /* AUTH CALLBACK (FINAL FIX) */
   /* ────────────────────────────────────────────── */
 
   app.get("/auth/callback", async (req, res) => {
     try {
-      // 1. Complete OAuth
-      await shopify.auth.callback({
+      // ✅ USE RETURNED SESSION
+      const { session } = await shopify.auth.callback({
         rawRequest: req,
         rawResponse: res
       });
 
-      const shop = shopify.utils.sanitizeShop(req.query.shop);
-      if (!shop) throw new Error("Invalid shop in callback");
-
-      // 2. Load OFFLINE session via OUR sessionStorage reference
-      const offlineSessionId = shopify.session.getOfflineId(shop);
-      const session = await sessionStorage.loadSession(offlineSessionId);
-
       if (!session?.accessToken) {
-        console.error("Offline session missing after OAuth", { shop });
-        return res.status(500).send("OAuth session missing");
+        console.error("OAuth completed without session");
+        return res.status(500).send("OAuth failed");
       }
 
-      // 3. Register webhooks
+      // ✅ Register webhooks using THIS session
       const registerResult = await shopify.webhooks.register({ session });
 
       const failures = Object.entries(registerResult).flatMap(([topic, results]) =>
@@ -143,13 +134,12 @@ export function initShopify(app) {
         console.log("Webhooks registered successfully", registerResult);
       }
 
-      // 4. Redirect back to embedded app
       const host = req.query.host;
       if (!host) {
-        return res.redirect(`https://${shop}/admin/apps/${apiKey}`);
+        return res.redirect(`https://${session.shop}/admin/apps/${apiKey}`);
       }
 
-      return res.redirect(`/?shop=${shop}&host=${host}`);
+      return res.redirect(`/?shop=${session.shop}&host=${host}`);
     } catch (err) {
       console.error("OAuth callback error", err);
       return res.status(500).send("Shopify auth failed");
