@@ -31,7 +31,7 @@ app.use(
 app.options("*", cors());
 
 // ✅ 3) Webhook route must be RAW before json parsing
-app.post("/webhooks/orders/create", express.raw({ type: "*/*" }), ordersCreate);
+app.post("/webhooks/orders/paid", express.raw({ type: "*/*" }), ordersCreate);
 
 // ✅ 4) JSON parsing for everything else
 app.use(bodyParser.json());
