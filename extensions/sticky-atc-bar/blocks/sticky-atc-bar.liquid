@@ -1,42 +1,76 @@
-{% if request.page_type == 'product' %}
+{% comment %}
+  Sticky Add to Cart Bar – Theme App Block
+{% endcomment %}
 
-<div
-  id="bdm-sticky-atc"
-  aria-hidden="true"
-  data-sticky-atc
-  data-variants='{{ product.variants | json }}'
->
-  <div class="bdm-inner">
-    <div class="bdm-left">
-      <div id="bdm-title"></div>
-      <div id="bdm-price"></div>
-    </div>
+<div id="bdm-sticky-atc-root"></div>
 
-    <div class="bdm-right">
-      <select id="bdm-variant"></select>
-      <input id="bdm-qty" type="number" min="1" value="1" />
-      <button id="bdm-atc">
-        {{ block.settings.button_text }}
-      </button>
-    </div>
-  </div>
-</div>
+<script>
+  window.BDM_STICKY_ATC_CONFIG = {
+    backgroundColor: "{{ block.settings.background_color }}",
+    textColor: "{{ block.settings.text_color }}",
+    buttonColor: "{{ block.settings.button_color }}",
 
-<link rel="stylesheet" href="{{ 'sticky-atc-bar.css' | asset_url }}">
-<script src="{{ 'sticky-atc-bar.js' | asset_url }}" defer></script>
+    enableDesktop: {{ block.settings.enable_desktop | json }},
+    enableMobile: {{ block.settings.enable_mobile | json }},
 
-{% endif %}
+    showQuantity: {{ block.settings.show_quantity | json }},
+    showVariants: {{ block.settings.show_variants | json }},
+    showSubscription: {{ block.settings.show_subscription | json }}
+  };
+</script>
 
 {% schema %}
 {
-  "name": "Sticky Add To Cart Bar",
+  "name": "Sticky Add to Cart Bar",
   "target": "body",
   "settings": [
     {
-      "type": "text",
-      "id": "button_text",
-      "label": "Button text",
-      "default": "Add to cart"
+      "type": "color",
+      "id": "background_color",
+      "label": "Background color",
+      "default": "#ffffff"
+    },
+    {
+      "type": "color",
+      "id": "text_color",
+      "label": "Text color",
+      "default": "#000000"
+    },
+    {
+      "type": "color",
+      "id": "button_color",
+      "label": "Button color",
+      "default": "#000000"
+    },
+    {
+      "type": "checkbox",
+      "id": "enable_desktop",
+      "label": "Enable on desktop",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "enable_mobile",
+      "label": "Enable on mobile",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_quantity",
+      "label": "Show quantity selector",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_variants",
+      "label": "Show variant selector",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_subscription",
+      "label": "Show subscription selector",
+      "default": true
     }
   ]
 }
