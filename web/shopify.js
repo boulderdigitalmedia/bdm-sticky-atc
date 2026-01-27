@@ -1,73 +1,69 @@
-import { createRequire } from "module";
-import { ApiVersion, DeliveryMethod } from "@shopify/shopify-api";
+import "@shopify/shopify-api/adapters/node";
+import { shopifyApi, LATEST_API_VERSION } from "@shopify/shopify-api";
+import { restResources } from "@shopify/shopify-api/rest/admin/2024-01";
 import { prismaSessionStorage } from "./shopifySessionStoragePrisma.js";
 
-const require = createRequire(import.meta.url);
-
-// CJS import (works in ESM projects)
-const shopifyAppModule = require("@shopify/shopify-app-express");
-const shopifyApp =
-  shopifyAppModule?.default || shopifyAppModule?.shopifyApp || shopifyAppModule;
-
 function requiredEnv(name) {
-  const v = process.env[name];
-  if (!v) throw new Error(`Missing required env var: ${name}`);
-  return v;
+  const value = process.env[name];
+  if (!value) throw new Error(`Missing env var: ${name}`);
+  return value;
 }
 
 export function initShopify(app) {
-  app.set("trust proxy", 1);
-
-  const apiKey = requiredEnv("SHOPIFY_API_KEY");
-  const apiSecretKey = requiredEnv("SHOPIFY_API_SECRET");
-  const appUrl = requiredEnv("SHOPIFY_APP_URL");
-
-  const scopes = requiredEnv("SCOPES")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-
-  if (typeof shopifyApp !== "function") {
-    console.error("❌ @shopify/shopify-app-express export is not a function:", {
-      keys: Object.keys(shopifyAppModule || {}),
-      type: typeof shopifyApp,
-    });
-    throw new Error("@shopify/shopify-app-express did not export a function");
-  }
-
-  const shopify = shopifyApp({
-    api: {
-      apiKey,
-      apiSecretKey,
-      scopes,
-      apiVersion: ApiVersion.January24, // MUST be explicit
-      isEmbeddedApp: true,
-      hostName: new URL(appUrl).host,
-      hostScheme: new URL(appUrl).protocol.replace(":", ""),
-    },
-
-    auth: {
-      path: "/auth",
-      callbackPath: "/auth/callback",
-    },
-
+  const shopify = shopifyApi({
+    apiKey: requiredEnv("SHOPIFY_API_KEY"),
+    apiSecretKey: requiredEnv("SHOPIFY_API_SECRET"),
+    scopes: requiredEnv("SCOPES").split(","),
+    hostName: new URL(requiredEnv("SHOPIFY_APP_URL")).host,
+    apiVersion: LATEST_API_VERSION,
+    isEmbeddedApp: false, // 🔑 IMPORTANT — not embedded
+    restResources,
     sessionStorage: prismaSessionStorage(),
-
-    // This registers the webhook subscription in Shopify during auth,
-    // but does NOT create an endpoint handler for you.
-    webhooks: {
-      ORDERS_CREATE: {
-        deliveryMethod: DeliveryMethod.Http,
-        callbackUrl: "/webhooks/orders/create",
-      },
-    },
   });
 
-  // Auth routes
-  app.use(shopify.auth.begin());
-  app.use(shopify.auth.callback(), shopify.redirectToShopifyOrAppRoot());
+  /* ---------------- OAUTH BEGIN ---------------- */
 
-  // 🚫 DO NOT call shopify.webhooks.process() (undefined in your version)
+  app.get("/auth", async (req, res) => {
+    const { shop } = req.query;
+    if (!shop) return res.status(400).send("Missing shop");
+
+    const redirectUrl = await shopify.auth.begin({
+      shop,
+      callbackPath: "/auth/callback",
+      isOnline: false,
+      rawRequest: req,
+      rawResponse: res,
+    });
+
+    return res.redirect(redirectUrl);
+  });
+
+  /* ---------------- OAUTH CALLBACK ---------------- */
+
+  app.get("/auth/callback", async (req, res) => {
+    try {
+      const session = await shopify.auth.callback({
+        rawRequest: req,
+        rawResponse: res,
+      });
+
+      if (!session?.accessToken) {
+        console.error("❌ OAuth failed — no access token", session);
+        return res.status(500).send("OAuth failed");
+      }
+
+      console.log("✅ OAuth success", {
+        shop: session.shop,
+        hasAccessToken: true,
+      });
+
+      // Redirect back to app root
+      return res.redirect(`/?shop=${session.shop}`);
+    } catch (err) {
+      console.error("❌ OAuth callback error:", err);
+      return res.status(500).send("OAuth error");
+    }
+  });
 
   return shopify;
 }
