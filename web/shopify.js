@@ -2,9 +2,10 @@ import "@shopify/shopify-api/adapters/node";
 import { shopifyApi, LATEST_API_VERSION, DeliveryMethod } from "@shopify/shopify-api";
 import { restResources } from "@shopify/shopify-api/rest/admin/2024-01";
 import { prismaSessionStorage } from "./shopifySessionStoragePrisma.js";
+import prisma from "./prisma.js";
 
 /* ────────────────────────────────────────────── */
-/* ENV */
+/* ENV HELPERS */
 /* ────────────────────────────────────────────── */
 
 function requiredEnv(name) {
@@ -14,35 +15,61 @@ function requiredEnv(name) {
 }
 
 /* ────────────────────────────────────────────── */
-/* WEBHOOK HANDLER */
+/* WEBHOOK HANDLER: ORDERS_PAID */
 /* ────────────────────────────────────────────── */
 
-async function ordersPaidWebhook(topic, shop, body, webhookId) {
-  try {
-    const order = JSON.parse(body);
+async function ordersPaidWebhook(topic, shop, body) {
+  const order = JSON.parse(body);
+  const orderId = BigInt(order.id);
 
-    console.log("ORDERS_PAID received", {
-      shop,
-      orderId: order.id,
-      orderNumber: order.order_number,
-      totalPrice: order.total_price,
-      currency: order.currency
-    });
-
-    for (const item of order.line_items || []) {
-      console.log("Line item", {
-        variantId: item.variant_id,
-        productId: item.product_id,
-        quantity: item.quantity,
-        price: item.price
-      });
+  // Prevent double-counting
+  const existing = await prisma.stickyConversion.findUnique({
+    where: {
+      shop_orderId: {
+        shop,
+        orderId
+      }
     }
+  });
+  if (existing) return;
 
-    // TODO: attribution logic
-  } catch (err) {
-    console.error("ORDERS_PAID handler failed", err);
-    throw err;
-  }
+  const checkoutToken = order.checkout_token;
+  if (!checkoutToken) return;
+
+  const variantIds = order.line_items.map((li) =>
+    BigInt(li.variant_id)
+  );
+
+  // Find Sticky ATC intent within attribution window
+  const events = await prisma.stickyAtcEvent.findMany({
+    where: {
+      shop,
+      checkoutToken,
+      variantId: { in: variantIds },
+      createdAt: {
+        gte: new Date(Date.now() - 1000 * 60 * 60 * 24) // 24h window
+      }
+    }
+  });
+
+  if (!events.length) return;
+
+  await prisma.stickyConversion.create({
+    data: {
+      shop,
+      orderId,
+      checkoutToken,
+      revenue: Number(order.total_price),
+      currency: order.currency,
+      occurredAt: new Date(order.processed_at)
+    }
+  });
+
+  console.log("Sticky ATC influenced revenue recorded", {
+    shop,
+    orderId: order.id,
+    revenue: order.total_price
+  });
 }
 
 /* ────────────────────────────────────────────── */
@@ -55,7 +82,7 @@ export function initShopify(app) {
   const appUrl = new URL(requiredEnv("SHOPIFY_APP_URL"));
   const scopes = requiredEnv("SCOPES")
     .split(",")
-    .map(s => s.trim())
+    .map((s) => s.trim())
     .filter(Boolean);
 
   const sessionStorage = prismaSessionStorage();
@@ -73,7 +100,7 @@ export function initShopify(app) {
   });
 
   /* ────────────────────────────────────────────── */
-  /* WEBHOOKS */
+  /* WEBHOOK REGISTRATION */
   /* ────────────────────────────────────────────── */
 
   shopify.webhooks.addHandlers({
@@ -95,6 +122,7 @@ export function initShopify(app) {
     const sanitizedShop = shopify.utils.sanitizeShop(shop.toString());
     if (!sanitizedShop) return res.status(400).send("Invalid shop");
 
+    // Shopify controls the response lifecycle here
     await shopify.auth.begin({
       shop: sanitizedShop,
       callbackPath: "/auth/callback",
@@ -105,12 +133,12 @@ export function initShopify(app) {
   });
 
   /* ────────────────────────────────────────────── */
-  /* AUTH CALLBACK (FINAL FIX) */
-  /* ────────────────────────────────────────────── */
+  /* AUTH CALLBACK */
+/* ────────────────────────────────────────────── */
 
   app.get("/auth/callback", async (req, res) => {
     try {
-      // ✅ USE RETURNED SESSION
+      // Use session returned by callback
       const { session } = await shopify.auth.callback({
         rawRequest: req,
         rawResponse: res
@@ -121,11 +149,12 @@ export function initShopify(app) {
         return res.status(500).send("OAuth failed");
       }
 
-      // ✅ Register webhooks using THIS session
+      // Register webhooks using this session
       const registerResult = await shopify.webhooks.register({ session });
 
-      const failures = Object.entries(registerResult).flatMap(([topic, results]) =>
-        results.filter(r => !r.success).map(r => ({ topic, ...r }))
+      const failures = Object.entries(registerResult).flatMap(
+        ([topic, results]) =>
+          results.filter((r) => !r.success).map((r) => ({ topic, ...r }))
       );
 
       if (failures.length) {
@@ -134,9 +163,12 @@ export function initShopify(app) {
         console.log("Webhooks registered successfully", registerResult);
       }
 
+      // Redirect back into embedded app
       const host = req.query.host;
       if (!host) {
-        return res.redirect(`https://${session.shop}/admin/apps/${apiKey}`);
+        return res.redirect(
+          `https://${session.shop}/admin/apps/${apiKey}`
+        );
       }
 
       return res.redirect(`/?shop=${session.shop}&host=${host}`);
