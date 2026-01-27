@@ -110,6 +110,24 @@ export function initShopify(app) {
 
       return res.redirect(`/?shop=${shopDomain}&host=${host}`);
     } catch (err) {
+      if (err?.name === "CookieNotFound") {
+        const shop = req.query.shop;
+        const sanitizedShop = shop ? shopify.utils.sanitizeShop(shop.toString()) : null;
+        const host = req.query.host;
+
+        if (sanitizedShop) {
+          const params = new URLSearchParams({ shop: sanitizedShop });
+          if (host) params.set("host", host.toString());
+
+          console.warn("OAuth cookie missing. Restarting auth flow.", {
+            shop: sanitizedShop,
+            host: host?.toString()
+          });
+
+          return res.redirect(`/auth?${params.toString()}`);
+        }
+      }
+
       console.error("Auth callback error:", err);
       return res.status(500).send("Shopify auth failed");
     }
