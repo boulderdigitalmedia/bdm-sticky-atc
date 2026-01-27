@@ -1,48 +1,50 @@
 import React, { useMemo } from "react";
+import { Provider as AppBridgeProvider } from "@shopify/app-bridge-react";
 import { AppProvider } from "@shopify/polaris";
 import "@shopify/polaris/build/esm/styles.css";
 
-import { Provider as AppBridgeProvider } from "@shopify/app-bridge-react";
-
 function getParam(name) {
-  const url = new URL(window.location.href);
-  return url.searchParams.get(name);
+  return new URL(window.location.href).searchParams.get(name);
 }
 
 export default function App() {
   const shop = getParam("shop");
   const host = getParam("host");
 
-  // If opened directly (not in Shopify Admin)
+  // ❌ DO NOT redirect to /auth if host exists
+  // ❌ DO NOT redirect repeatedly
+
+  // Opened directly (not in Shopify)
   if (!shop) {
     return (
       <div style={{ padding: 24 }}>
         <h2>Sticky Add To Cart Bar</h2>
-        <p>Please open this app from inside Shopify Admin.</p>
+        <p>This app must be opened from Shopify Admin.</p>
       </div>
     );
   }
 
-  // If Shopify loads app without host, bounce to auth once
+  // First install ONLY (no host yet)
   if (!host) {
-    window.location.href = `/auth?shop=${encodeURIComponent(shop)}`;
+    window.location.replace(`/auth?shop=${encodeURIComponent(shop)}`);
     return null;
   }
 
-  const appBridgeConfig = useMemo(() => {
-    return {
+  const appBridgeConfig = useMemo(
+    () => ({
       apiKey: window.__SHOPIFY_API_KEY__,
       host,
       forceRedirect: true,
-    };
-  }, [host]);
+    }),
+    [host]
+  );
 
   return (
     <AppProvider i18n={{}}>
       <AppBridgeProvider config={appBridgeConfig}>
         <div style={{ padding: 24 }}>
           <h2>Sticky Add To Cart Bar</h2>
-          <p>✅ Embedded app loaded successfully.</p>
+          <p>✅ Embedded app loaded correctly.</p>
         </div>
       </AppBridgeProvider>
     </AppProvider>
