@@ -1,52 +1,30 @@
-import express from "express";
-import path from "path";
-import fs from "fs";
-import cors from "cors";
-import bodyParser from "body-parser";
-import { fileURLToPath } from "url";
-
-import { initShopify } from "./shopify.js";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const app = express();
-app.set("trust proxy", 1);
-
-app.use(cors());
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
-
-// Initialize Shopify OAuth
-initShopify(app);
-
-// Serve frontend static assets
-app.use(express.static(path.join(__dirname, "frontend", "dist"), { index: false }));
-
-// Inject API key into index.html
-app.get("*", (_req, res) => {
+app.get("*", (req, res) => {
   const indexPath = path.join(__dirname, "frontend", "dist", "index.html");
-  const apiKey = process.env.SHOPIFY_API_KEY;
+  const apiKey = process.env.SHOPIFY_API_KEY || "";
 
-  if (!apiKey) {
-    console.error("❌ SHOPIFY_API_KEY missing on server");
-    return res.status(500).send("Missing Shopify API key");
+  // If Shopify is loading embedded app, these should exist
+  const shop = req.query.shop;
+  const host = req.query.host;
+
+  // ✅ If user opens Render URL directly (no shop/host), DO NOT redirect forever
+  if (!shop && !host) {
+    return res.status(200).send(`
+      <html>
+        <head><title>Sticky Add To Cart Bar</title></head>
+        <body style="font-family: sans-serif; padding: 24px;">
+          <h2>Sticky Add To Cart Bar</h2>
+          <p>This app must be opened from inside Shopify Admin.</p>
+        </body>
+      </html>
+    `);
   }
 
-  let html = fs.readFileSync(indexPath, "utf8");
+  const html = fs
+    .readFileSync(indexPath, "utf8")
+    .replace(
+      "</head>",
+      `<script>window.__SHOPIFY_API_KEY__ = ${JSON.stringify(apiKey)};</script></head>`
+    );
 
-  html = html.replace(
-    "</head>",
-    `<script>
-      window.__SHOPIFY_API_KEY__ = ${JSON.stringify(apiKey)};
-    </script></head>`
-  );
-
-  res.setHeader("Content-Type", "text/html");
   res.send(html);
-});
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`✅ Server running on port ${PORT}`);
 });
