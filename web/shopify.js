@@ -84,19 +84,21 @@ export function initShopify(app) {
         );
       }
 
-      try {
-        const registerResult = await shopify.webhooks.register({ session });
-        const failures = Object.entries(registerResult).flatMap(([topic, results]) =>
-          results
-            .filter((result) => !result.success)
-            .map((result) => ({ topic, ...result }))
-        );
-        if (failures.length) {
-          console.error("Webhook registration failures:", failures);
+      if (session?.accessToken) {
+        try {
+          const registerResult = await shopify.webhooks.register({ session });
+          const failures = Object.entries(registerResult).flatMap(([topic, results]) =>
+            results
+              .filter((result) => !result.success)
+              .map((result) => ({ topic, ...result }))
+          );
+          if (failures.length) {
+            console.error("Webhook registration failures:", failures);
+          }
+          console.log("Webhook register result:", registerResult);
+        } catch (err) {
+          console.error("Webhook registration failed:", err);
         }
-        console.log("Webhook register result:", registerResult);
-      } catch (err) {
-        console.error("Webhook registration failed:", err);
       }
 
       // Shopify admin passes host param on embedded loads
