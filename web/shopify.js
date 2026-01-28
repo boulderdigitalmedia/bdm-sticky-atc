@@ -82,7 +82,6 @@ export function initShopify(app) {
     .map(s => s.trim())
     .filter(Boolean);
 
-  // ✅ KEEP A REFERENCE TO SESSION STORAGE
   const sessionStorage = prismaSessionStorage();
 
   const shopify = shopifyApi({
@@ -133,19 +132,12 @@ export function initShopify(app) {
         return res.status(500).send("OAuth failed");
       }
 
-      // ✅ FIXED: use sessionStorage, not shopify.sessionStorage
-      const offlineSession = await sessionStorage.loadSession(
-        `offline_${session.shop}`
-      );
+      // ✅ CORRECT: session IS the offline session
+      const registerResult = await shopify.webhooks.register({
+        session
+      });
 
-      if (!offlineSession?.accessToken) {
-        console.error("Missing offline session for webhook registration");
-      } else {
-        const registerResult = await shopify.webhooks.register({
-          session: offlineSession
-        });
-        console.log("Webhook registration result:", registerResult);
-      }
+      console.log("Webhook registration result:", registerResult);
 
       const host = req.query.host;
       if (!host) {
