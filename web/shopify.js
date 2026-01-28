@@ -17,7 +17,7 @@ function requiredEnv(name) {
 async function ordersPaidWebhook(topic, shop, body) {
   const order = JSON.parse(body);
 
-  // ✅ CRITICAL FIX: normalize shop domain
+  // Normalize shop domain
   const shopDomain = shop.endsWith(".myshopify.com")
     ? shop
     : `${shop}.myshopify.com`;
@@ -38,7 +38,7 @@ async function ordersPaidWebhook(topic, shop, body) {
   const checkoutToken = order.checkout_token;
   if (!checkoutToken) return;
 
-  const variantIds = order.line_items.map((li) =>
+  const variantIds = order.line_items.map(li =>
     BigInt(li.variant_id)
   );
 
@@ -82,7 +82,7 @@ export function initShopify(app) {
   const appUrl = new URL(requiredEnv("SHOPIFY_APP_URL"));
   const scopes = requiredEnv("SCOPES")
     .split(",")
-    .map((s) => s.trim())
+    .map(s => s.trim())
     .filter(Boolean);
 
   const sessionStorage = prismaSessionStorage();
@@ -99,7 +99,7 @@ export function initShopify(app) {
     sessionStorage
   });
 
-  /* WEBHOOK REGISTRATION */
+  /* WEBHOOK HANDLERS */
 
   shopify.webhooks.addHandlers({
     ORDERS_PAID: {
@@ -141,17 +141,18 @@ export function initShopify(app) {
         return res.status(500).send("OAuth failed");
       }
 
-      const registerResult = await shopify.webhooks.register({ session });
-
-      const failures = Object.entries(registerResult).flatMap(
-        ([topic, results]) =>
-          results.filter((r) => !r.success).map((r) => ({ topic, ...r }))
+      // 🔒 CRITICAL FIX: register webhooks with OFFLINE session
+      const offlineSession = await shopify.sessionStorage.loadSession(
+        `offline_${session.shop}`
       );
 
-      if (failures.length) {
-        console.error("Webhook registration failures", failures);
+      if (!offlineSession?.accessToken) {
+        console.error("Missing offline session for webhook registration");
       } else {
-        console.log("Webhooks registered successfully", registerResult);
+        const registerResult = await shopify.webhooks.register({
+          session: offlineSession
+        });
+        console.log("Webhook registration result:", registerResult);
       }
 
       const host = req.query.host;
