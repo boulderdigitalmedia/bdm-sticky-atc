@@ -17,14 +17,12 @@ function requiredEnv(name) {
 async function ordersPaidWebhook(topic, shop, body) {
   const order = JSON.parse(body);
 
-  // Normalize shop domain
   const shopDomain = shop.endsWith(".myshopify.com")
     ? shop
     : `${shop}.myshopify.com`;
 
   const orderId = BigInt(order.id);
 
-  // Prevent double-counting
   const existing = await prisma.stickyConversion.findUnique({
     where: {
       shop_orderId: {
@@ -42,14 +40,13 @@ async function ordersPaidWebhook(topic, shop, body) {
     BigInt(li.variant_id)
   );
 
-  // Find Sticky ATC intent within attribution window
   const events = await prisma.stickyAtcEvent.findMany({
     where: {
       shop: shopDomain,
       checkoutToken,
       variantId: { in: variantIds },
       createdAt: {
-        gte: new Date(Date.now() - 1000 * 60 * 60 * 24) // 24h window
+        gte: new Date(Date.now() - 1000 * 60 * 60 * 24)
       }
     }
   });
@@ -85,6 +82,7 @@ export function initShopify(app) {
     .map(s => s.trim())
     .filter(Boolean);
 
+  // ✅ KEEP A REFERENCE TO SESSION STORAGE
   const sessionStorage = prismaSessionStorage();
 
   const shopify = shopifyApi({
@@ -99,8 +97,6 @@ export function initShopify(app) {
     sessionStorage
   });
 
-  /* WEBHOOK HANDLERS */
-
   shopify.webhooks.addHandlers({
     ORDERS_PAID: {
       deliveryMethod: DeliveryMethod.Http,
@@ -108,8 +104,6 @@ export function initShopify(app) {
       callback: ordersPaidWebhook
     }
   });
-
-  /* AUTH START */
 
   app.get("/auth", async (req, res) => {
     const shop = req.query.shop;
@@ -127,8 +121,6 @@ export function initShopify(app) {
     });
   });
 
-  /* AUTH CALLBACK */
-
   app.get("/auth/callback", async (req, res) => {
     try {
       const { session } = await shopify.auth.callback({
@@ -141,8 +133,8 @@ export function initShopify(app) {
         return res.status(500).send("OAuth failed");
       }
 
-      // 🔒 CRITICAL FIX: register webhooks with OFFLINE session
-      const offlineSession = await shopify.sessionStorage.loadSession(
+      // ✅ FIXED: use sessionStorage, not shopify.sessionStorage
+      const offlineSession = await sessionStorage.loadSession(
         `offline_${session.shop}`
       );
 
