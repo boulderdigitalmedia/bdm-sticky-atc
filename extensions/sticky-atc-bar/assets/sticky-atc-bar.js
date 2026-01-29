@@ -61,6 +61,34 @@
     } catch {}
   }
 
+  // 🔑 NEW: get cart token
+  async function getCartToken() {
+    const res = await fetch("/cart.js", { credentials: "same-origin" });
+    const cart = await res.json();
+    return cart.token;
+  }
+
+  // 🔑 NEW: send attribution (fire-and-forget)
+  async function sendStickyAttribution({ cartToken, productId, variantId }) {
+    try {
+      await fetch("/apps/bdm-sticky-atc/checkout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Shopify-Shop-Domain": window.Shopify?.shop
+        },
+        body: JSON.stringify({
+          cartToken,
+          productId,
+          variantId
+        })
+      });
+    } catch (err) {
+      // never block checkout
+      console.warn("Sticky attribution failed", err);
+    }
+  }
+
   /* ---------------- Abort if disabled ---------------- */
 
   if (!shouldRender()) return;
@@ -148,8 +176,7 @@
     // click intent
     track("sticky_atc_click", {
       productId: product.id,
-      variantId: selectedVariantId,
-      checkoutToken: window.Shopify?.checkout?.token || null
+      variantId: selectedVariantId
     });
 
     const payload = {
@@ -168,9 +195,16 @@
       body: JSON.stringify(payload)
     });
 
-    // successful ATC
     if (res.ok) {
       track("sticky_atc_success", {
+        productId: product.id,
+        variantId: selectedVariantId
+      });
+
+      // 🔑 NEW: capture cart token + write StickyAttribution
+      const cartToken = await getCartToken();
+      sendStickyAttribution({
+        cartToken,
         productId: product.id,
         variantId: selectedVariantId
       });
