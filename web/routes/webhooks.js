@@ -57,22 +57,19 @@ export async function ordersCreate(req, res) {
 
     const orderId = order.id.toString();
 
-    // prevent double counting
-    const existing = await prisma.stickyConversion.findUnique({
+    // ✅ FIX: use findFirst (no composite unique key)
+    const existing = await prisma.stickyConversion.findFirst({
       where: {
-        shop_orderId: {
-          shop,
-          orderId
-        }
+        shop,
+        orderId
       }
     });
+
     if (existing) return res.sendStatus(200);
 
     const checkoutToken = order.checkout_token;
     const cartToken = order.cart_token;
     const attributionToken = checkoutToken || cartToken;
-
-    let attributed = false;
 
     // 1️⃣ Try explicit StickyAttribution match
     if (attributionToken) {
@@ -97,7 +94,7 @@ export async function ordersCreate(req, res) {
       }
     }
 
-    // 2️⃣ FALLBACK: match recent Sticky ATC intent by variant
+    // 2️⃣ FALLBACK: recent Sticky ATC intent by variant
     const variantIds = order.line_items
       .map(li => li.variant_id)
       .filter(Boolean)
