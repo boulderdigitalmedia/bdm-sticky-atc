@@ -21,12 +21,8 @@ function verifyShopifyHmac(req) {
   const hmacHeader =
     req.get("X-Shopify-Hmac-Sha256") || req.get("x-shopify-hmac-sha256");
 
-  if (!hmacHeader) {
-    return { ok: false, reason: "Missing HMAC header" };
-  }
-
-  if (!Buffer.isBuffer(req.body)) {
-    return { ok: false, reason: "Body is not raw Buffer" };
+  if (!hmacHeader || !Buffer.isBuffer(req.body)) {
+    return { ok: false };
   }
 
   const secret = requiredEnv("SHOPIFY_API_SECRET");
@@ -36,8 +32,7 @@ function verifyShopifyHmac(req) {
     .update(req.body)
     .digest("base64");
 
-  const valid = timingSafeEqual(digest, hmacHeader);
-  return valid ? { ok: true } : { ok: false, reason: "HMAC mismatch" };
+  return timingSafeEqual(digest, hmacHeader) ? { ok: true } : { ok: false };
 }
 
 function parseWebhookBody(req) {
@@ -46,82 +41,95 @@ function parseWebhookBody(req) {
 
 export async function ordersCreate(req, res) {
   console.log("🔥 ORDERS_PAID WEBHOOK RECEIVED (RAW ROUTE)", {
-    receivedAt: new Date().toISOString(),
+    receivedAt: new Date().toISOString()
   });
 
   try {
-    // 1️⃣ Verify HMAC
-    const hmacCheck = verifyShopifyHmac(req);
-    if (!hmacCheck.ok) {
-      console.warn("Webhook rejected:", hmacCheck.reason);
+    if (!verifyShopifyHmac(req).ok) {
       return res.status(401).send("Invalid webhook");
     }
 
-    // 2️⃣ Parse payload
     const order = parseWebhookBody(req);
     if (!order?.id) return res.sendStatus(200);
 
     const shop =
-      req.get("X-Shopify-Shop-Domain") ||
-      order.shop_domain;
+      req.get("X-Shopify-Shop-Domain") || order.shop_domain;
+
+    const orderId = order.id.toString();
+
+    // prevent double counting
+    const existing = await prisma.stickyConversion.findUnique({
+      where: {
+        shop_orderId: {
+          shop,
+          orderId
+        }
+      }
+    });
+    if (existing) return res.sendStatus(200);
 
     const checkoutToken = order.checkout_token;
     const cartToken = order.cart_token;
     const attributionToken = checkoutToken || cartToken;
 
-    if (!attributionToken) {
-      console.log("ℹ️ Order has no attribution token", order.id);
-      return res.sendStatus(200);
-    }
+    let attributed = false;
 
-    // 3️⃣ Find attribution
-    const attribution = await prisma.stickyAttribution.findUnique({
-      where: { checkoutToken: attributionToken },
-    });
-
-    if (!attribution) {
-      console.log("⚠️ No StickyAttribution found", {
-        attributionToken,
-        orderId: order.id,
+    // 1️⃣ Try explicit StickyAttribution match
+    if (attributionToken) {
+      const attribution = await prisma.stickyAttribution.findUnique({
+        where: { checkoutToken: attributionToken }
       });
-      return res.sendStatus(200);
+
+      if (attribution) {
+        await prisma.stickyConversion.create({
+          data: {
+            id: generateId(),
+            shop,
+            orderId,
+            revenue: Number(order.total_price),
+            currency: order.currency,
+            occurredAt: new Date(order.processed_at)
+          }
+        });
+
+        console.log("✅ Revenue attributed via token match", orderId);
+        return res.sendStatus(200);
+      }
     }
 
-    // 4️⃣ Prevent double counting
-    const existing = await prisma.stickyConversion.findUnique({
+    // 2️⃣ FALLBACK: match recent Sticky ATC intent by variant
+    const variantIds = order.line_items
+      .map(li => li.variant_id)
+      .filter(Boolean)
+      .map(String);
+
+    const recentIntent = await prisma.stickyAtcEvent.findFirst({
       where: {
-        shop_orderId: {
-          shop: attribution.shop,
-          orderId: order.id.toString(),
-        },
-      },
+        shop,
+        variantId: { in: variantIds },
+        createdAt: {
+          gte: new Date(Date.now() - 1000 * 60 * 60 * 24) // 24h window
+        }
+      }
     });
 
-    if (existing) {
-      console.log("ℹ️ Duplicate order ignored", order.id);
+    if (recentIntent) {
+      await prisma.stickyConversion.create({
+        data: {
+          id: generateId(),
+          shop,
+          orderId,
+          revenue: Number(order.total_price),
+          currency: order.currency,
+          occurredAt: new Date(order.processed_at)
+        }
+      });
+
+      console.log("✅ Revenue attributed via fallback intent match", orderId);
       return res.sendStatus(200);
     }
 
-    // 5️⃣ Write conversion
-    await prisma.stickyConversion.create({
-      data: {
-        id: generateId(),
-        shop: attribution.shop,
-        orderId: order.id.toString(),
-        revenue: Number(order.total_price),
-        currency: order.currency,
-        occurredAt: order.processed_at
-          ? new Date(order.processed_at)
-          : new Date(),
-      },
-    });
-
-    console.log("✅ Sticky ATC influenced revenue recorded", {
-      shop: attribution.shop,
-      orderId: order.id,
-      revenue: order.total_price,
-    });
-
+    console.log("⚠️ No attribution match found", orderId);
     return res.sendStatus(200);
   } catch (err) {
     console.error("❌ Order webhook error:", err);
