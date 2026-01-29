@@ -14,6 +14,11 @@ function requiredEnv(name) {
 
 /* WEBHOOK HANDLER: ORDERS_PAID */
 
+console.log("🔥 ORDERS_PAID WEBHOOK RECEIVED", {
+  shop,
+  at: new Date().toISOString()
+});
+
 async function ordersPaidWebhook(topic, shop, body) {
   const order = JSON.parse(body);
 
