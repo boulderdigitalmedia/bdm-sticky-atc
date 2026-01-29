@@ -62,6 +62,9 @@ function parseWebhookBody(req) {
 }
 
 export async function ordersCreate(req, res) {
+  console.log("🔥 ORDERS_PAID WEBHOOK RECEIVED (RAW ROUTE)", {
+  receivedAt: new Date().toISOString()
+});
   try {
     // ✅ 1) Verify HMAC
     const hmacCheck = verifyShopifyHmac(req);
