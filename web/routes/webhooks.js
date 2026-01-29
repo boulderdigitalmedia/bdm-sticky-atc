@@ -13,29 +13,20 @@ function requiredEnv(name) {
 function timingSafeEqual(a, b) {
   const aBuf = Buffer.from(a);
   const bBuf = Buffer.from(b);
-
-  // Must be same length or timingSafeEqual throws
   if (aBuf.length !== bBuf.length) return false;
-
   return crypto.timingSafeEqual(aBuf, bBuf);
 }
 
 function verifyShopifyHmac(req) {
-  // Shopify sends this header
   const hmacHeader =
     req.get("X-Shopify-Hmac-Sha256") || req.get("x-shopify-hmac-sha256");
 
   if (!hmacHeader) {
-    return { ok: false, reason: "Missing X-Shopify-Hmac-Sha256 header" };
+    return { ok: false, reason: "Missing HMAC header" };
   }
 
-  // We must have raw body (Buffer) to compute correct HMAC
   if (!Buffer.isBuffer(req.body)) {
-    return {
-      ok: false,
-      reason:
-        "req.body is not a Buffer. Ensure express.raw({ type: '*/*' }) is used BEFORE bodyParser.json().",
-    };
+    return { ok: false, reason: "Body is not raw Buffer" };
   }
 
   const secret = requiredEnv("SHOPIFY_API_SECRET");
@@ -46,78 +37,94 @@ function verifyShopifyHmac(req) {
     .digest("base64");
 
   const valid = timingSafeEqual(digest, hmacHeader);
-
-  return valid ? { ok: true } : { ok: false, reason: "HMAC validation failed" };
+  return valid ? { ok: true } : { ok: false, reason: "HMAC mismatch" };
 }
 
 function parseWebhookBody(req) {
-  if (!Buffer.isBuffer(req.body)) {
-    throw new Error(
-      "Expected raw Buffer body. Ensure express.raw({ type: '*/*' }) is set on this route."
-    );
-  }
-
-  const text = req.body.toString("utf8");
-  return JSON.parse(text);
+  return JSON.parse(req.body.toString("utf8"));
 }
 
 export async function ordersCreate(req, res) {
   console.log("🔥 ORDERS_PAID WEBHOOK RECEIVED (RAW ROUTE)", {
-  receivedAt: new Date().toISOString()
-});
+    receivedAt: new Date().toISOString(),
+  });
+
   try {
-    // ✅ 1) Verify HMAC
+    // 1️⃣ Verify HMAC
     const hmacCheck = verifyShopifyHmac(req);
     if (!hmacCheck.ok) {
-      console.warn("⚠️ Webhook rejected:", {
-        reason: hmacCheck.reason,
-        shop: req.get("X-Shopify-Shop-Domain") || req.get("x-shopify-shop-domain"),
-        topic: req.get("X-Shopify-Topic") || req.get("x-shopify-topic"),
-      });
-      return res.status(401).send("Invalid webhook signature");
+      console.warn("Webhook rejected:", hmacCheck.reason);
+      return res.status(401).send("Invalid webhook");
     }
 
-    // ✅ 2) Parse JSON body
+    // 2️⃣ Parse payload
     const order = parseWebhookBody(req);
-
-    // Safety: if payload isn't an order, just ack
     if (!order?.id) return res.sendStatus(200);
+
+    const shop =
+      req.get("X-Shopify-Shop-Domain") ||
+      order.shop_domain;
 
     const checkoutToken = order.checkout_token;
     const cartToken = order.cart_token;
     const attributionToken = checkoutToken || cartToken;
 
-    if (!attributionToken) return res.sendStatus(200);
+    if (!attributionToken) {
+      console.log("ℹ️ Order has no attribution token", order.id);
+      return res.sendStatus(200);
+    }
 
+    // 3️⃣ Find attribution
     const attribution = await prisma.stickyAttribution.findUnique({
       where: { checkoutToken: attributionToken },
     });
 
-    if (!attribution) return res.sendStatus(200);
+    if (!attribution) {
+      console.log("⚠️ No StickyAttribution found", {
+        attributionToken,
+        orderId: order.id,
+      });
+      return res.sendStatus(200);
+    }
 
-    // Prevent double conversions
-    const existing = await prisma.stickyConversion.findFirst({
-      where: { orderId: order.id.toString() },
+    // 4️⃣ Prevent double counting
+    const existing = await prisma.stickyConversion.findUnique({
+      where: {
+        shop_orderId: {
+          shop: attribution.shop,
+          orderId: order.id.toString(),
+        },
+      },
     });
 
-    if (existing) return res.sendStatus(200);
+    if (existing) {
+      console.log("ℹ️ Duplicate order ignored", order.id);
+      return res.sendStatus(200);
+    }
 
+    // 5️⃣ Write conversion
     await prisma.stickyConversion.create({
       data: {
         id: generateId(),
         shop: attribution.shop,
         orderId: order.id.toString(),
-        revenue: parseFloat(order.total_price),
+        revenue: Number(order.total_price),
         currency: order.currency,
-        occurredAt: order.created_at ? new Date(order.created_at) : new Date(),
+        occurredAt: order.processed_at
+          ? new Date(order.processed_at)
+          : new Date(),
       },
+    });
+
+    console.log("✅ Sticky ATC influenced revenue recorded", {
+      shop: attribution.shop,
+      orderId: order.id,
+      revenue: order.total_price,
     });
 
     return res.sendStatus(200);
   } catch (err) {
     console.error("❌ Order webhook error:", err);
-
-    // 500 makes Shopify retry (can be useful while debugging)
     return res.sendStatus(500);
   }
 }
