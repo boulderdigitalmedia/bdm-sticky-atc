@@ -14,12 +14,14 @@ function requiredEnv(name) {
 
 /* WEBHOOK HANDLER: ORDERS_PAID */
 
-console.log("🔥 ORDERS_PAID WEBHOOK RECEIVED", {
-  shop,
-  at: new Date().toISOString()
-});
-
 async function ordersPaidWebhook(topic, shop, body) {
+  // 🔥 PROOF LOG — confirms webhook delivery
+  console.log("🔥 ORDERS_PAID WEBHOOK RECEIVED", {
+    topic,
+    shop,
+    receivedAt: new Date().toISOString()
+  });
+
   const order = JSON.parse(body);
 
   const shopDomain = shop.endsWith(".myshopify.com")
@@ -137,7 +139,7 @@ export function initShopify(app) {
         return res.status(500).send("OAuth failed");
       }
 
-      // ✅ CORRECT: session IS the offline session
+      // session IS the offline session
       const registerResult = await shopify.webhooks.register({
         session
       });
