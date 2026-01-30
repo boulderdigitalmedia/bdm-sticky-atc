@@ -1,99 +1,77 @@
-(function () {
-  const BAR_SELECTOR = "#bdm-sticky-atc";
-  const ADD_BUTTON_SELECTOR = "#bdm-atc";
-  const VARIANT_SELECTOR = "#bdm-variant";
-  const QTY_SELECTOR = "#bdm-qty";
+{% comment %}
+  Sticky Add to Cart Bar – App Embed
+{% endcomment %}
 
-  function ready(fn) {
-    if (document.readyState !== "loading") {
-      fn();
-    } else {
-      document.addEventListener("DOMContentLoaded", fn);
+<div id="bdm-sticky-atc-root"></div>
+
+<script>
+  window.BDM_STICKY_ATC_CONFIG = {
+    backgroundColor: "{{ settings.background_color }}",
+    textColor: "{{ settings.text_color }}",
+    buttonColor: "{{ settings.button_color }}",
+
+    enableDesktop: {{ settings.enable_desktop | json }},
+    enableMobile: {{ settings.enable_mobile | json }},
+
+    showQuantity: {{ settings.show_quantity | json }},
+    showVariants: {{ settings.show_variants | json }},
+    showSubscription: {{ settings.show_subscription | json }}
+  };
+</script>
+
+{% schema %}
+{
+  "name": "Sticky Add to Cart Bar",
+  "type": "app_embed",
+  "settings": [
+    {
+      "type": "color",
+      "id": "background_color",
+      "label": "Background color",
+      "default": "#ffffff"
+    },
+    {
+      "type": "color",
+      "id": "text_color",
+      "label": "Text color",
+      "default": "#000000"
+    },
+    {
+      "type": "color",
+      "id": "button_color",
+      "label": "Button color",
+      "default": "#000000"
+    },
+    {
+      "type": "checkbox",
+      "id": "enable_desktop",
+      "label": "Enable on desktop",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "enable_mobile",
+      "label": "Enable on mobile",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_quantity",
+      "label": "Show quantity selector",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_variants",
+      "label": "Show variant selector",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_subscription",
+      "label": "Show subscription selector",
+      "default": true
     }
-  }
-
-  ready(function () {
-    const bar = document.querySelector(BAR_SELECTOR);
-    if (!bar) return;
-
-    const addButton = bar.querySelector(ADD_BUTTON_SELECTOR);
-    if (!addButton) return;
-
-    const config = window.BDM_STICKY_ATC_CONFIG || {};
-
-    // Respect mobile / desktop toggles
-    const isMobile = window.matchMedia("(max-width: 768px)").matches;
-    if (
-      (isMobile && config.enableMobile === false) ||
-      (!isMobile && config.enableDesktop === false)
-    ) {
-      bar.style.display = "none";
-      return;
-    }
-
-    // Apply colors safely
-    if (config.backgroundColor) bar.style.backgroundColor = config.backgroundColor;
-    if (config.textColor) bar.style.color = config.textColor;
-    if (config.buttonColor) addButton.style.backgroundColor = config.buttonColor;
-
-    addButton.addEventListener("click", function (e) {
-      e.preventDefault();
-      e.stopPropagation();
-
-      const variantSelect = bar.querySelector(VARIANT_SELECTOR);
-      const qtyInput = bar.querySelector(QTY_SELECTOR);
-
-      let variantId = null;
-      let quantity = 1;
-
-      // Variant
-      if (variantSelect && variantSelect.value) {
-        variantId = parseInt(variantSelect.value, 10);
-      } else {
-        // fallback: first variant from data attribute
-        try {
-          const variants = JSON.parse(bar.dataset.variants || "[]");
-          variantId = variants[0]?.id;
-        } catch {
-          return;
-        }
-      }
-
-      // Quantity
-      if (qtyInput && qtyInput.value) {
-        quantity = Math.max(1, parseInt(qtyInput.value, 10));
-      }
-
-      if (!variantId) return;
-
-      const payload = {
-        items: [
-          {
-            id: variantId,
-            quantity: quantity
-          }
-        ]
-      };
-
-      fetch("/cart/add.js", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json"
-        },
-        body: JSON.stringify(payload)
-      })
-        .then((res) => {
-          if (!res.ok) throw new Error("Add to cart failed");
-          return res.json();
-        })
-        .then(() => {
-          // Redirect to cart (safe default)
-          window.location.href = "/cart";
-        })
-        .catch((err) => {
-          console.error("[BDM Sticky ATC] Error:", err);
-        });
-    });
-  });
-})();
+  ]
+}
+{% endschema %}
