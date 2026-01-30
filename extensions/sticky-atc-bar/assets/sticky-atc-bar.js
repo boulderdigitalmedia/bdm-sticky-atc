@@ -21,11 +21,6 @@
     return result;
   }
 
-  function formatMoney(cents) {
-    if (typeof cents !== "number") return "";
-    return `$${(cents / 100).toFixed(2)}`;
-  }
-
   function getVariantsFromBar(bar) {
     try {
       const raw = bar.dataset.variants;
@@ -51,10 +46,12 @@
     return id;
   }
 
+  /* ---------------- Analytics ---------------- */
+
   function track(event, data = {}) {
     console.log("[BDM Sticky ATC] track()", event, data);
     try {
-      fetch("/api/track", {
+      fetch("/apps/bdm-sticky-atc/track", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
@@ -82,7 +79,7 @@
 
   async function sendStickyAttribution({ cartToken, productId, variantId }) {
     try {
-      fetch("/apps/bdm-sticky-atc/checkout", {
+      const res = await fetch("/apps/bdm-sticky-atc/checkout", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -91,8 +88,17 @@
         credentials: "same-origin",
         keepalive: true,
         body: JSON.stringify({ cartToken, productId, variantId })
-      }).catch(() => {});
-    } catch {}
+      });
+
+      if (!res.ok) {
+        console.warn(
+          "[BDM Sticky ATC] Attribution endpoint missing or rejected:",
+          res.status
+        );
+      }
+    } catch (err) {
+      console.warn("[BDM Sticky ATC] Attribution failed safely", err);
+    }
   }
 
   /* ---------------- Init ---------------- */
@@ -138,7 +144,7 @@
     if (qtyInput && CONFIG.showQuantity === false) qtyInput.style.display = "none";
     if (variantSelect && CONFIG.showVariants === false) variantSelect.style.display = "none";
 
-    /* ---------------- Populate variant selector ---------------- */
+    /* ---------------- Variant selector ---------------- */
 
     if (variantSelect && CONFIG.showVariants !== false && variants.length > 1) {
       variantSelect.innerHTML = "";
