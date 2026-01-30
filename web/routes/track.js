@@ -10,7 +10,19 @@ router.post("/track", express.json(), async (req, res) => {
       return res.status(400).json({ ok: false });
     }
 
-    // Always store generic analytics
+    const {
+      productId,
+      variantId,
+      checkoutToken,
+      sessionId
+    } = data || {};
+
+    const timestamp = new Date();
+
+    /* ────────────────────────────────────────────── */
+    /* 1️⃣ GENERIC ANALYTICS (UNCHANGED) */
+    /* ────────────────────────────────────────────── */
+
     await prisma.analyticsEvent.create({
       data: {
         shop,
@@ -19,24 +31,43 @@ router.post("/track", express.json(), async (req, res) => {
       }
     });
 
-    // Sticky ATC attribution intent
-    if (
-      event === "sticky_atc_click" ||
-      event === "sticky_atc_success"
-    ) {
-      const { productId, variantId, checkoutToken, sessionId } = data || {};
+    /* ────────────────────────────────────────────── */
+    /* 2️⃣ STICKY EVENT (USED BY WEBHOOK FALLBACK) */
+    /* ────────────────────────────────────────────── */
 
-      if (variantId && sessionId) {
-        await prisma.stickyAtcEvent.create({
-          data: {
-            shop,
-            productId: productId ? BigInt(productId) : null,
-            variantId: BigInt(variantId),
-            checkoutToken: checkoutToken || null,
-            sessionId
-          }
-        });
-      }
+    if (event.startsWith("sticky_atc")) {
+      await prisma.stickyEvent.create({
+        data: {
+          id: crypto.randomUUID(),
+          shop,
+          event,
+          productId: productId ? String(productId) : null,
+          variantId: variantId ? String(variantId) : null,
+          quantity: null,
+          price: null,
+          timestamp
+        }
+      });
+    }
+
+    /* ────────────────────────────────────────────── */
+    /* 3️⃣ STICKY ATC INTENT (TOKEN / SESSION MATCHING) */
+    /* ────────────────────────────────────────────── */
+
+    if (
+      (event === "sticky_atc_click" || event === "sticky_atc_success") &&
+      variantId &&
+      sessionId
+    ) {
+      await prisma.stickyAtcEvent.create({
+        data: {
+          shop,
+          productId: productId ? BigInt(productId) : null,
+          variantId: BigInt(variantId),
+          checkoutToken: checkoutToken || null,
+          sessionId
+        }
+      });
     }
 
     return res.json({ ok: true });
