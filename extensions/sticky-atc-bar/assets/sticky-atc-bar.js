@@ -14,26 +14,6 @@
     return true;
   }
 
-  function formatMoney(cents) {
-    if (typeof cents !== "number") return "";
-    return `$${(cents / 100).toFixed(2)}`;
-  }
-
-  function getProductJson() {
-    const script =
-      document.querySelector('script[type="application/json"][data-product-json]') ||
-      document.querySelector("#ProductJson");
-
-    if (!script) return null;
-    try {
-      return JSON.parse(script.textContent);
-    } catch {
-      return null;
-    }
-  }
-
-  /* ---------------- Attribution helpers ---------------- */
-
   function getStickyAtcSessionId() {
     const KEY = "bdm_sticky_atc_session_id";
     let id = localStorage.getItem(KEY);
@@ -49,6 +29,7 @@
       fetch("/api/track", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
         body: JSON.stringify({
           shop: window.Shopify?.shop,
           event,
@@ -56,16 +37,13 @@
             ...data,
             sessionId: getStickyAtcSessionId()
           }
-        }),
-        credentials: "same-origin" // ✅ FIX
+        })
       }).catch(() => {});
     } catch {}
   }
 
   async function getCartToken() {
-    const res = await fetch("/cart.js", {
-      credentials: "same-origin" // ✅ FIX (consistency)
-    });
+    const res = await fetch("/cart.js", { credentials: "same-origin" });
     const cart = await res.json();
     return cart.token;
   }
@@ -78,142 +56,103 @@
           "Content-Type": "application/json",
           "X-Shopify-Shop-Domain": window.Shopify?.shop
         },
-        body: JSON.stringify({
+        credentials: "same-origin",
+        body: JSON.stringify({ cartToken, productId, variantId })
+      });
+    } catch {}
+  }
+
+  /* ---------------- Init ---------------- */
+
+  document.addEventListener("DOMContentLoaded", () => {
+    const bar = document.getElementById(BAR_ID);
+    if (!bar) return;
+
+    if (!shouldRender()) {
+      bar.style.display = "none";
+      return;
+    }
+
+    const button = bar.querySelector("#bdm-atc");
+    const qtyInput = bar.querySelector("#bdm-qty");
+    const variantSelect = bar.querySelector("#bdm-variant");
+
+    if (!button) return;
+
+    /* ---------------- Apply settings ---------------- */
+
+    if (CONFIG.backgroundColor) bar.style.backgroundColor = CONFIG.backgroundColor;
+    if (CONFIG.textColor) bar.style.color = CONFIG.textColor;
+    if (CONFIG.buttonColor) button.style.backgroundColor = CONFIG.buttonColor;
+    if (CONFIG.buttonText) button.textContent = CONFIG.buttonText;
+
+    if (qtyInput && CONFIG.showQuantity === false) qtyInput.style.display = "none";
+    if (variantSelect && CONFIG.showVariants === false) variantSelect.style.display = "none";
+
+    /* ---------------- Resolve variant ---------------- */
+
+    function getVariantId() {
+      if (variantSelect && variantSelect.value) {
+        return Number(variantSelect.value);
+      }
+
+      try {
+        const variants = JSON.parse(bar.dataset.variants || "[]");
+        return variants[0]?.id || null;
+      } catch {
+        return null;
+      }
+    }
+
+    function getQuantity() {
+      if (CONFIG.showQuantity === false) return 1;
+      return Math.max(1, Number(qtyInput?.value || 1));
+    }
+
+    /* ---------------- Impression ---------------- */
+
+    track("sticky_atc_impression", {
+      productId: window.ShopifyAnalytics?.meta?.product?.id
+    });
+
+    /* ---------------- Add to cart ---------------- */
+
+    button.addEventListener("click", async () => {
+      const variantId = getVariantId();
+      if (!variantId) return;
+
+      track("sticky_atc_click", {
+        variantId
+      });
+
+      const payload = {
+        items: [
+          {
+            id: variantId,
+            quantity: getQuantity()
+          }
+        ]
+      };
+
+      const res = await fetch("/cart/add.js", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        track("sticky_atc_success", { variantId });
+
+        const cartToken = await getCartToken();
+        sendStickyAttribution({
           cartToken,
-          productId,
+          productId: window.ShopifyAnalytics?.meta?.product?.id,
           variantId
-        }),
-        credentials: "same-origin" // ✅ FIX
-      });
-    } catch (err) {
-      console.warn("Sticky attribution failed", err);
-    }
-  }
+        });
+      }
 
-  /* ---------------- Abort if disabled ---------------- */
-
-  if (!shouldRender()) return;
-
-  const product = getProductJson();
-  if (!product) return;
-
-  /* ---------------- DOM ---------------- */
-
-  const bar = document.createElement("div");
-  bar.id = BAR_ID;
-
-  bar.innerHTML = `
-    <div class="bdm-atc-inner">
-      <div class="bdm-atc-info">
-        <span class="bdm-atc-title">${product.title}</span>
-        <span class="bdm-atc-price">${formatMoney(product.price)}</span>
-      </div>
-      <div class="bdm-atc-controls"></div>
-      <button class="bdm-atc-button">Add to cart</button>
-    </div>
-  `;
-
-  document.body.appendChild(bar);
-
-  /* ---------------- Impression tracking ---------------- */
-
-  track("sticky_atc_impression", {
-    productId: product.id
-  });
-
-  /* ---------------- Styles ---------------- */
-
-  if (CONFIG.backgroundColor) bar.style.backgroundColor = CONFIG.backgroundColor;
-  if (CONFIG.textColor) bar.style.color = CONFIG.textColor;
-
-  const button = bar.querySelector(".bdm-atc-button");
-  if (button && CONFIG.buttonColor) {
-    button.style.backgroundColor = CONFIG.buttonColor;
-  }
-
-  /* ---------------- Controls ---------------- */
-
-  const controls = bar.querySelector(".bdm-atc-controls");
-
-  let quantity = 1;
-  let selectedVariantId = product.variants[0]?.id; // number
-  let selectedSellingPlanId = null;
-
-  if (CONFIG.showQuantity !== false) {
-    const qty = document.createElement("input");
-    qty.type = "number";
-    qty.min = "1";
-    qty.value = "1";
-    qty.className = "bdm-atc-qty";
-
-    qty.addEventListener("change", () => {
-      quantity = Math.max(1, parseInt(qty.value, 10) || 1);
+      window.location.href = "/cart";
     });
-
-    controls.appendChild(qty);
-  }
-
-  if (CONFIG.showVariants !== false && product.variants.length > 1) {
-    const select = document.createElement("select");
-    select.className = "bdm-atc-variants";
-
-    product.variants.forEach((v) => {
-      const opt = document.createElement("option");
-      opt.value = v.id;
-      opt.textContent = v.title;
-      select.appendChild(opt);
-    });
-
-    select.addEventListener("change", () => {
-      selectedVariantId = Number(select.value); // ✅ FIX
-    });
-
-    controls.appendChild(select);
-  }
-
-  /* ---------------- Add to cart ---------------- */
-
-  button.addEventListener("click", async () => {
-    track("sticky_atc_click", {
-      productId: product.id,
-      variantId: selectedVariantId
-    });
-
-    const payload = {
-      items: [
-        {
-          id: selectedVariantId,
-          quantity,
-          ...(selectedSellingPlanId
-            ? { selling_plan: selectedSellingPlanId }
-            : {})
-        }
-      ]
-    };
-
-    const res = await fetch("/cart/add.js", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      credentials: "same-origin" // ✅ FIX (THIS IS THE BIG ONE)
-    });
-
-    if (res.ok) {
-      track("sticky_atc_success", {
-        productId: product.id,
-        variantId: selectedVariantId
-      });
-
-      const cartToken = await getCartToken();
-      sendStickyAttribution({
-        cartToken,
-        productId: product.id,
-        variantId: selectedVariantId
-      });
-    } else {
-      console.error("Sticky ATC add failed", await res.text());
-    }
-
-    window.location.href = "/cart";
   });
 })();
