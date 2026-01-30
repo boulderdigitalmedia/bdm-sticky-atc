@@ -16,7 +16,7 @@
       <select id="bdm-variant"></select>
       <input id="bdm-qty" type="number" min="1" value="1" />
       <button id="bdm-atc">
-        {{ settings.button_text }}
+        {{ block.settings.button_text }}
       </button>
     </div>
   </div>
@@ -27,18 +27,18 @@
 
 <script>
   window.BDM_STICKY_ATC_CONFIG = {
-    buttonText: "{{ settings.button_text }}",
+    buttonText: "{{ block.settings.button_text }}",
 
-    backgroundColor: "{{ settings.background_color }}",
-    textColor: "{{ settings.text_color }}",
-    buttonColor: "{{ settings.button_color }}",
+    backgroundColor: "{{ block.settings.background_color }}",
+    textColor: "{{ block.settings.text_color }}",
+    buttonColor: "{{ block.settings.button_color }}",
 
-    enableDesktop: {{ settings.enable_desktop | json }},
-    enableMobile: {{ settings.enable_mobile | json }},
+    enableDesktop: {{ block.settings.enable_desktop | json }},
+    enableMobile: {{ block.settings.enable_mobile | json }},
 
-    showQuantity: {{ settings.show_quantity | json }},
-    showVariants: {{ settings.show_variants | json }},
-    showSubscription: {{ settings.show_subscription | json }}
+    showQuantity: {{ block.settings.show_quantity | json }},
+    showVariants: {{ block.settings.show_variants | json }},
+    showSubscription: {{ block.settings.show_subscription | json }}
   };
 </script>
 
@@ -47,7 +47,7 @@
 {% schema %}
 {
   "name": "Sticky Add To Cart Bar",
-  "type": "app_embed",
+  "target": "body",
   "settings": [
     {
       "type": "text",
