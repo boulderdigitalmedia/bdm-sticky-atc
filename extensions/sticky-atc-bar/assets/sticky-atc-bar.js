@@ -45,21 +45,22 @@
   }
 
   function track(event, data = {}) {
-    try {
-      fetch("/apps/bdm-sticky-atc/track", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          shop: window.Shopify?.shop,
-          event,
-          data: {
-            ...data,
-            sessionId: getStickyAtcSessionId()
-          }
-        })
-      }).catch(() => {});
-    } catch {}
-  }
+  try {
+    fetch("/api/track", {   // ✅ THIS IS THE FIX
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        shop: window.Shopify?.shop,
+        event,
+        data: {
+          ...data,
+          sessionId: getStickyAtcSessionId()
+        }
+      })
+    }).catch(() => {});
+  } catch {}
+}
+
 
   // 🔑 NEW: get cart token
   async function getCartToken() {
