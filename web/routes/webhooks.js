@@ -1,10 +1,6 @@
 import crypto from "crypto";
 import prisma from "../prisma.js";
 
-/* ────────────────────────────────────────────── */
-/* HELPERS */
-/* ────────────────────────────────────────────── */
-
 const generateId = () =>
   crypto.randomUUID
     ? crypto.randomUUID()
@@ -22,10 +18,6 @@ function timingSafeEqual(a, b) {
   if (aBuf.length !== bBuf.length) return false;
   return crypto.timingSafeEqual(aBuf, bBuf);
 }
-
-/* ────────────────────────────────────────────── */
-/* SHOPIFY HMAC VERIFICATION */
-/* ────────────────────────────────────────────── */
 
 function verifyShopifyHmac(req) {
   const hmacHeader =
@@ -52,23 +44,16 @@ function parseWebhookBody(req) {
   return JSON.parse(req.body.toString("utf8"));
 }
 
-/* ────────────────────────────────────────────── */
-/* ORDERS_PAID WEBHOOK HANDLER */
-/* ────────────────────────────────────────────── */
-
 export async function ordersCreate(req, res) {
   console.log("🔥 ORDERS_PAID WEBHOOK RECEIVED (RAW ROUTE)", {
     receivedAt: new Date().toISOString(),
   });
 
   try {
-    /* 1️⃣ Verify HMAC */
     if (!verifyShopifyHmac(req).ok) {
-      console.warn("⚠️ Invalid Shopify webhook signature");
       return res.status(401).send("Invalid webhook");
     }
 
-    /* 2️⃣ Parse payload */
     const order = parseWebhookBody(req);
     if (!order?.id) return res.sendStatus(200);
 
@@ -78,27 +63,18 @@ export async function ordersCreate(req, res) {
 
     const orderId = order.id.toString();
 
-    /* 3️⃣ Prevent double counting */
     const existing = await prisma.stickyConversion.findFirst({
-      where: {
-        shop,
-        orderId,
-      },
+      where: { shop, orderId }
     });
-
-    if (existing) {
-      console.log("ℹ️ Conversion already recorded", orderId);
-      return res.sendStatus(200);
-    }
+    if (existing) return res.sendStatus(200);
 
     const checkoutToken = order.checkout_token;
     const cartToken = order.cart_token;
     const attributionToken = checkoutToken || cartToken;
 
-    /* 4️⃣ PRIMARY: token-based attribution */
     if (attributionToken) {
       const attribution = await prisma.stickyAttribution.findUnique({
-        where: { checkoutToken: attributionToken },
+        where: { checkoutToken: attributionToken }
       });
 
       if (attribution) {
@@ -109,24 +85,17 @@ export async function ordersCreate(req, res) {
             orderId,
             revenue: Number(order.total_price),
             currency: order.currency,
-            occurredAt: order.processed_at
-              ? new Date(order.processed_at)
-              : new Date(),
-          },
+            occurredAt: new Date(order.processed_at)
+          }
         });
 
-        console.log("✅ Revenue attributed via token match", {
-          orderId,
-          shop,
-        });
-
+        console.log("✅ Revenue attributed via token match", orderId);
         return res.sendStatus(200);
       }
     }
 
-    /* 5️⃣ FALLBACK: recent Sticky ATC intent */
     const variantIds = order.line_items
-      .map((li) => li.variant_id)
+      .map(li => li.variant_id)
       .filter(Boolean)
       .map(String);
 
@@ -136,9 +105,9 @@ export async function ordersCreate(req, res) {
         event: "sticky_atc_success",
         variantId: { in: variantIds },
         timestamp: {
-          gte: new Date(Date.now() - 1000 * 60 * 60 * 24), // 24h window
-        },
-      },
+          gte: new Date(Date.now() - 1000 * 60 * 60 * 24)
+        }
+      }
     });
 
     if (recentIntent) {
@@ -149,26 +118,15 @@ export async function ordersCreate(req, res) {
           orderId,
           revenue: Number(order.total_price),
           currency: order.currency,
-          occurredAt: order.processed_at
-            ? new Date(order.processed_at)
-            : new Date(),
-        },
+          occurredAt: new Date(order.processed_at)
+        }
       });
 
-      console.log("✅ Revenue attributed via fallback intent", {
-        orderId,
-        shop,
-      });
-
+      console.log("✅ Revenue attributed via fallback intent", orderId);
       return res.sendStatus(200);
     }
 
-    /* 6️⃣ No attribution */
-    console.log("⚠️ No attribution match found", {
-      orderId,
-      shop,
-    });
-
+    console.log("⚠️ No attribution match found", orderId);
     return res.sendStatus(200);
   } catch (err) {
     console.error("❌ Order webhook error:", err);
