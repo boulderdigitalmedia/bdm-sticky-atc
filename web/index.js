@@ -40,7 +40,7 @@ app.use(bodyParser.urlencoded({ extended: true }));
 // ✅ 5) API routes
 app.use("/api/settings", settingsRouter);
 app.use("/api/track", trackRouter);
-app.use("/apps/bdm-sticky-atc", stickyAnalyticsRouter);
+app.use("/", stickyAnalyticsRouter);
 app.use("/attribution", attributionRouter);
 
 // ✅ 6) Shopify auth + webhook subscription registration
