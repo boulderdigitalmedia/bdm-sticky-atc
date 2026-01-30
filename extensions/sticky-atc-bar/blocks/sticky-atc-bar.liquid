@@ -1,28 +1,28 @@
 {% comment %}
-  Sticky Add to Cart Bar – Theme App Block
+  Sticky Add to Cart Bar – App Embed
 {% endcomment %}
 
 <div id="bdm-sticky-atc-root"></div>
 
 <script>
   window.BDM_STICKY_ATC_CONFIG = {
-    backgroundColor: "{{ block.settings.background_color }}",
-    textColor: "{{ block.settings.text_color }}",
-    buttonColor: "{{ block.settings.button_color }}",
+    backgroundColor: "{{ settings.background_color }}",
+    textColor: "{{ settings.text_color }}",
+    buttonColor: "{{ settings.button_color }}",
 
-    enableDesktop: {{ block.settings.enable_desktop | json }},
-    enableMobile: {{ block.settings.enable_mobile | json }},
+    enableDesktop: {{ settings.enable_desktop | json }},
+    enableMobile: {{ settings.enable_mobile | json }},
 
-    showQuantity: {{ block.settings.show_quantity | json }},
-    showVariants: {{ block.settings.show_variants | json }},
-    showSubscription: {{ block.settings.show_subscription | json }}
+    showQuantity: {{ settings.show_quantity | json }},
+    showVariants: {{ settings.show_variants | json }},
+    showSubscription: {{ settings.show_subscription | json }}
   };
 </script>
 
 {% schema %}
 {
   "name": "Sticky Add to Cart Bar",
-  "target": "body",
+  "type": "app_embed",
   "settings": [
     {
       "type": "color",
