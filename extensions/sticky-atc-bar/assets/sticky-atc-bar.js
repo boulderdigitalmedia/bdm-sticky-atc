@@ -24,12 +24,15 @@
     return id;
   }
 
+  /* ---------------- Analytics ---------------- */
+
   function track(event, data = {}) {
     try {
       fetch("/api/track", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
+        keepalive: true, // ✅ CRITICAL
         body: JSON.stringify({
           shop: window.Shopify?.shop,
           event,
@@ -43,22 +46,26 @@
   }
 
   async function getCartToken() {
-    const res = await fetch("/cart.js", { credentials: "same-origin" });
+    const res = await fetch("/cart.js", {
+      credentials: "same-origin",
+      keepalive: true // ✅
+    });
     const cart = await res.json();
     return cart.token;
   }
 
   async function sendStickyAttribution({ cartToken, productId, variantId }) {
     try {
-      await fetch("/apps/bdm-sticky-atc/checkout", {
+      fetch("/apps/bdm-sticky-atc/checkout", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "X-Shopify-Shop-Domain": window.Shopify?.shop
         },
         credentials: "same-origin",
+        keepalive: true, // ✅ CRITICAL
         body: JSON.stringify({ cartToken, productId, variantId })
-      });
+      }).catch(() => {});
     } catch {}
   }
 
@@ -121,9 +128,7 @@
       const variantId = getVariantId();
       if (!variantId) return;
 
-      track("sticky_atc_click", {
-        variantId
-      });
+      track("sticky_atc_click", { variantId });
 
       const payload = {
         items: [
@@ -152,7 +157,10 @@
         });
       }
 
-      window.location.href = "/cart";
+      // ✅ allow analytics to flush before navigation
+      requestAnimationFrame(() => {
+        window.location.href = "/cart";
+      });
     });
   });
 })();
