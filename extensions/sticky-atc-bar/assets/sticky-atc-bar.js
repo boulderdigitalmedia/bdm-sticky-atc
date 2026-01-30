@@ -45,31 +45,31 @@
   }
 
   function track(event, data = {}) {
-  try {
-    fetch("/api/track", {   // ✅ THIS IS THE FIX
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        shop: window.Shopify?.shop,
-        event,
-        data: {
-          ...data,
-          sessionId: getStickyAtcSessionId()
-        }
-      })
-    }).catch(() => {});
-  } catch {}
-}
+    try {
+      fetch("/api/track", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          shop: window.Shopify?.shop,
+          event,
+          data: {
+            ...data,
+            sessionId: getStickyAtcSessionId()
+          }
+        }),
+        credentials: "same-origin" // ✅ FIX
+      }).catch(() => {});
+    } catch {}
+  }
 
-
-  // 🔑 NEW: get cart token
   async function getCartToken() {
-    const res = await fetch("/cart.js", { credentials: "same-origin" });
+    const res = await fetch("/cart.js", {
+      credentials: "same-origin" // ✅ FIX (consistency)
+    });
     const cart = await res.json();
     return cart.token;
   }
 
-  // 🔑 NEW: send attribution (fire-and-forget)
   async function sendStickyAttribution({ cartToken, productId, variantId }) {
     try {
       await fetch("/apps/bdm-sticky-atc/checkout", {
@@ -82,10 +82,10 @@
           cartToken,
           productId,
           variantId
-        })
+        }),
+        credentials: "same-origin" // ✅ FIX
       });
     } catch (err) {
-      // never block checkout
       console.warn("Sticky attribution failed", err);
     }
   }
@@ -136,7 +136,7 @@
   const controls = bar.querySelector(".bdm-atc-controls");
 
   let quantity = 1;
-  let selectedVariantId = product.variants[0]?.id;
+  let selectedVariantId = product.variants[0]?.id; // number
   let selectedSellingPlanId = null;
 
   if (CONFIG.showQuantity !== false) {
@@ -165,7 +165,7 @@
     });
 
     select.addEventListener("change", () => {
-      selectedVariantId = select.value;
+      selectedVariantId = Number(select.value); // ✅ FIX
     });
 
     controls.appendChild(select);
@@ -174,7 +174,6 @@
   /* ---------------- Add to cart ---------------- */
 
   button.addEventListener("click", async () => {
-    // click intent
     track("sticky_atc_click", {
       productId: product.id,
       variantId: selectedVariantId
@@ -185,7 +184,9 @@
         {
           id: selectedVariantId,
           quantity,
-          selling_plan: selectedSellingPlanId
+          ...(selectedSellingPlanId
+            ? { selling_plan: selectedSellingPlanId }
+            : {})
         }
       ]
     };
@@ -193,7 +194,8 @@
     const res = await fetch("/cart/add.js", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      credentials: "same-origin" // ✅ FIX (THIS IS THE BIG ONE)
     });
 
     if (res.ok) {
@@ -202,13 +204,14 @@
         variantId: selectedVariantId
       });
 
-      // 🔑 NEW: capture cart token + write StickyAttribution
       const cartToken = await getCartToken();
       sendStickyAttribution({
         cartToken,
         productId: product.id,
         variantId: selectedVariantId
       });
+    } else {
+      console.error("Sticky ATC add failed", await res.text());
     }
 
     window.location.href = "/cart";
