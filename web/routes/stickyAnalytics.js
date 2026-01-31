@@ -10,28 +10,40 @@ const router = express.Router();
  */
 router.post("/track", async (req, res) => {
   try {
-    console.log("[STICKY ANALYTICS] TRACK EVENT", req.body);
+    const body = req.body || {};
+    const event = body.event;
 
-    const { shop: bodyShop, event, data, ...rest } = req.body || {};
-    const shop = bodyShop || req.query.shop;
+    // 🔐 Infer shop safely (never require it)
+    const shop =
+      body.shop ||
+      req.get("X-Shopify-Shop-Domain") ||
+      req.query.shop ||
+      "unknown";
 
-    if (!shop || !event) {
-      console.warn("[STICKY ANALYTICS] Missing shop or event");
-      return res.sendStatus(400);
+    // ❗ Event is the ONLY required field
+    if (!event) {
+      return res.status(204).end(); // silent ignore
     }
 
     await prisma.analyticsEvent.create({
       data: {
         shop,
         event,
-        payload: data ?? rest ?? {}
-      }
+        payload: {
+          ...body,
+          shop: undefined, // avoid duplication
+        },
+        createdAt: body.ts ? new Date(body.ts) : new Date(),
+      },
     });
 
-    res.sendStatus(200);
+    // ✅ ALWAYS succeed to storefront
+    res.status(200).json({ ok: true });
   } catch (err) {
     console.error("[STICKY ANALYTICS] Track error", err);
-    res.sendStatus(500);
+
+    // ❗ NEVER error to Shopify storefront
+    res.status(200).json({ ok: false });
   }
 });
 
@@ -51,36 +63,36 @@ router.get("/summary", async (req, res) => {
       prisma.analyticsEvent.count({
         where: {
           shop,
-          event: { in: ["page_view", "sticky_atc_impression"] }
-        }
+          event: { in: ["page_view", "sticky_atc_impression"] },
+        },
       }),
       prisma.analyticsEvent.count({
         where: {
           shop,
           event: {
-            in: ["add_to_cart", "sticky_atc_click", "sticky_atc_success"]
-          }
-        }
+            in: ["add_to_cart", "sticky_atc_click", "sticky_atc_success"],
+          },
+        },
       }),
       prisma.stickyConversion.aggregate({
         where: { shop },
-        _sum: { revenue: true }
-      })
+        _sum: { revenue: true },
+      }),
     ]);
 
     const atcRate = pageViews > 0 ? (addToCart / pageViews) * 100 : null;
     const revenue = revenueAgg._sum.revenue ?? null;
 
-    return res.json({
+    res.json({
       shop,
-      clicks: addToCart,
+      pageViews,
       addToCart,
       atcRate,
-      revenue
+      revenue,
     });
   } catch (err) {
     console.error("[STICKY ANALYTICS] Summary error", err);
-    return res.status(500).json({ error: true });
+    res.status(500).json({ error: true });
   }
 });
 
@@ -91,22 +103,18 @@ router.get("/summary", async (req, res) => {
  */
 router.post("/checkout", async (req, res) => {
   try {
-    console.log("[STICKY ANALYTICS] CHECKOUT ATTRIBUTION", req.body);
-
     const { cartToken, productId, variantId } = req.body || {};
 
     if (!cartToken || !productId || !variantId) {
-      console.warn("[STICKY ANALYTICS] Missing attribution data");
-      return res.sendStatus(400);
+      return res.status(204).end();
     }
 
-    // TODO: write attribution to DB
-    // await prisma.stickyAttribution.create({ ... })
+    // Future attribution logic here
 
-    res.sendStatus(200);
+    res.status(200).json({ ok: true });
   } catch (err) {
     console.error("[STICKY ANALYTICS] Checkout error", err);
-    res.sendStatus(500);
+    res.status(200).json({ ok: false });
   }
 });
 
