@@ -49,7 +49,10 @@ router.get("/summary", async (req, res) => {
 
     const [pageViews, addToCart, revenueAgg] = await Promise.all([
       prisma.analyticsEvent.count({
-        where: { shop, event: "page_view" }
+        where: {
+          shop,
+          event: { in: ["page_view", "sticky_atc_impression"] }
+        }
       }),
       prisma.analyticsEvent.count({
         where: {

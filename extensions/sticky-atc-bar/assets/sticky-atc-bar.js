@@ -48,44 +48,32 @@
 
   /* ---------------- Analytics ---------------- */
 
+  const shopDomain = window.Shopify?.shop || null;
+
   function track(event, payload = {}) {
-  fetch("/apps/bdm-sticky-atc/track", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Shopify-Shop-Domain": window.Shopify?.shop,
-    },
-    credentials: "same-origin",
-    keepalive: true,
-    body: JSON.stringify({
-      event, // 👈 canonical event name
-      productId: payload.productId || null,
-      variantId: payload.variantId || null,
-      quantity: payload.quantity || null,
-      price: payload.price || null,
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-}
-function track(event, payload = {}) {
-  fetch("/apps/bdm-sticky-atc/track", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Shopify-Shop-Domain": window.Shopify?.shop,
-    },
-    credentials: "same-origin",
-    keepalive: true,
-    body: JSON.stringify({
-      event, // 👈 canonical event name
-      productId: payload.productId || null,
-      variantId: payload.variantId || null,
-      quantity: payload.quantity || null,
-      price: payload.price || null,
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-}
+    const url = shopDomain
+      ? `/apps/bdm-sticky-atc/track?shop=${encodeURIComponent(shopDomain)}`
+      : "/apps/bdm-sticky-atc/track";
+
+    fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Shopify-Shop-Domain": shopDomain || ""
+      },
+      credentials: "same-origin",
+      keepalive: true,
+      body: JSON.stringify({
+        shop: shopDomain,
+        event,
+        productId: payload.productId || null,
+        variantId: payload.variantId || null,
+        quantity: payload.quantity || null,
+        price: payload.price || null,
+        timestamp: Date.now()
+      })
+    }).catch(() => {});
+  }
 
   async function getCartToken() {
     const res = await fetch("/cart.js", {
@@ -187,8 +175,9 @@ function track(event, payload = {}) {
       });
     }
 
-    /* ---------------- Impression ---------------- */
+    /* ---------------- Page view + impression ---------------- */
 
+    track("page_view", { productId });
     track("sticky_atc_impression", { productId });
 
     /* ---------------- Add to cart ---------------- */
