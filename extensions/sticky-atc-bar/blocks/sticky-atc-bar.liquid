@@ -1,111 +1,103 @@
-<div
-  id="bdm-sticky-atc"
-  aria-hidden="true"
-  data-sticky-atc
->
-  <div class="bdm-inner">
-    <div class="bdm-left">
-      <div id="bdm-title"></div>
-      <div id="bdm-price"></div>
-    </div>
+(() => {
+  const TRACK_ENDPOINT = "/apps/bdm-sticky-atc/track";
 
-    <div class="bdm-right">
-      <select id="bdm-variant"></select>
+  /* ---------------- Analytics ---------------- */
 
-      <input
-        id="bdm-qty"
-        type="number"
-        min="1"
-        value="1"
-      />
-
-      <button
-        id="bdm-atc"
-        data-bdm-atc
-        type="button"
-      >
-        {{ settings.button_text }}
-      </button>
-    </div>
-  </div>
-</div>
-
-<link rel="stylesheet" href="{{ 'sticky-atc-bar.css' | asset_url }}">
-<script src="{{ 'sticky-atc-bar.js' | asset_url }}" defer></script>
-
-<script>
-  window.BDM_STICKY_ATC_CONFIG = {
-    buttonText: {{ settings.button_text | json }},
-    backgroundColor: {{ settings.background_color | json }},
-    textColor: {{ settings.text_color | json }},
-    buttonColor: {{ settings.button_color | json }},
-    enableDesktop: {{ settings.enable_desktop | json }},
-    enableMobile: {{ settings.enable_mobile | json }},
-    showQuantity: {{ settings.show_quantity | json }},
-    showVariants: {{ settings.show_variants | json }},
-    showSubscription: {{ settings.show_subscription | json }}
-  };
-</script>
-
-{% schema %}
-{
-  "name": "Sticky Add To Cart Bar",
-  "target": "body",
-  "settings": [
-    {
-      "type": "text",
-      "id": "button_text",
-      "label": "Button text",
-      "default": "Add to cart"
-    },
-    {
-      "type": "color",
-      "id": "background_color",
-      "label": "Background color",
-      "default": "#ffffff"
-    },
-    {
-      "type": "color",
-      "id": "text_color",
-      "label": "Text color",
-      "default": "#000000"
-    },
-    {
-      "type": "color",
-      "id": "button_color",
-      "label": "Button color",
-      "default": "#000000"
-    },
-    {
-      "type": "checkbox",
-      "id": "enable_desktop",
-      "label": "Enable on desktop",
-      "default": true
-    },
-    {
-      "type": "checkbox",
-      "id": "enable_mobile",
-      "label": "Enable on mobile",
-      "default": true
-    },
-    {
-      "type": "checkbox",
-      "id": "show_quantity",
-      "label": "Show quantity selector",
-      "default": true
-    },
-    {
-      "type": "checkbox",
-      "id": "show_variants",
-      "label": "Show variant selector",
-      "default": true
-    },
-    {
-      "type": "checkbox",
-      "id": "show_subscription",
-      "label": "Show subscription selector",
-      "default": true
+  function getSessionId() {
+    const KEY = "bdm_sticky_atc_session_id";
+    let id = localStorage.getItem(KEY);
+    if (!id) {
+      id = crypto.randomUUID();
+      localStorage.setItem(KEY, id);
     }
-  ]
-}
-{% endschema %}
+    return id;
+  }
+
+  function track(event, payload = {}) {
+    try {
+      fetch(TRACK_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event,
+          ...payload,
+          sessionId: getSessionId(),
+          ts: Date.now()
+        }),
+        keepalive: true
+      });
+    } catch {}
+  }
+
+  /* ---------------- Helpers ---------------- */
+
+  function getVariantId() {
+    // Shopify canonical variant input
+    const input =
+      document.querySelector('input[name="id"]') ||
+      document.querySelector('[name="id"]');
+
+    if (input?.value) return Number(input.value);
+
+    // URL fallback
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("variant")) return Number(params.get("variant"));
+
+    return null;
+  }
+
+  function getQuantity() {
+    const qty = document.querySelector("#bdm-qty");
+    return Math.max(1, Number(qty?.value || 1));
+  }
+
+  /* ---------------- Init ---------------- */
+
+  document.addEventListener("click", async (e) => {
+    const btn = e.target.closest("[data-bdm-atc]");
+    if (!btn) return;
+
+    e.preventDefault();
+
+    const variantId = getVariantId();
+    if (!variantId) {
+      console.warn("[BDM STICKY ATC] No variant ID found");
+      return;
+    }
+
+    const quantity = getQuantity();
+
+    track("sticky_atc_click", {
+      variantId,
+      quantity
+    });
+
+    try {
+      const res = await fetch("/cart/add.js", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: [{ id: variantId, quantity }]
+        })
+      });
+
+      if (!res.ok) {
+        console.error("[BDM STICKY ATC] cart/add failed");
+        return;
+      }
+
+      track("sticky_atc_success", {
+        variantId,
+        quantity
+      });
+
+      // optional redirect
+      window.location.href = "/cart";
+    } catch (err) {
+      console.error("[BDM STICKY ATC] error", err);
+    }
+  });
+
+  // impression fires once
+  track("sticky_atc_impression");
+})();
