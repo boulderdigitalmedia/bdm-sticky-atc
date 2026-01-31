@@ -1,7 +1,3 @@
-{% comment %}
-Sticky Add To Cart Bar – Theme App Embed (target-based)
-{% endcomment %}
-
 {% if request.page_type == 'product' %}
 
 <div
@@ -20,7 +16,7 @@ Sticky Add To Cart Bar – Theme App Embed (target-based)
       <select id="bdm-variant"></select>
       <input id="bdm-qty" type="number" min="1" value="1" />
       <button id="bdm-atc">
-        {{ block.settings.button_text }}
+        {{ settings.button_text }}
       </button>
     </div>
   </div>
@@ -31,20 +27,18 @@ Sticky Add To Cart Bar – Theme App Embed (target-based)
 
 <script>
   window.BDM_STICKY_ATC_CONFIG = {
-    buttonText: "{{ block.settings.button_text }}",
+    buttonText: "{{ settings.button_text }}",
 
-    appUrl: "{{ app.url }}",
+    backgroundColor: "{{ settings.background_color }}",
+    textColor: "{{ settings.text_color }}",
+    buttonColor: "{{ settings.button_color }}",
 
-    backgroundColor: "{{ block.settings.background_color }}",
-    textColor: "{{ block.settings.text_color }}",
-    buttonColor: "{{ block.settings.button_color }}",
+    enableDesktop: {{ settings.enable_desktop | json }},
+    enableMobile: {{ settings.enable_mobile | json }},
 
-    enableDesktop: {{ block.settings.enable_desktop | json }},
-    enableMobile: {{ block.settings.enable_mobile | json }},
-
-    showQuantity: {{ block.settings.show_quantity | json }},
-    showVariants: {{ block.settings.show_variants | json }},
-    showSubscription: {{ block.settings.show_subscription | json }}
+    showQuantity: {{ settings.show_quantity | json }},
+    showVariants: {{ settings.show_variants | json }},
+    showSubscription: {{ settings.show_subscription | json }}
   };
 </script>
 
@@ -53,7 +47,7 @@ Sticky Add To Cart Bar – Theme App Embed (target-based)
 {% schema %}
 {
   "name": "Sticky Add To Cart Bar",
-  "target": "body",
+  "type": "app_embed",
   "settings": [
     {
       "type": "text",

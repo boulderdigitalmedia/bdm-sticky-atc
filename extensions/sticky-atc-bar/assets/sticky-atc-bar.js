@@ -1,17 +1,17 @@
 (() => {
   const BAR_ID = "bdm-sticky-atc";
-  const TRACK_ENDPOINT = "/apps/bdm-sticky-atc/track";
+  const CONFIG = window.BDM_STICKY_ATC_CONFIG || {};
 
-  let product = null;
-  let selectedVariantId = null;
-  let selectedSellingPlanId = null;
+  /* ---------------- Helpers ---------------- */
 
-  /* ────────────────────────────────────────────── */
-  /* HELPERS */
-  /* ────────────────────────────────────────────── */
+  function isMobile() {
+    return window.matchMedia("(max-width: 768px)").matches;
+  }
 
-  function $(sel, root = document) {
-    return root.querySelector(sel);
+  function shouldRender() {
+    if (isMobile() && CONFIG.enableMobile === false) return false;
+    if (!isMobile() && CONFIG.enableDesktop === false) return false;
+    return true;
   }
 
   function formatMoney(cents) {
@@ -19,131 +19,197 @@
     return `$${(cents / 100).toFixed(2)}`;
   }
 
-  function getProductHandle() {
-    const m = window.location.pathname.match(/\/products\/([^\/]+)/);
-    return m?.[1] || null;
-  }
-
-  async function loadProductJson() {
-    const embedded =
+  function getProductJson() {
+    const script =
       document.querySelector('script[type="application/json"][data-product-json]') ||
-      document.querySelector('script[type="application/json"][id^="ProductJson"]') ||
       document.querySelector("#ProductJson");
 
-    if (embedded) {
-      try {
-        return JSON.parse(embedded.textContent);
-      } catch (_) {}
-    }
-
-    const handle = getProductHandle();
-    if (!handle) return null;
-
+    if (!script) return null;
     try {
-      const res = await fetch(`/products/${handle}.js`);
-      if (!res.ok) return null;
-      return await res.json();
-    } catch (_) {
+      return JSON.parse(script.textContent);
+    } catch {
       return null;
     }
   }
 
-  /* ────────────────────────────────────────────── */
-  /* 🔥 ANALYTICS TRACKING (FIXED) */
-  /* ────────────────────────────────────────────── */
+  /* ---------------- Attribution helpers ---------------- */
 
-  function track(event, payload = {}) {
+  function getStickyAtcSessionId() {
+    const KEY = "bdm_sticky_atc_session_id";
+    let id = localStorage.getItem(KEY);
+    if (!id) {
+      id = crypto.randomUUID();
+      localStorage.setItem(KEY, id);
+    }
+    return id;
+  }
+
+  function track(event, data = {}) {
     try {
-      fetch(TRACK_ENDPOINT, {
+      fetch("/apps/bdm-sticky-atc/track", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          shop: window.Shopify?.shop,
+          event,
+          data: {
+            ...data,
+            sessionId: getStickyAtcSessionId()
+          }
+        })
+      }).catch(() => {});
+    } catch {}
+  }
+
+  // 🔑 NEW: get cart token
+  async function getCartToken() {
+    const res = await fetch("/cart.js", { credentials: "same-origin" });
+    const cart = await res.json();
+    return cart.token;
+  }
+
+  // 🔑 NEW: send attribution (fire-and-forget)
+  async function sendStickyAttribution({ cartToken, productId, variantId }) {
+    try {
+      await fetch("/apps/bdm-sticky-atc/checkout", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Accept": "application/json",
+          "X-Shopify-Shop-Domain": window.Shopify?.shop
         },
         body: JSON.stringify({
-          event,
-          ...payload,
-          ts: Date.now(),
-        }),
-        keepalive: true, // critical for unload events
+          cartToken,
+          productId,
+          variantId
+        })
       });
-    } catch (_) {}
+    } catch (err) {
+      // never block checkout
+      console.warn("Sticky attribution failed", err);
+    }
   }
 
-  /* ────────────────────────────────────────────── */
-  /* INIT */
-  /* ────────────────────────────────────────────── */
+  /* ---------------- Abort if disabled ---------------- */
 
-  document.addEventListener("DOMContentLoaded", async () => {
-    product = await loadProductJson();
-    if (!product) return;
+  if (!shouldRender()) return;
 
-    selectedVariantId = product.variants?.[0]?.id || null;
+  const product = getProductJson();
+  if (!product) return;
 
-    track("page_view", {
-      productHandle: product.handle,
-    });
+  /* ---------------- DOM ---------------- */
 
-    setupVariantListeners();
-    setupAddToCart();
+  const bar = document.createElement("div");
+  bar.id = BAR_ID;
+
+  bar.innerHTML = `
+    <div class="bdm-atc-inner">
+      <div class="bdm-atc-info">
+        <span class="bdm-atc-title">${product.title}</span>
+        <span class="bdm-atc-price">${formatMoney(product.price)}</span>
+      </div>
+      <div class="bdm-atc-controls"></div>
+      <button class="bdm-atc-button">Add to cart</button>
+    </div>
+  `;
+
+  document.body.appendChild(bar);
+
+  /* ---------------- Impression tracking ---------------- */
+
+  track("sticky_atc_impression", {
+    productId: product.id
   });
 
-  /* ────────────────────────────────────────────── */
-  /* VARIANTS */
-  /* ────────────────────────────────────────────── */
+  /* ---------------- Styles ---------------- */
 
-  function setupVariantListeners() {
-    document.addEventListener("change", (e) => {
-      if (!e.target.name || !e.target.name.includes("option")) return;
+  if (CONFIG.backgroundColor) bar.style.backgroundColor = CONFIG.backgroundColor;
+  if (CONFIG.textColor) bar.style.color = CONFIG.textColor;
 
-      const selectedOptions = Array.from(
-        document.querySelectorAll('[name^="option"]')
-      ).map((el) => el.value);
-
-      const match = product.variants.find((v) =>
-        v.options.every((opt, i) => opt === selectedOptions[i])
-      );
-
-      if (match) {
-        selectedVariantId = match.id;
-
-        track("variant_change", {
-          variantId: selectedVariantId,
-        });
-      }
-    });
+  const button = bar.querySelector(".bdm-atc-button");
+  if (button && CONFIG.buttonColor) {
+    button.style.backgroundColor = CONFIG.buttonColor;
   }
 
-  /* ────────────────────────────────────────────── */
-  /* ADD TO CART */
-  /* ────────────────────────────────────────────── */
+  /* ---------------- Controls ---------------- */
 
-  function setupAddToCart() {
-    document.addEventListener("click", async (e) => {
-      const btn = e.target.closest(`[data-bdm-atc]`);
-      if (!btn || !selectedVariantId) return;
+  const controls = bar.querySelector(".bdm-atc-controls");
 
-      e.preventDefault();
+  let quantity = 1;
+  let selectedVariantId = product.variants[0]?.id;
+  let selectedSellingPlanId = null;
 
-      track("add_to_cart", {
-        variantId: selectedVariantId,
+  if (CONFIG.showQuantity !== false) {
+    const qty = document.createElement("input");
+    qty.type = "number";
+    qty.min = "1";
+    qty.value = "1";
+    qty.className = "bdm-atc-qty";
+
+    qty.addEventListener("change", () => {
+      quantity = Math.max(1, parseInt(qty.value, 10) || 1);
+    });
+
+    controls.appendChild(qty);
+  }
+
+  if (CONFIG.showVariants !== false && product.variants.length > 1) {
+    const select = document.createElement("select");
+    select.className = "bdm-atc-variants";
+
+    product.variants.forEach((v) => {
+      const opt = document.createElement("option");
+      opt.value = v.id;
+      opt.textContent = v.title;
+      select.appendChild(opt);
+    });
+
+    select.addEventListener("change", () => {
+      selectedVariantId = select.value;
+    });
+
+    controls.appendChild(select);
+  }
+
+  /* ---------------- Add to cart ---------------- */
+
+  button.addEventListener("click", async () => {
+    // click intent
+    track("sticky_atc_click", {
+      productId: product.id,
+      variantId: selectedVariantId
+    });
+
+    const payload = {
+      items: [
+        {
+          id: selectedVariantId,
+          quantity,
+          selling_plan: selectedSellingPlanId
+        }
+      ]
+    };
+
+    const res = await fetch("/cart/add.js", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    if (res.ok) {
+      track("sticky_atc_success", {
+        productId: product.id,
+        variantId: selectedVariantId
       });
 
-      try {
-        await fetch("/cart/add.js", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            items: [
-              {
-                id: selectedVariantId,
-                quantity: 1,
-                selling_plan: selectedSellingPlanId || undefined,
-              },
-            ],
-          }),
-        });
-      } catch (_) {}
-    });
-  }
+      // 🔑 NEW: capture cart token + write StickyAttribution
+      const cartToken = await getCartToken();
+      sendStickyAttribution({
+        cartToken,
+        productId: product.id,
+        variantId: selectedVariantId
+      });
+    }
+
+    window.location.href = "/cart";
+  });
 })();
