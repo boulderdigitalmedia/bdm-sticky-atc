@@ -49,11 +49,22 @@
   /* ---------------- Analytics ---------------- */
 
   const shopDomain = window.Shopify?.shop || null;
+  const appUrl = CONFIG.appUrl ? CONFIG.appUrl.replace(/\/$/, "") : "";
+
+  function buildProxyUrl(path) {
+    if (appUrl) {
+      return `${appUrl}${path}`;
+    }
+
+    return path;
+  }
 
   function track(event, payload = {}) {
     const url = shopDomain
-      ? `/apps/bdm-sticky-atc/track?shop=${encodeURIComponent(shopDomain)}`
-      : "/apps/bdm-sticky-atc/track";
+      ? buildProxyUrl(
+          `/apps/bdm-sticky-atc/track?shop=${encodeURIComponent(shopDomain)}`
+        )
+      : buildProxyUrl("/apps/bdm-sticky-atc/track");
 
     fetch(url, {
       method: "POST",
@@ -86,7 +97,7 @@
 
   async function sendStickyAttribution({ cartToken, productId, variantId }) {
     try {
-      const res = await fetch("/apps/bdm-sticky-atc/checkout", {
+      const res = await fetch(buildProxyUrl("/apps/bdm-sticky-atc/checkout"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
