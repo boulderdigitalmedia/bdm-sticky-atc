@@ -12,8 +12,20 @@
 
     <div class="bdm-right">
       <select id="bdm-variant"></select>
-      <input id="bdm-qty" type="number" min="1" value="1" />
-      <button id="bdm-atc">
+
+      <input
+        id="bdm-qty"
+        type="number"
+        min="1"
+        value="1"
+      />
+
+      <!-- ✅ FIX: add data-bdm-atc + type -->
+      <button
+        id="bdm-atc"
+        data-bdm-atc
+        type="button"
+      >
         {{ settings.button_text }}
       </button>
     </div>
