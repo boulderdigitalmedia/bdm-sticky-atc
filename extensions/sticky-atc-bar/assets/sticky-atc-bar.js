@@ -58,7 +58,26 @@
     credentials: "same-origin",
     keepalive: true,
     body: JSON.stringify({
-      event,
+      event, // 👈 canonical event name
+      productId: payload.productId || null,
+      variantId: payload.variantId || null,
+      quantity: payload.quantity || null,
+      price: payload.price || null,
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+}
+function track(event, payload = {}) {
+  fetch("/apps/bdm-sticky-atc/track", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Shopify-Shop-Domain": window.Shopify?.shop,
+    },
+    credentials: "same-origin",
+    keepalive: true,
+    body: JSON.stringify({
+      event, // 👈 canonical event name
       productId: payload.productId || null,
       variantId: payload.variantId || null,
       quantity: payload.quantity || null,
