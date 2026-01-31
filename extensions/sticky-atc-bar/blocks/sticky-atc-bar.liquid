@@ -1,116 +1,69 @@
-<div
-  id="bdm-sticky-atc"
-  aria-hidden="true"
-  data-sticky-atc
-  data-variants='{{ product.variants | json }}'
->
-  <div class="bdm-inner">
-    <div class="bdm-left">
-      <div id="bdm-title"></div>
-      <div id="bdm-price"></div>
-    </div>
+(() => {
+  const TRACK_ENDPOINT = "/apps/bdm-sticky-atc/track";
 
-    <div class="bdm-right">
-      <select id="bdm-variant"></select>
+  function track(event, payload = {}) {
+    try {
+      fetch(TRACK_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ event, ...payload, ts: Date.now() }),
+        keepalive: true,
+      });
+    } catch (_) {}
+  }
 
-      <input
-        id="bdm-qty"
-        type="number"
-        min="1"
-        value="1"
-      />
+  function getVariantIdFallback() {
+    // 1️⃣ Theme variant input
+    const input =
+      document.querySelector('input[name="id"]') ||
+      document.querySelector('[name="id"]');
 
-      <!-- ✅ FIX: add data-bdm-atc + type -->
-      <button
-        id="bdm-atc"
-        data-bdm-atc
-        type="button"
-      >
-        {{ settings.button_text }}
-      </button>
-    </div>
-  </div>
-</div>
+    if (input?.value) return Number(input.value);
 
-<link rel="stylesheet" href="{{ 'sticky-atc-bar.css' | asset_url }}">
-<script src="{{ 'sticky-atc-bar.js' | asset_url }}" defer></script>
+    // 2️⃣ URL fallback
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("variant")) return Number(params.get("variant"));
 
-<script>
-  window.BDM_STICKY_ATC_CONFIG = {
-    buttonText: {{ settings.button_text | json }},
+    return null;
+  }
 
-    backgroundColor: {{ settings.background_color | json }},
-    textColor: {{ settings.text_color | json }},
-    buttonColor: {{ settings.button_color | json }},
+  document.addEventListener("click", async (e) => {
+    const btn = e.target.closest("[data-bdm-atc]");
+    if (!btn) return;
 
-    enableDesktop: {{ settings.enable_desktop | json }},
-    enableMobile: {{ settings.enable_mobile | json }},
+    e.preventDefault();
 
-    showQuantity: {{ settings.show_quantity | json }},
-    showVariants: {{ settings.show_variants | json }},
-    showSubscription: {{ settings.show_subscription | json }}
-  };
-</script>
-
-{% schema %}
-{
-  "name": "Sticky Add To Cart Bar",
-  "target": "body",
-  "settings": [
-    {
-      "type": "text",
-      "id": "button_text",
-      "label": "Button text",
-      "default": "Add to cart"
-    },
-    {
-      "type": "color",
-      "id": "background_color",
-      "label": "Background color",
-      "default": "#ffffff"
-    },
-    {
-      "type": "color",
-      "id": "text_color",
-      "label": "Text color",
-      "default": "#000000"
-    },
-    {
-      "type": "color",
-      "id": "button_color",
-      "label": "Button color",
-      "default": "#000000"
-    },
-    {
-      "type": "checkbox",
-      "id": "enable_desktop",
-      "label": "Enable on desktop",
-      "default": true
-    },
-    {
-      "type": "checkbox",
-      "id": "enable_mobile",
-      "label": "Enable on mobile",
-      "default": true
-    },
-    {
-      "type": "checkbox",
-      "id": "show_quantity",
-      "label": "Show quantity selector",
-      "default": true
-    },
-    {
-      "type": "checkbox",
-      "id": "show_variants",
-      "label": "Show variant selector",
-      "default": true
-    },
-    {
-      "type": "checkbox",
-      "id": "show_subscription",
-      "label": "Show subscription selector",
-      "default": true
+    const variantId = getVariantIdFallback();
+    if (!variantId) {
+      console.warn("[BDM ATC] No variant ID found");
+      return;
     }
-  ]
-}
-{% endschema %}
+
+    const qtyInput = document.querySelector("#bdm-qty");
+    const quantity = Math.max(1, Number(qtyInput?.value || 1));
+
+    track("add_to_cart", { variantId, quantity });
+
+    try {
+      const res = await fetch("/cart/add.js", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: [{ id: variantId, quantity }],
+        }),
+      });
+
+      if (!res.ok) {
+        console.error("[BDM ATC] cart/add failed");
+        return;
+      }
+
+      track("sticky_atc_success", { variantId, quantity });
+    } catch (err) {
+      console.error("[BDM ATC] request error", err);
+    }
+  });
+
+  // page view tracking
+  track("page_view");
+})();
