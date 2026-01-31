@@ -97,7 +97,25 @@
 
   async function sendStickyAttribution({ cartToken, productId, variantId }) {
     try {
-      const res = await fetch(buildProxyUrl("/apps/bdm-sticky-atc/checkout"), {
+      const resolvedCartToken = cartToken || (await getCartToken());
+      if (!resolvedCartToken || !productId || !variantId) {
+        console.warn("[BDM Sticky ATC] Missing attribution payload", {
+          cartToken: resolvedCartToken,
+          productId,
+          variantId
+        });
+        return;
+      }
+
+      const url = shopDomain
+        ? buildProxyUrl(
+            `/apps/bdm-sticky-atc/checkout?shop=${encodeURIComponent(
+              shopDomain
+            )}`
+          )
+        : buildProxyUrl("/apps/bdm-sticky-atc/checkout");
+
+      const res = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -105,7 +123,12 @@
         },
         credentials: "same-origin",
         keepalive: true,
-        body: JSON.stringify({ cartToken, productId, variantId })
+        body: JSON.stringify({
+          shop: shopDomain,
+          cartToken: resolvedCartToken,
+          productId,
+          variantId
+        })
       });
 
       if (!res.ok) {
