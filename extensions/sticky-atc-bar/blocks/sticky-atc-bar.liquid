@@ -1,5 +1,3 @@
-{% if request.page_type == 'product' %}
-
 <div
   id="bdm-sticky-atc"
   aria-hidden="true"
@@ -27,11 +25,11 @@
 
 <script>
   window.BDM_STICKY_ATC_CONFIG = {
-    buttonText: "{{ settings.button_text }}",
+    buttonText: {{ settings.button_text | json }},
 
-    backgroundColor: "{{ settings.background_color }}",
-    textColor: "{{ settings.text_color }}",
-    buttonColor: "{{ settings.button_color }}",
+    backgroundColor: {{ settings.background_color | json }},
+    textColor: {{ settings.text_color | json }},
+    buttonColor: {{ settings.button_color | json }},
 
     enableDesktop: {{ settings.enable_desktop | json }},
     enableMobile: {{ settings.enable_mobile | json }},
@@ -42,12 +40,10 @@
   };
 </script>
 
-{% endif %}
-
 {% schema %}
 {
   "name": "Sticky Add To Cart Bar",
-  "type": "app_embed",
+  "target": "body",
   "settings": [
     {
       "type": "text",
