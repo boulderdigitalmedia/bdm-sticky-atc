@@ -98,21 +98,20 @@
 
   /* ---------------- DOM ---------------- */
 
-  const bar = document.createElement("div");
-  bar.id = BAR_ID;
+  const bar = document.getElementById(BAR_ID);
+  if (!bar) return;
 
-  bar.innerHTML = `
-    <div class="bdm-atc-inner">
-      <div class="bdm-atc-info">
-        <span class="bdm-atc-title">${product.title}</span>
-        <span class="bdm-atc-price">${formatMoney(product.price)}</span>
-      </div>
-      <div class="bdm-atc-controls"></div>
-      <button class="bdm-atc-button">Add to cart</button>
-    </div>
-  `;
+  bar.setAttribute("aria-hidden", "false");
+  const title = bar.querySelector("#bdm-title");
+  const price = bar.querySelector("#bdm-price");
+  const button = bar.querySelector("#bdm-atc");
+  const qtyInput = bar.querySelector("#bdm-qty");
+  const controls = bar.querySelector(".bdm-right");
 
-  document.body.appendChild(bar);
+  if (!controls || !button || !title || !price) return;
+
+  title.textContent = product.title;
+  price.textContent = formatMoney(product.price);
 
   /* ---------------- Impression tracking ---------------- */
 
@@ -125,31 +124,22 @@
   if (CONFIG.backgroundColor) bar.style.backgroundColor = CONFIG.backgroundColor;
   if (CONFIG.textColor) bar.style.color = CONFIG.textColor;
 
-  const button = bar.querySelector(".bdm-atc-button");
-  if (button && CONFIG.buttonColor) {
+  if (CONFIG.buttonColor) {
     button.style.backgroundColor = CONFIG.buttonColor;
   }
 
   /* ---------------- Controls ---------------- */
 
-  const controls = bar.querySelector(".bdm-atc-controls");
-
   let quantity = 1;
   let selectedVariantId = product.variants[0]?.id;
   let selectedSellingPlanId = null;
 
-  if (CONFIG.showQuantity !== false) {
-    const qty = document.createElement("input");
-    qty.type = "number";
-    qty.min = "1";
-    qty.value = "1";
-    qty.className = "bdm-atc-qty";
-
-    qty.addEventListener("change", () => {
-      quantity = Math.max(1, parseInt(qty.value, 10) || 1);
+  if (CONFIG.showQuantity !== false && qtyInput) {
+    qtyInput.addEventListener("change", () => {
+      quantity = Math.max(1, parseInt(qtyInput.value, 10) || 1);
     });
-
-    controls.appendChild(qty);
+  } else if (qtyInput) {
+    qtyInput.remove();
   }
 
   if (CONFIG.showVariants !== false && product.variants.length > 1) {
@@ -167,7 +157,7 @@
       selectedVariantId = select.value;
     });
 
-    controls.appendChild(select);
+    controls.insertBefore(select, button);
   }
 
   /* ---------------- Add to cart ---------------- */
