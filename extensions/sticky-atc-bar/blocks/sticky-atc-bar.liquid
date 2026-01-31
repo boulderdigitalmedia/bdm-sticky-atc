@@ -1,114 +1,113 @@
-{% comment %}
-Sticky Add To Cart Bar – Theme App Embed (target-based)
-{% endcomment %}
+import express from "express";
+import prisma from "../prisma.js";
 
-{% if request.page_type == 'product' %}
+const router = express.Router();
 
-<div
-  id="bdm-sticky-atc"
-  aria-hidden="true"
-  data-sticky-atc
-  data-variants='{{ product.variants | json }}'
->
-  <div class="bdm-inner">
-    <div class="bdm-left">
-      <div id="bdm-title"></div>
-      <div id="bdm-price"></div>
-    </div>
+/**
+ * POST /track
+ * Called from:
+ *   /apps/bdm-sticky-atc/track  (Shopify App Proxy)
+ */
+router.post("/track", async (req, res) => {
+  try {
+    console.log("[STICKY ANALYTICS] TRACK EVENT", req.body);
 
-    <div class="bdm-right">
-      <select id="bdm-variant"></select>
-      <input id="bdm-qty" type="number" min="1" value="1" />
-      <button id="bdm-atc">
-        {{ block.settings.button_text }}
-      </button>
-    </div>
-  </div>
-</div>
+    const { shop: bodyShop, event, data, ...rest } = req.body || {};
+    const shop = bodyShop || req.query.shop;
 
-<link rel="stylesheet" href="{{ 'sticky-atc-bar.css' | asset_url }}">
-<script src="{{ 'sticky-atc-bar.js' | asset_url }}" defer></script>
-
-<script>
-  window.BDM_STICKY_ATC_CONFIG = {
-    buttonText: "{{ block.settings.button_text }}",
-
-    appUrl: "{{ app.url }}",
-
-    backgroundColor: "{{ block.settings.background_color }}",
-    textColor: "{{ block.settings.text_color }}",
-    buttonColor: "{{ block.settings.button_color }}",
-
-    enableDesktop: {{ block.settings.enable_desktop | json }},
-    enableMobile: {{ block.settings.enable_mobile | json }},
-
-    showQuantity: {{ block.settings.show_quantity | json }},
-    showVariants: {{ block.settings.show_variants | json }},
-    showSubscription: {{ block.settings.show_subscription | json }}
-  };
-</script>
-
-{% endif %}
-
-{% schema %}
-{
-  "name": "Sticky Add To Cart Bar",
-  "target": "body",
-  "settings": [
-    {
-      "type": "text",
-      "id": "button_text",
-      "label": "Button text",
-      "default": "Add to cart"
-    },
-    {
-      "type": "color",
-      "id": "background_color",
-      "label": "Background color",
-      "default": "#ffffff"
-    },
-    {
-      "type": "color",
-      "id": "text_color",
-      "label": "Text color",
-      "default": "#000000"
-    },
-    {
-      "type": "color",
-      "id": "button_color",
-      "label": "Button color",
-      "default": "#000000"
-    },
-    {
-      "type": "checkbox",
-      "id": "enable_desktop",
-      "label": "Enable on desktop",
-      "default": true
-    },
-    {
-      "type": "checkbox",
-      "id": "enable_mobile",
-      "label": "Enable on mobile",
-      "default": true
-    },
-    {
-      "type": "checkbox",
-      "id": "show_quantity",
-      "label": "Show quantity selector",
-      "default": true
-    },
-    {
-      "type": "checkbox",
-      "id": "show_variants",
-      "label": "Show variant selector",
-      "default": true
-    },
-    {
-      "type": "checkbox",
-      "id": "show_subscription",
-      "label": "Show subscription selector",
-      "default": true
+    if (!shop || !event) {
+      console.warn("[STICKY ANALYTICS] Missing shop or event");
+      return res.sendStatus(400);
     }
-  ]
-}
-{% endschema %}
+
+    await prisma.analyticsEvent.create({
+      data: {
+        shop,
+        event,
+        payload: data ?? rest ?? {}
+      }
+    });
+
+    res.sendStatus(200);
+  } catch (err) {
+    console.error("[STICKY ANALYTICS] Track error", err);
+    res.sendStatus(500);
+  }
+});
+
+/**
+ * GET /summary
+ * Called from:
+ *   /apps/bdm-sticky-atc/summary (embedded admin)
+ */
+router.get("/summary", async (req, res) => {
+  try {
+    const shop = req.query.shop;
+    if (!shop) {
+      return res.status(400).json({ error: "Missing shop" });
+    }
+
+    const [pageViews, addToCart, revenueAgg] = await Promise.all([
+      prisma.analyticsEvent.count({
+        where: {
+          shop,
+          event: { in: ["page_view", "sticky_atc_impression"] }
+        }
+      }),
+      prisma.analyticsEvent.count({
+        where: {
+          shop,
+          event: {
+            in: ["add_to_cart", "sticky_atc_click", "sticky_atc_success"]
+          }
+        }
+      }),
+      prisma.stickyConversion.aggregate({
+        where: { shop },
+        _sum: { revenue: true }
+      })
+    ]);
+
+    const atcRate = pageViews > 0 ? (addToCart / pageViews) * 100 : null;
+    const revenue = revenueAgg._sum.revenue ?? null;
+
+    return res.json({
+      shop,
+      clicks: addToCart,
+      addToCart,
+      atcRate,
+      revenue
+    });
+  } catch (err) {
+    console.error("[STICKY ANALYTICS] Summary error", err);
+    return res.status(500).json({ error: true });
+  }
+});
+
+/**
+ * POST /checkout
+ * Called from:
+ *   /apps/bdm-sticky-atc/checkout (Shopify App Proxy)
+ */
+router.post("/checkout", async (req, res) => {
+  try {
+    console.log("[STICKY ANALYTICS] CHECKOUT ATTRIBUTION", req.body);
+
+    const { cartToken, productId, variantId } = req.body || {};
+
+    if (!cartToken || !productId || !variantId) {
+      console.warn("[STICKY ANALYTICS] Missing attribution data");
+      return res.sendStatus(400);
+    }
+
+    // TODO: write attribution to DB
+    // await prisma.stickyAttribution.create({ ... })
+
+    res.sendStatus(200);
+  } catch (err) {
+    console.error("[STICKY ANALYTICS] Checkout error", err);
+    res.sendStatus(500);
+  }
+});
+
+export default router;
