@@ -1,98 +1,76 @@
 (() => {
   const BAR_ID = "bdm-sticky-atc";
 
-  // Prevent double init
   if (window.__BDM_STICKY_ATC_INIT__) return;
   window.__BDM_STICKY_ATC_INIT__ = true;
 
-  /* ---------------- Helpers ---------------- */
+  /* ---------------- Guards ---------------- */
 
-  function isProductPage() {
-    return document.querySelector('[data-product-page="true"]');
-  }
-
-  function getSessionId() {
-    const KEY = "bdm_sticky_atc_session_id";
-    let id = localStorage.getItem(KEY);
-    if (!id) {
-      id = crypto.randomUUID();
-      localStorage.setItem(KEY, id);
-    }
-    return id;
-  }
-
-  function track(event, data = {}) {
-    fetch("/apps/bdm-sticky-atc/track", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      keepalive: true,
-      body: JSON.stringify({
-        event,
-        data: {
-          ...data,
-          sessionId: getSessionId()
-        }
-      })
-    }).catch(() => {});
-  }
-
-  /* ---------------- Product DOM sync ---------------- */
-
-  function findProductTitle() {
-    return (
-      document.querySelector('[data-product-title]') ||
-      document.querySelector('h1.product__title') ||
-      document.querySelector('h1')
-    );
-  }
-
-  function findProductPrice() {
-    return (
-      document.querySelector('[data-product-price]') ||
-      document.querySelector('.price-item--regular') ||
-      document.querySelector('.price')
-    );
-  }
-
-  function syncText(sourceEl, targetEl) {
-    if (!sourceEl || !targetEl) return;
-    targetEl.textContent = sourceEl.textContent;
-  }
-
-  function observePriceChanges(source, target) {
-    if (!source || !target) return;
-
-    const observer = new MutationObserver(() => {
-      target.textContent = source.textContent;
-    });
-
-    observer.observe(source, {
-      childList: true,
-      characterData: true,
-      subtree: true
-    });
-  }
-
-  /* ---------------- Init ---------------- */
-
-  if (!isProductPage()) return;
+  if (!document.querySelector('[data-product-page="true"]')) return;
 
   const bar = document.getElementById(BAR_ID);
   if (!bar) return;
 
-  const titleTarget = bar.querySelector("#bdm-title");
-  const priceTarget = bar.querySelector("#bdm-price");
+  const titleEl = bar.querySelector("#bdm-title");
+  const priceEl = bar.querySelector("#bdm-price");
   const button = bar.querySelector("#bdm-atc");
 
-  const titleSource = findProductTitle();
-  const priceSource = findProductPrice();
+  /* ---------------- Product JSON (CANONICAL) ---------------- */
 
-  // Initial sync
-  syncText(titleSource, titleTarget);
-  syncText(priceSource, priceTarget);
+  function getProductJson() {
+    const script =
+      document.querySelector('script[type="application/json"][data-product-json]') ||
+      document.querySelector("#ProductJson");
 
-  // Keep price in sync (variant changes)
-  observePriceChanges(priceSource, priceTarget);
+    if (!script) return null;
+
+    try {
+      return JSON.parse(script.textContent);
+    } catch {
+      return null;
+    }
+  }
+
+  const product = getProductJson();
+  if (!product || !product.variants?.length) {
+    console.warn("BDM Sticky ATC: product JSON not found");
+    return;
+  }
+
+  /* ---------------- State ---------------- */
+
+  let selectedVariantId = product.variants[0].id;
+
+  /* ---------------- Populate content ---------------- */
+
+  if (titleEl) {
+    titleEl.textContent = product.title;
+  }
+
+  if (priceEl) {
+    priceEl.textContent = formatMoney(
+      product.variants[0].price * 100
+    );
+  }
+
+  /* ---------------- Variant syncing ---------------- */
+
+  document.addEventListener("change", (e) => {
+    const input = e.target;
+    if (!input.name || input.name !== "id") return;
+
+    const variant = product.variants.find(
+      (v) => String(v.id) === String(input.value)
+    );
+
+    if (!variant) return;
+
+    selectedVariantId = variant.id;
+
+    if (priceEl) {
+      priceEl.textContent = formatMoney(variant.price * 100);
+    }
+  });
 
   /* ---------------- Visibility ---------------- */
 
@@ -103,31 +81,22 @@
 
   if (button) {
     button.addEventListener("click", async () => {
-      track("sticky_atc_click");
-
-      const form =
-        document.querySelector('form[action^="/cart/add"]') ||
-        document.querySelector("form");
-
-      if (!form) return;
-
-      const formData = new FormData(form);
-
       await fetch("/cart/add.js", {
         method: "POST",
-        body: formData,
-        credentials: "same-origin"
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          items: [{ id: selectedVariantId, quantity: 1 }]
+        })
       });
-
-      track("sticky_atc_success");
 
       window.location.href = "/cart";
     });
   }
 
-  // Impression
-  requestAnimationFrame(() => {
-    track("sticky_atc_impression");
-  });
+  /* ---------------- Utils ---------------- */
 
+  function formatMoney(cents) {
+    return `$${(cents / 100).toFixed(2)}`;
+  }
 })();
