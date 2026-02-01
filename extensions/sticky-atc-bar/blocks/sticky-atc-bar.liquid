@@ -1,12 +1,10 @@
-{% if request.page_type == 'product' %}
-
 <div
   id="bdm-sticky-atc"
   class="bdm-sticky-atc"
-  aria-hidden="true"
+  aria-hidden="false"
   data-product-page="true"
   style="
-    --bdm-bg: {{ settings.background_color }};
+    --bdm-bg: {{ settings.bar_background_color }};
     --bdm-text: {{ settings.text_color }};
     --bdm-font-size: {{ settings.font_size }}px;
     --bdm-button-bg: {{ settings.button_background_color }};
@@ -15,33 +13,30 @@
 >
   <div class="bdm-inner">
     <div class="bdm-left">
-      {% if settings.show_product_title %}
-        <div id="bdm-title"></div>
-      {% endif %}
+      <div
+        id="bdm-title"
+        style="{% unless settings.show_product_title %}display:none{% endunless %}"
+      ></div>
 
-      {% if settings.show_price %}
-        <div id="bdm-price"></div>
-      {% endif %}
+      <div
+        id="bdm-price"
+        style="{% unless settings.show_price %}display:none{% endunless %}"
+      ></div>
     </div>
 
     <div class="bdm-right">
-      {% if settings.show_quantity_selector %}
-        <input
-          id="bdm-qty"
-          type="number"
-          min="1"
-          value="1"
-        />
-      {% endif %}
+      <input
+        id="bdm-qty"
+        type="number"
+        min="1"
+        value="1"
+        style="{% unless settings.show_quantity_selector %}display:none{% endunless %}"
+      />
 
       <button
         id="bdm-atc"
+        class="bdm-button {{ settings.button_size | default: 'medium' }} bdm-button--{{ settings.button_style | downcase }}"
         type="button"
-        class="
-          bdm-button
-          bdm-button--{{ settings.button_style }}
-          {{ settings.button_size }}
-        "
       >
         {{ settings.button_text }}
       </button>
@@ -52,98 +47,33 @@
 <link rel="stylesheet" href="{{ 'sticky-atc-bar.css' | asset_url }}">
 <script src="{{ 'sticky-atc-bar.js' | asset_url }}" defer></script>
 
-{% endif %}
-
 {% schema %}
 {
   "name": "Sticky Add To Cart Bar",
   "target": "body",
   "settings": [
-    {
-      "type": "checkbox",
-      "id": "show_product_title",
-      "label": "Show product title",
-      "default": true
-    },
-    {
-      "type": "checkbox",
-      "id": "show_price",
-      "label": "Show price",
-      "default": true
-    },
-    {
-      "type": "checkbox",
-      "id": "show_quantity_selector",
-      "label": "Show quantity selector",
-      "default": true
-    },
+    { "type": "checkbox", "id": "show_product_title", "label": "Show product title", "default": true },
+    { "type": "checkbox", "id": "show_price", "label": "Show price", "default": true },
+    { "type": "checkbox", "id": "show_quantity_selector", "label": "Show quantity selector", "default": true },
 
-    {
-      "type": "header",
-      "content": "Style"
-    },
-    {
-      "type": "color",
-      "id": "background_color",
-      "label": "Bar background color",
-      "default": "#FAFAF9"
-    },
-    {
-      "type": "color",
-      "id": "text_color",
-      "label": "Text color",
-      "default": "#000000"
-    },
-    {
-      "type": "range",
-      "id": "font_size",
-      "label": "Font size (px)",
-      "min": 12,
-      "max": 22,
-      "step": 1,
-      "default": 14
-    },
+    { "type": "color", "id": "bar_background_color", "label": "Bar background color", "default": "#FAFAF9" },
+    { "type": "color", "id": "text_color", "label": "Text color", "default": "#000000" },
+    { "type": "range", "id": "font_size", "label": "Font size", "min": 12, "max": 20, "step": 1, "default": 14 },
 
-    {
-      "type": "select",
-      "id": "button_style",
-      "label": "Button style",
-      "default": "solid",
-      "options": [
-        { "value": "solid", "label": "Solid" },
-        { "value": "outline", "label": "Outline" },
-        { "value": "rounded", "label": "Rounded" }
-      ]
-    },
-    {
-      "type": "select",
-      "id": "button_size",
-      "label": "Button size",
-      "default": "medium",
-      "options": [
-        { "value": "small", "label": "Small" },
-        { "value": "medium", "label": "Medium" },
-        { "value": "large", "label": "Large" }
-      ]
-    },
-    {
-      "type": "color",
-      "id": "button_background_color",
-      "label": "Button background color",
-      "default": "#45C0B6"
-    },
-    {
-      "type": "color",
-      "id": "button_text_color",
-      "label": "Button text color",
-      "default": "#FFFFFF"
-    },
-    {
-      "type": "text",
-      "id": "button_text",
-      "label": "Button text",
-      "default": "Add to cart"
-    }
+    { "type": "select", "id": "button_style", "label": "Button style", "options": [
+      { "value": "solid", "label": "Solid" },
+      { "value": "outline", "label": "Outline" }
+    ], "default": "solid" },
+
+    { "type": "select", "id": "button_size", "label": "Button size", "options": [
+      { "value": "small", "label": "Small" },
+      { "value": "medium", "label": "Medium" },
+      { "value": "large", "label": "Large" }
+    ], "default": "medium" },
+
+    { "type": "color", "id": "button_background_color", "label": "Button background color", "default": "#111111" },
+    { "type": "color", "id": "button_text_color", "label": "Button text color", "default": "#FFFFFF" },
+    { "type": "text", "id": "button_text", "label": "Button text", "default": "Add to cart" }
   ]
 }
 {% endschema %}
