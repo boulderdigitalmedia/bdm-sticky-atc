@@ -1,33 +1,33 @@
+{% if product %}
+  <script type="application/json" data-product-json>
+    {{ product | json }}
+  </script>
+{% endif %}
+
 <div
   id="bdm-sticky-atc"
   class="bdm-sticky-atc"
-  aria-hidden="false"
+  aria-hidden="true"
   data-product-page="true"
   style="
-    --bdm-bg: {{ settings.bar_background_color | default: '#FAFAF9' }};
-    --bdm-text: {{ settings.text_color | default: '#000000' }};
-    --bdm-font-size: {{ settings.font_size | default: 14 }}px;
-    --bdm-button-bg: {{ settings.button_background_color | default: '#111111' }};
-    --bdm-button-text: {{ settings.button_text_color | default: '#FFFFFF' }};
+    --bdm-bg: {{ settings.bar_background_color }};
+    --bdm-text: {{ settings.text_color }};
+    --bdm-font-size: {{ settings.font_size }}px;
+    --bdm-button-bg: {{ settings.button_background_color }};
+    --bdm-button-text: {{ settings.button_text_color }};
   "
 >
   <div class="bdm-inner">
     <div class="bdm-left">
-      <!-- ALWAYS RENDER, HIDE VIA STYLE -->
       <div
         id="bdm-title"
-        style="{% unless settings.show_product_title %}display:none{% endunless %}"
-      >
-        <!-- placeholder for editor -->
-        <span class="bdm-placeholder">Product title</span>
-      </div>
+        {% unless settings.show_product_title %}style="display:none"{% endunless %}
+      ></div>
 
       <div
         id="bdm-price"
-        style="{% unless settings.show_price %}display:none{% endunless %}"
-      >
-        <span class="bdm-placeholder">$0.00</span>
-      </div>
+        {% unless settings.show_price %}style="display:none"{% endunless %}
+      ></div>
     </div>
 
     <div class="bdm-right">
@@ -36,20 +36,15 @@
         type="number"
         min="1"
         value="1"
-        aria-label="Quantity"
-        style="{% unless settings.show_quantity_selector %}display:none{% endunless %}"
+        {% unless settings.show_quantity_selector %}style="display:none"{% endunless %}
       />
 
       <button
         id="bdm-atc"
+        class="bdm-button {{ settings.button_size }} bdm-button--{{ settings.button_style | downcase }}"
         type="button"
-        class="
-          bdm-button
-          {{ settings.button_size | default: 'medium' }}
-          bdm-button--{{ settings.button_style | default: 'solid' }}
-        "
       >
-        {{ settings.button_text | default: 'Add to cart' }}
+        {{ settings.button_text }}
       </button>
     </div>
   </div>
@@ -63,46 +58,13 @@
   "name": "Sticky Add To Cart Bar",
   "target": "body",
   "settings": [
-    {
-      "type": "checkbox",
-      "id": "show_product_title",
-      "label": "Show product title",
-      "default": true
-    },
-    {
-      "type": "checkbox",
-      "id": "show_price",
-      "label": "Show price",
-      "default": true
-    },
-    {
-      "type": "checkbox",
-      "id": "show_quantity_selector",
-      "label": "Show quantity selector",
-      "default": true
-    },
+    { "type": "checkbox", "id": "show_product_title", "label": "Show product title", "default": true },
+    { "type": "checkbox", "id": "show_price", "label": "Show price", "default": true },
+    { "type": "checkbox", "id": "show_quantity_selector", "label": "Show quantity selector", "default": true },
 
-    {
-      "type": "color",
-      "id": "bar_background_color",
-      "label": "Bar background color",
-      "default": "#FAFAF9"
-    },
-    {
-      "type": "color",
-      "id": "text_color",
-      "label": "Text color",
-      "default": "#000000"
-    },
-    {
-      "type": "range",
-      "id": "font_size",
-      "label": "Font size",
-      "min": 12,
-      "max": 20,
-      "step": 1,
-      "default": 14
-    },
+    { "type": "color", "id": "bar_background_color", "label": "Bar background color", "default": "#FAFAF9" },
+    { "type": "color", "id": "text_color", "label": "Text color", "default": "#000000" },
+    { "type": "range", "id": "font_size", "label": "Font size", "min": 12, "max": 20, "step": 1, "default": 14 },
 
     {
       "type": "select",
@@ -127,24 +89,9 @@
       "default": "medium"
     },
 
-    {
-      "type": "color",
-      "id": "button_background_color",
-      "label": "Button background color",
-      "default": "#111111"
-    },
-    {
-      "type": "color",
-      "id": "button_text_color",
-      "label": "Button text color",
-      "default": "#FFFFFF"
-    },
-    {
-      "type": "text",
-      "id": "button_text",
-      "label": "Button text",
-      "default": "Add to cart"
-    }
+    { "type": "color", "id": "button_background_color", "label": "Button background color", "default": "#111111" },
+    { "type": "color", "id": "button_text_color", "label": "Button text color", "default": "#FFFFFF" },
+    { "type": "text", "id": "button_text", "label": "Button text", "default": "Add to cart" }
   ]
 }
 {% endschema %}
