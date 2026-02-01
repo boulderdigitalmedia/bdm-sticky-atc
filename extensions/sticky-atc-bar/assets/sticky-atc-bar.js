@@ -11,9 +11,7 @@
   const qtyEl = bar.querySelector("#bdm-qty");
   const button = bar.querySelector("#bdm-atc");
 
-  // Only run on product URLs (works for app embed too)
   const isProductUrl = () => /\/products\//.test(window.location.pathname);
-  if (!isProductUrl()) return;
 
   function getHandleFromUrl() {
     const parts = window.location.pathname.split("/products/");
@@ -30,6 +28,12 @@
     } catch {
       return null;
     }
+  }
+
+  function getProductFromShopifyAnalytics() {
+    const metaProduct = window.ShopifyAnalytics?.meta?.product;
+    if (!metaProduct?.variants?.length) return null;
+    return metaProduct;
   }
 
   async function getProductFromShopifyEndpoint() {
@@ -64,8 +68,13 @@
   }
 
   async function init() {
+    if (!isProductUrl() && !window.ShopifyAnalytics?.meta?.product) return;
+
     // Try embedded JSON first (app block case)
     let product = getProductFromEmbeddedJson();
+
+    // Try ShopifyAnalytics meta (theme editor or custom product templates)
+    if (!product) product = getProductFromShopifyAnalytics();
 
     // Fallback to /products/<handle>.js (app embed case)
     if (!product) product = await getProductFromShopifyEndpoint();
