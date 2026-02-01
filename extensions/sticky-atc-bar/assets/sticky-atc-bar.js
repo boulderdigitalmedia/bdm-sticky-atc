@@ -1,22 +1,11 @@
 (() => {
   const BAR_ID = "bdm-sticky-atc";
-  const CONFIG = window.BDM_STICKY_ATC_CONFIG || {};
 
-  // Prevent double init (Shopify dynamic navigation / sections)
+  // Prevent double init
   if (window.__BDM_STICKY_ATC_INIT__) return;
   window.__BDM_STICKY_ATC_INIT__ = true;
 
   /* ---------------- Helpers ---------------- */
-
-  function isMobile() {
-    return window.matchMedia("(max-width: 768px)").matches;
-  }
-
-  function shouldRenderByDevice() {
-    if (isMobile() && CONFIG.enableMobile === false) return false;
-    if (!isMobile() && CONFIG.enableDesktop === false) return false;
-    return true;
-  }
 
   function isProductPage() {
     return Boolean(document.querySelector('[data-product-page="true"]'));
@@ -93,37 +82,16 @@
     }).catch(() => {});
   }
 
-  /* ---------------- Visibility ---------------- */
-
-  function setupVisibility(bar) {
-    if (!CONFIG.showOnScroll) {
-      bar.classList.add("is-visible");
-      return;
-    }
-
-    const offset = Number(CONFIG.scrollOffset || 300);
-
-    const onScroll = () => {
-      if (window.scrollY >= offset) {
-        bar.classList.add("is-visible");
-        window.removeEventListener("scroll", onScroll);
-      }
-    };
-
-    window.addEventListener("scroll", onScroll);
-  }
-
   /* ---------------- Start ---------------- */
 
   if (!isProductPage()) return;
-  if (!shouldRenderByDevice()) return;
 
   const bar = document.getElementById(BAR_ID);
   if (!bar) return;
 
   (async () => {
     const product = await getProductSafe();
-    if (!product || !product.id || !product.variants?.length) return;
+    if (!product || !product.variants?.length) return;
 
     const title = bar.querySelector("#bdm-title");
     const price = bar.querySelector("#bdm-price");
@@ -133,47 +101,20 @@
 
     if (!button || !controls) return;
 
-    /* ---------------- Content ---------------- */
-
+    // Content
     if (title) title.textContent = product.title;
     if (price) price.textContent = formatMoney(product.price);
-
-    /* ---------------- Apply config styles ---------------- */
-
-    bar.style.setProperty("--bdm-bg", CONFIG.backgroundColor || "#ffffff");
-    bar.style.setProperty("--bdm-text", CONFIG.textColor || "#000000");
-    bar.style.setProperty("--bdm-font-size", `${CONFIG.fontSize || 14}px`);
-    bar.style.setProperty("--bdm-button-bg", CONFIG.buttonColor || "#111111");
-    bar.style.setProperty("--bdm-button-text", CONFIG.buttonTextColor || "#ffffff");
-
-    // Force correct button classes (theme-safe)
-    button.classList.remove(
-      "small",
-      "medium",
-      "large",
-      "bdm-button--solid",
-      "bdm-button--outline",
-      "bdm-button--rounded"
-    );
-
-    button.classList.add("bdm-button");
-    button.classList.add(`bdm-button--${CONFIG.buttonStyle || "solid"}`);
-    button.classList.add(CONFIG.buttonSize || "medium");
-
-    /* ---------------- Controls ---------------- */
 
     let quantity = 1;
     let selectedVariantId = String(product.variants[0].id);
 
-    if (CONFIG.showQuantity === false && qtyInput) {
-      qtyInput.remove();
-    } else if (qtyInput) {
+    if (qtyInput) {
       qtyInput.addEventListener("change", () => {
         quantity = Math.max(1, parseInt(qtyInput.value, 10) || 1);
       });
     }
 
-    if (CONFIG.showVariants !== false && product.variants.length > 1) {
+    if (product.variants.length > 1) {
       const select = document.createElement("select");
       select.className = "bdm-atc-variants";
 
@@ -191,10 +132,10 @@
       controls.insertBefore(select, button);
     }
 
-    /* ---------------- Visibility + impression ---------------- */
+    // Show bar
+    bar.classList.add("is-visible");
 
-    setupVisibility(bar);
-
+    // Impression
     requestAnimationFrame(() => {
       track("sticky_atc_impression", {
         productId: product.id,
@@ -202,8 +143,7 @@
       });
     });
 
-    /* ---------------- Add to cart ---------------- */
-
+    // Add to cart
     button.addEventListener("click", async () => {
       track("sticky_atc_click", {
         productId: product.id,
