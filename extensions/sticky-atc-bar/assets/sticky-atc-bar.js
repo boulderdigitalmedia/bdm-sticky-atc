@@ -1,63 +1,133 @@
 (() => {
-  const bar = document.getElementById("bdm-sticky-atc");
+  const BAR_ID = "bdm-sticky-atc";
+
+  // Prevent double init
+  if (window.__BDM_STICKY_ATC_INIT__) return;
+  window.__BDM_STICKY_ATC_INIT__ = true;
+
+  /* ---------------- Helpers ---------------- */
+
+  function isProductPage() {
+    return document.querySelector('[data-product-page="true"]');
+  }
+
+  function getSessionId() {
+    const KEY = "bdm_sticky_atc_session_id";
+    let id = localStorage.getItem(KEY);
+    if (!id) {
+      id = crypto.randomUUID();
+      localStorage.setItem(KEY, id);
+    }
+    return id;
+  }
+
+  function track(event, data = {}) {
+    fetch("/apps/bdm-sticky-atc/track", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      keepalive: true,
+      body: JSON.stringify({
+        event,
+        data: {
+          ...data,
+          sessionId: getSessionId()
+        }
+      })
+    }).catch(() => {});
+  }
+
+  /* ---------------- Product DOM sync ---------------- */
+
+  function findProductTitle() {
+    return (
+      document.querySelector('[data-product-title]') ||
+      document.querySelector('h1.product__title') ||
+      document.querySelector('h1')
+    );
+  }
+
+  function findProductPrice() {
+    return (
+      document.querySelector('[data-product-price]') ||
+      document.querySelector('.price-item--regular') ||
+      document.querySelector('.price')
+    );
+  }
+
+  function syncText(sourceEl, targetEl) {
+    if (!sourceEl || !targetEl) return;
+    targetEl.textContent = sourceEl.textContent;
+  }
+
+  function observePriceChanges(source, target) {
+    if (!source || !target) return;
+
+    const observer = new MutationObserver(() => {
+      target.textContent = source.textContent;
+    });
+
+    observer.observe(source, {
+      childList: true,
+      characterData: true,
+      subtree: true
+    });
+  }
+
+  /* ---------------- Init ---------------- */
+
+  if (!isProductPage()) return;
+
+  const bar = document.getElementById(BAR_ID);
   if (!bar) return;
 
+  const titleTarget = bar.querySelector("#bdm-title");
+  const priceTarget = bar.querySelector("#bdm-price");
   const button = bar.querySelector("#bdm-atc");
-  const qtyInput = bar.querySelector("#bdm-qty");
 
-  /* -------------------------------------------------
-     Force repaint in Shopify Theme Editor
-  ------------------------------------------------- */
-  if (document.documentElement.hasAttribute("data-shopify-editor")) {
-    bar.style.display = "none";
-    bar.offsetHeight; // force reflow
-    bar.style.display = "";
-  }
+  const titleSource = findProductTitle();
+  const priceSource = findProductPrice();
 
-  /* -------------------------------------------------
-     Helpers
-  ------------------------------------------------- */
+  // Initial sync
+  syncText(titleSource, titleTarget);
+  syncText(priceSource, priceTarget);
 
-  function getCurrentVariantId() {
-    const input =
-      document.querySelector('input[name="id"]') ||
-      document.querySelector('select[name="id"]');
+  // Keep price in sync (variant changes)
+  observePriceChanges(priceSource, priceTarget);
 
-    return input ? input.value : null;
-  }
+  /* ---------------- Visibility ---------------- */
 
-  /* -------------------------------------------------
-     Init
-  ------------------------------------------------- */
+  bar.classList.add("is-visible");
+  bar.setAttribute("aria-hidden", "false");
 
-  function init() {
-    const variantId = getCurrentVariantId();
-    if (!variantId) return;
+  /* ---------------- Add to cart ---------------- */
 
-    bar.classList.add("is-visible");
-
+  if (button) {
     button.addEventListener("click", async () => {
-      const quantity = qtyInput
-        ? Math.max(1, parseInt(qtyInput.value, 10) || 1)
-        : 1;
+      track("sticky_atc_click");
+
+      const form =
+        document.querySelector('form[action^="/cart/add"]') ||
+        document.querySelector("form");
+
+      if (!form) return;
+
+      const formData = new FormData(form);
 
       await fetch("/cart/add.js", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({
-          items: [{ id: variantId, quantity }]
-        })
+        body: formData,
+        credentials: "same-origin"
       });
+
+      track("sticky_atc_success");
 
       window.location.href = "/cart";
     });
   }
 
-  /* Shopify dynamic sections safety */
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
-  } else {
-    init();
-  }
+  // Impression
+  requestAnimationFrame(() => {
+    track("sticky_atc_impression");
+  });
+
 })();

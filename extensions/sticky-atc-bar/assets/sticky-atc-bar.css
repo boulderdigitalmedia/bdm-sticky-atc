@@ -1,59 +1,33 @@
-/* ============================================================
-   Sticky Add To Cart Bar — FINAL BASELINE
-   Shopify Theme App Extension safe
-   ============================================================ */
-
-/* ---------------- Root container ---------------- */
-
 #bdm-sticky-atc {
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
+
+  background: var(--bdm-bg, #fafaf9);
+  color: var(--bdm-text, #000);
+
+  font-size: var(--bdm-font-size, 14px);
+  padding: 12px 16px;
+
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.12);
   z-index: 9999;
 
-  background-color: var(--bdm-bg, #FAFAF9) !important;
-  color: var(--bdm-text, #000000) !important;
-  font-size: var(--bdm-font-size, 14px) !important;
-
-  padding: 12px 16px;
-  min-height: 64px;
-
-  box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.12);
-
-  display: flex;
-  align-items: center;
-
-  transform: translateY(100%);
-  opacity: 0;
-  pointer-events: none;
-
-  transition: transform 0.25s ease, opacity 0.2s ease;
+  display: none;
 }
 
-/* Visible state */
 #bdm-sticky-atc.is-visible {
-  transform: translateY(0);
-  opacity: 1;
-  pointer-events: auto;
+  display: block;
 }
-
-/* Always visible in Theme Editor */
-html[data-shopify-editor="true"] #bdm-sticky-atc,
-html.design-mode #bdm-sticky-atc {
-  transform: translateY(0) !important;
-  opacity: 1 !important;
-  pointer-events: auto !important;
-}
-
-/* ---------------- Layout ---------------- */
 
 .bdm-inner {
-  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 12px;
+  justify-content: space-between;
+  gap: 16px;
 }
 
 .bdm-left {
@@ -62,67 +36,60 @@ html.design-mode #bdm-sticky-atc {
   gap: 4px;
 }
 
+#bdm-title {
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+#bdm-price {
+  font-weight: 500;
+  opacity: 0.85;
+}
+
 .bdm-right {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
-
-/* ---------------- Inputs ---------------- */
 
 #bdm-qty {
-  padding: 6px;
-  font-size: inherit;
   width: 64px;
+  padding: 6px;
 }
 
-/* ---------------- Button (CRITICAL FIX) ---------------- */
-/* all: unset REQUIRES full re-definition */
-
-#bdm-sticky-atc .bdm-button {
-  all: unset;
-
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-
+.bdm-button {
+  border: none;
   cursor: pointer;
   font-weight: 600;
-  line-height: 1;
-  text-align: center;
-
-  background-color: var(--bdm-button-bg, #111111) !important;
-  color: var(--bdm-button-text, #FFFFFF) !important;
-
   border-radius: 6px;
+  padding: 10px 18px;
 }
 
-/* Button styles */
-
-#bdm-sticky-atc .bdm-button--outline {
-  background-color: transparent !important;
-  border: 2px solid var(--bdm-button-bg, #111111) !important;
-  color: var(--bdm-button-bg, #111111) !important;
+.bdm-button--solid {
+  background: var(--bdm-button-bg, #111);
+  color: var(--bdm-button-text, #fff);
 }
 
-/* Button sizes — MUST come after all: unset */
+.bdm-button--outline {
+  background: transparent;
+  border: 2px solid var(--bdm-button-bg, #111);
+  color: var(--bdm-button-bg, #111);
+}
 
-#bdm-sticky-atc .bdm-button.small {
+.bdm-button.small {
   padding: 6px 12px;
   font-size: 13px;
 }
 
-#bdm-sticky-atc .bdm-button.medium {
-  padding: 10px 16px;
+.bdm-button.medium {
+  padding: 10px 18px;
   font-size: 14px;
 }
 
-#bdm-sticky-atc .bdm-button.large {
-  padding: 14px 20px;
+.bdm-button.large {
+  padding: 14px 22px;
   font-size: 16px;
 }
-
-/* ---------------- Mobile ---------------- */
 
 @media (max-width: 768px) {
   .bdm-inner {
@@ -134,7 +101,7 @@ html.design-mode #bdm-sticky-atc {
     width: 100%;
   }
 
-  #bdm-sticky-atc .bdm-button {
+  .bdm-button {
     width: 100%;
   }
 }
