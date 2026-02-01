@@ -1,58 +1,68 @@
 {% if request.page_type == 'product' %}
 
-  <div
-    id="bdm-sticky-atc"
-    class="bdm-sticky-atc"
-    aria-hidden="true"
-    data-sticky-atc
-    data-product-page="true"
-  >
-    <div class="bdm-inner">
-      <div class="bdm-left">
+<div
+  id="bdm-sticky-atc"
+  class="bdm-sticky-atc"
+  aria-hidden="true"
+  data-product-page="true"
+>
+  <div class="bdm-inner">
+    <div class="bdm-left">
+      {% if settings.show_title %}
         <div id="bdm-title"></div>
-        <div id="bdm-price"></div>
-      </div>
+      {% endif %}
 
-      <div class="bdm-right">
+      {% if settings.show_price %}
+        <div id="bdm-price"></div>
+      {% endif %}
+    </div>
+
+    <div class="bdm-right">
+      {% if settings.show_quantity %}
         <input
           id="bdm-qty"
           type="number"
           min="1"
           value="1"
         />
+      {% endif %}
 
-        <button
-          id="bdm-atc"
-          data-bdm-atc
-          type="button"
-        >
-          {{ settings.button_text }}
-        </button>
-      </div>
+      <button
+        id="bdm-atc"
+        type="button"
+        class="bdm-button bdm-button--{{ settings.button_style }}"
+      >
+        {{ settings.button_text }}
+      </button>
     </div>
   </div>
+</div>
 
-  {%- comment -%}
-    Pass config to JS in a safe, deterministic way
-  {%- endcomment -%}
-  <script>
-    window.BDM_STICKY_ATC_CONFIG = {
-      enableDesktop: true,
-      enableMobile: true,
-      showQuantity: true,
-      showVariants: true,
-      buttonText: {{ settings.button_text | json }}
-    };
-  </script>
+<script>
+  window.BDM_STICKY_ATC_CONFIG = {
+    /* Visibility */
+    showOnScroll: {{ settings.show_on_scroll | json }},
+    scrollOffset: {{ settings.scroll_offset }},
+    enableDesktop: {{ settings.enable_desktop | json }},
+    enableMobile: {{ settings.enable_mobile | json }},
 
-  <link
-    rel="stylesheet"
-    href="{{ 'sticky-atc-bar.css' | asset_url }}"
-  >
-  <script
-    src="{{ 'sticky-atc-bar.js' | asset_url }}"
-    defer
-  ></script>
+    /* Elements */
+    showVariants: {{ settings.show_variants | json }},
+    showPrice: {{ settings.show_price | json }},
+    showQuantity: {{ settings.show_quantity | json }},
+
+    /* Styling */
+    backgroundColor: {{ settings.background_color | json }},
+    textColor: {{ settings.text_color | json }},
+    fontSize: {{ settings.font_size }},
+    buttonColor: {{ settings.button_color | json }},
+    buttonTextColor: {{ settings.button_text_color | json }},
+    buttonSize: {{ settings.button_size | json }}
+  };
+</script>
+
+<link rel="stylesheet" href="{{ 'sticky-atc-bar.css' | asset_url }}">
+<script src="{{ 'sticky-atc-bar.js' | asset_url }}" defer></script>
 
 {% endif %}
 
@@ -61,6 +71,122 @@
   "name": "Sticky Add To Cart Bar",
   "target": "body",
   "settings": [
+    { "type": "header", "content": "Visibility" },
+
+    {
+      "type": "checkbox",
+      "id": "show_on_scroll",
+      "label": "Show only after scrolling",
+      "default": false
+    },
+    {
+      "type": "range",
+      "id": "scroll_offset",
+      "label": "Scroll offset (px)",
+      "min": 0,
+      "max": 800,
+      "step": 50,
+      "default": 300
+    },
+    {
+      "type": "checkbox",
+      "id": "enable_desktop",
+      "label": "Show on desktop",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "enable_mobile",
+      "label": "Show on mobile",
+      "default": true
+    },
+
+    { "type": "header", "content": "Elements" },
+
+    {
+      "type": "checkbox",
+      "id": "show_title",
+      "label": "Show product title",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_price",
+      "label": "Show price",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_quantity",
+      "label": "Show quantity selector",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_variants",
+      "label": "Show variant selector",
+      "default": true
+    },
+
+    { "type": "header", "content": "Style" },
+
+    {
+      "type": "color",
+      "id": "background_color",
+      "label": "Bar background color",
+      "default": "#ffffff"
+    },
+    {
+      "type": "color",
+      "id": "text_color",
+      "label": "Text color",
+      "default": "#000000"
+    },
+    {
+      "type": "range",
+      "id": "font_size",
+      "label": "Font size (px)",
+      "min": 12,
+      "max": 22,
+      "step": 1,
+      "default": 14
+    },
+
+    {
+      "type": "select",
+      "id": "button_style",
+      "label": "Button style",
+      "default": "solid",
+      "options": [
+        { "value": "solid", "label": "Solid" },
+        { "value": "outline", "label": "Outline" },
+        { "value": "rounded", "label": "Rounded" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "button_size",
+      "label": "Button size",
+      "default": "medium",
+      "options": [
+        { "value": "small", "label": "Small" },
+        { "value": "medium", "label": "Medium" },
+        { "value": "large", "label": "Large" }
+      ]
+    },
+    {
+      "type": "color",
+      "id": "button_color",
+      "label": "Button background color",
+      "default": "#111111"
+    },
+    {
+      "type": "color",
+      "id": "button_text_color",
+      "label": "Button text color",
+      "default": "#ffffff"
+    },
+
     {
       "type": "text",
       "id": "button_text",

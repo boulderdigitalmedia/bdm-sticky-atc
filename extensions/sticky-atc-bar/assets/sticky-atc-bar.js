@@ -2,11 +2,9 @@
   const BAR_ID = "bdm-sticky-atc";
   const CONFIG = window.BDM_STICKY_ATC_CONFIG || {};
 
-  // Prevent double-init (Shopify themes can re-render sections)
+  // Prevent double init (Shopify sections / navigation)
   if (window.__BDM_STICKY_ATC_INIT__) return;
   window.__BDM_STICKY_ATC_INIT__ = true;
-
-  window.__BDM_STICKY_ATC_LOADED__ = false;
 
   /* ---------------- Helpers ---------------- */
 
@@ -14,10 +12,14 @@
     return window.matchMedia("(max-width: 768px)").matches;
   }
 
-  function shouldRenderByConfig() {
+  function shouldRenderByDevice() {
     if (isMobile() && CONFIG.enableMobile === false) return false;
     if (!isMobile() && CONFIG.enableDesktop === false) return false;
     return true;
+  }
+
+  function isProductPage() {
+    return Boolean(document.querySelector('[data-product-page="true"]'));
   }
 
   function formatMoney(cents) {
@@ -36,7 +38,6 @@
   }
 
   function getShop() {
-    // Best-effort: different themes expose shop differently
     return (
       window.Shopify?.shop ||
       document.documentElement.getAttribute("data-shop") ||
@@ -45,13 +46,7 @@
     );
   }
 
-  function isProductPage() {
-    // Set by your liquid: data-product-page="true"
-    return Boolean(document.querySelector('[data-product-page="true"]'));
-  }
-
   async function getProductSafe() {
-    // Try theme JSON
     const script =
       document.querySelector('script[type="application/json"][data-product-json]') ||
       document.querySelector("#ProductJson");
@@ -63,28 +58,21 @@
       } catch {}
     }
 
-    // Fallback to Shopify product endpoint: /products/<handle>.js
     try {
       const parts = window.location.pathname.split("/products/");
       if (parts.length < 2) return null;
 
-      const handleWithExtras = parts[1] || "";
-      const handle = handleWithExtras.split("/")[0].split("?")[0];
-      if (!handle) return null;
-
+      const handle = parts[1].split("/")[0].split("?")[0];
       const res = await fetch(`/products/${handle}.js`, { credentials: "same-origin" });
       if (!res.ok) return null;
 
-      const product = await res.json();
-      if (product?.id) return product;
-      return null;
+      return await res.json();
     } catch {
       return null;
     }
   }
 
   function track(event, data = {}) {
-    // ✅ Always try to include shop, but backend now also accepts header fallback
     const shop = getShop();
 
     fetch("/apps/bdm-sticky-atc/track", {
@@ -105,19 +93,37 @@
     }).catch(() => {});
   }
 
+  /* ---------------- Visibility ---------------- */
+
+  function setupVisibility(bar) {
+    if (!CONFIG.showOnScroll) {
+      bar.classList.add("is-visible");
+      return;
+    }
+
+    const offset = Number(CONFIG.scrollOffset || 300);
+
+    const onScroll = () => {
+      if (window.scrollY >= offset) {
+        bar.classList.add("is-visible");
+        window.removeEventListener("scroll", onScroll);
+      }
+    };
+
+    window.addEventListener("scroll", onScroll);
+  }
+
   /* ---------------- Start ---------------- */
 
-  if (!shouldRenderByConfig()) return;
   if (!isProductPage()) return;
+  if (!shouldRenderByDevice()) return;
 
   const bar = document.getElementById(BAR_ID);
   if (!bar) return;
 
   (async () => {
     const product = await getProductSafe();
-    if (!product || !product.id || !Array.isArray(product.variants) || product.variants.length === 0) {
-      return;
-    }
+    if (!product || !product.id || !product.variants?.length) return;
 
     const title = bar.querySelector("#bdm-title");
     const price = bar.querySelector("#bdm-price");
@@ -125,27 +131,35 @@
     const qtyInput = bar.querySelector("#bdm-qty");
     const controls = bar.querySelector(".bdm-right");
 
-    if (!controls || !button || !title || !price) return;
+    if (!button || !controls) return;
 
-    // Apply text + price
-    title.textContent = product.title;
-    price.textContent = formatMoney(product.price);
+    /* ---------------- Apply content ---------------- */
 
-    // Show bar via class (CSS should handle transitions)
-    bar.classList.add("is-visible");
-    bar.setAttribute("aria-hidden", "false");
+    if (title) title.textContent = product.title;
+    if (price) price.textContent = formatMoney(product.price);
+
+    /* ---------------- Apply styles from config ---------------- */
+
+    bar.style.setProperty("--bdm-bg", CONFIG.backgroundColor || "#fff");
+    bar.style.setProperty("--bdm-text", CONFIG.textColor || "#000");
+    bar.style.setProperty("--bdm-font-size", `${CONFIG.fontSize || 14}px`);
+
+    button.style.backgroundColor = CONFIG.buttonColor || "#111";
+    button.style.color = CONFIG.buttonTextColor || "#fff";
+    button.classList.add(`bdm-button--${CONFIG.buttonStyle || "solid"}`);
+    button.classList.add(CONFIG.buttonSize || "medium");
 
     /* ---------------- Controls ---------------- */
 
     let quantity = 1;
     let selectedVariantId = String(product.variants[0].id);
 
-    if (CONFIG.showQuantity !== false && qtyInput) {
+    if (CONFIG.showQuantity === false && qtyInput) {
+      qtyInput.remove();
+    } else if (qtyInput) {
       qtyInput.addEventListener("change", () => {
         quantity = Math.max(1, parseInt(qtyInput.value, 10) || 1);
       });
-    } else if (qtyInput) {
-      qtyInput.remove();
     }
 
     if (CONFIG.showVariants !== false && product.variants.length > 1) {
@@ -166,7 +180,10 @@
       controls.insertBefore(select, button);
     }
 
-    // ✅ Impression AFTER visible (more reliable)
+    /* ---------------- Visibility + impression ---------------- */
+
+    setupVisibility(bar);
+
     requestAnimationFrame(() => {
       track("sticky_atc_impression", {
         productId: product.id,
@@ -182,7 +199,6 @@
         variantId: selectedVariantId
       });
 
-      // ✅ Explicit "attempted add-to-cart" event (dashboards often expect this)
       track("sticky_atc_add_to_cart", {
         productId: product.id,
         variantId: selectedVariantId,
@@ -204,18 +220,9 @@
           variantId: selectedVariantId,
           quantity
         });
-      } else {
-        track("sticky_atc_error", {
-          productId: product.id,
-          variantId: selectedVariantId,
-          quantity
-        });
       }
 
-      // Keep existing behavior
       window.location.href = "/cart";
     });
-
-    window.__BDM_STICKY_ATC_LOADED__ = true;
   })();
 })();

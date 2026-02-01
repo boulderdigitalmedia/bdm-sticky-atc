@@ -1,4 +1,4 @@
-/* ---------------- Base container ---------------- */
+/* ---------------- Base ---------------- */
 
 #bdm-sticky-atc {
   position: fixed;
@@ -6,11 +6,15 @@
   left: 0;
   right: 0;
   z-index: 9999;
-  padding: 12px 16px;
-  font-family: inherit;
-  box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
 
-  /* 🔑 Hidden by default */
+  background: var(--bdm-bg, #fff);
+  color: var(--bdm-text, #000);
+  font-size: var(--bdm-font-size, 14px);
+
+  padding: 12px 16px;
+  box-shadow: 0 -2px 12px rgba(0,0,0,0.12);
+
+  /* Hidden by default */
   transform: translateY(100%);
   opacity: 0;
   pointer-events: none;
@@ -20,16 +24,10 @@
     opacity 0.2s ease;
 }
 
-/* 🔑 Visible state (JS toggles this) */
 #bdm-sticky-atc.is-visible {
   transform: translateY(0);
   opacity: 1;
   pointer-events: auto;
-}
-
-/* Optional: accessibility alignment */
-#bdm-sticky-atc[aria-hidden="true"] {
-  pointer-events: none;
 }
 
 /* ---------------- Layout ---------------- */
@@ -44,29 +42,60 @@
 .bdm-left {
   display: flex;
   flex-direction: column;
+  gap: 4px;
 }
 
 .bdm-right {
   display: flex;
-  gap: 8px;
   align-items: center;
+  gap: 8px;
 }
 
 /* ---------------- Controls ---------------- */
 
 #bdm-qty,
-.bdm-atc-variants,
-.bdm-atc-subscription {
+.bdm-atc-variants {
   padding: 6px;
   font-size: inherit;
 }
 
-#bdm-atc {
-  padding: 10px 16px;
+.bdm-button {
   border: none;
   cursor: pointer;
-  color: #fff;
   font-weight: 600;
+  line-height: 1;
+}
+
+/* Button styles */
+
+.bdm-button--solid {
+  border-radius: 6px;
+}
+
+.bdm-button--outline {
+  background: transparent !important;
+  border: 2px solid currentColor;
+}
+
+.bdm-button--rounded {
+  border-radius: 999px;
+}
+
+/* Button sizes */
+
+.bdm-button.small {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+.bdm-button.medium {
+  padding: 10px 16px;
+  font-size: 14px;
+}
+
+.bdm-button.large {
+  padding: 14px 20px;
+  font-size: 16px;
 }
 
 /* ---------------- Mobile ---------------- */
@@ -81,7 +110,7 @@
     width: 100%;
   }
 
-  #bdm-atc {
+  .bdm-button {
     width: 100%;
   }
 }
