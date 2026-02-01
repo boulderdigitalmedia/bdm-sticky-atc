@@ -1,5 +1,6 @@
 /* ============================================================
-   Sticky Add To Cart Bar — FINAL, SHOPIFY-HARDENED
+   Sticky Add To Cart Bar — FINAL BASELINE
+   Shopify Theme App Extension safe
    ============================================================ */
 
 /* ---------------- Root container ---------------- */
@@ -11,7 +12,6 @@
   right: 0;
   z-index: 9999;
 
-  /* 🔑 ALL configurable styles come from variables */
   background-color: var(--bdm-bg, #FAFAF9) !important;
   color: var(--bdm-text, #000000) !important;
   font-size: var(--bdm-font-size, 14px) !important;
@@ -24,7 +24,6 @@
   display: flex;
   align-items: center;
 
-  /* Hidden by default (live store) */
   transform: translateY(100%);
   opacity: 0;
   pointer-events: none;
@@ -32,7 +31,7 @@
   transition: transform 0.25s ease, opacity 0.2s ease;
 }
 
-/* Visible state (toggled by JS) */
+/* Visible state */
 #bdm-sticky-atc.is-visible {
   transform: translateY(0);
   opacity: 1;
@@ -71,16 +70,17 @@ html.design-mode #bdm-sticky-atc {
 
 /* ---------------- Inputs ---------------- */
 
-#bdm-qty,
-.bdm-atc-variants {
+#bdm-qty {
   padding: 6px;
   font-size: inherit;
+  width: 64px;
 }
 
-/* ---------------- Button (theme-proof) ---------------- */
+/* ---------------- Button (CRITICAL FIX) ---------------- */
+/* all: unset REQUIRES full re-definition */
 
 #bdm-sticky-atc .bdm-button {
-  all: unset; /* isolate from theme */
+  all: unset;
 
   display: inline-flex;
   align-items: center;
@@ -99,25 +99,25 @@ html.design-mode #bdm-sticky-atc {
 
 /* Button styles */
 
-.bdm-button--outline {
-  background: transparent !important;
+#bdm-sticky-atc .bdm-button--outline {
+  background-color: transparent !important;
   border: 2px solid var(--bdm-button-bg, #111111) !important;
   color: var(--bdm-button-bg, #111111) !important;
 }
 
-/* Button sizes */
+/* Button sizes — MUST come after all: unset */
 
-.small {
+#bdm-sticky-atc .bdm-button.small {
   padding: 6px 12px;
   font-size: 13px;
 }
 
-.medium {
+#bdm-sticky-atc .bdm-button.medium {
   padding: 10px 16px;
   font-size: 14px;
 }
 
-.large {
+#bdm-sticky-atc .bdm-button.large {
   padding: 14px 20px;
   font-size: 16px;
 }

@@ -1,16 +1,12 @@
 (() => {
-  const BAR_ID = "bdm-sticky-atc";
-  const bar = document.getElementById(BAR_ID);
+  const bar = document.getElementById("bdm-sticky-atc");
   if (!bar) return;
 
-  const title = bar.querySelector("#bdm-title");
-  const price = bar.querySelector("#bdm-price");
   const button = bar.querySelector("#bdm-atc");
   const qtyInput = bar.querySelector("#bdm-qty");
 
   /* -------------------------------------------------
      Force repaint in Shopify Theme Editor
-     (required for app embed settings updates)
   ------------------------------------------------- */
   if (document.documentElement.hasAttribute("data-shopify-editor")) {
     bar.style.display = "none";
@@ -22,37 +18,21 @@
      Helpers
   ------------------------------------------------- */
 
-  function formatMoney(cents) {
-    return `$${(cents / 100).toFixed(2)}`;
-  }
+  function getCurrentVariantId() {
+    const input =
+      document.querySelector('input[name="id"]') ||
+      document.querySelector('select[name="id"]');
 
-  async function getProduct() {
-    try {
-      const path = window.location.pathname;
-      if (!path.includes("/products/")) return null;
-
-      const handle = path.split("/products/")[1].split("/")[0].split("?")[0];
-      const res = await fetch(`/products/${handle}.js`, {
-        credentials: "same-origin"
-      });
-
-      if (!res.ok) return null;
-      return await res.json();
-    } catch {
-      return null;
-    }
+    return input ? input.value : null;
   }
 
   /* -------------------------------------------------
      Init
   ------------------------------------------------- */
 
-  (async () => {
-    const product = await getProduct();
-    if (!product || !product.variants?.length) return;
-
-    if (title) title.textContent = product.title;
-    if (price) price.textContent = formatMoney(product.price);
+  function init() {
+    const variantId = getCurrentVariantId();
+    if (!variantId) return;
 
     bar.classList.add("is-visible");
 
@@ -66,11 +46,18 @@
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
         body: JSON.stringify({
-          items: [{ id: product.variants[0].id, quantity }]
+          items: [{ id: variantId, quantity }]
         })
       });
 
       window.location.href = "/cart";
     });
-  })();
+  }
+
+  /* Shopify dynamic sections safety */
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
 })();
