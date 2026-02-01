@@ -1,24 +1,22 @@
 /* ============================================================
-   Sticky Add To Cart Bar — HARDENED, EDITOR-SAFE
+   Sticky Add To Cart Bar — FINAL, SHOPIFY-HARDENED
    ============================================================ */
+
+/* ---------------- Root container ---------------- */
 
 #bdm-sticky-atc {
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
-
   z-index: 9999;
 
-  /* ALWAYS paint a background */
+  /* 🔑 ALL configurable styles come from variables */
   background-color: var(--bdm-bg, #FAFAF9) !important;
   color: var(--bdm-text, #000000) !important;
-
-  font-size: var(--bdm-font-size, 14px);
+  font-size: var(--bdm-font-size, 14px) !important;
 
   padding: 12px 16px;
-
-  /* Prevent "invisible empty bar" */
   min-height: 64px;
 
   box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.12);
@@ -26,7 +24,7 @@
   display: flex;
   align-items: center;
 
-  /* Hidden by default (live store only) */
+  /* Hidden by default (live store) */
   transform: translateY(100%);
   opacity: 0;
   pointer-events: none;
@@ -34,17 +32,14 @@
   transition: transform 0.25s ease, opacity 0.2s ease;
 }
 
-/* Visible state (JS toggles this on live site) */
+/* Visible state (toggled by JS) */
 #bdm-sticky-atc.is-visible {
   transform: translateY(0);
   opacity: 1;
   pointer-events: auto;
 }
 
-/* ------------------------------------------------------------
-   FORCE VISIBILITY IN SHOPIFY THEME EDITOR
-   ------------------------------------------------------------ */
-
+/* Always visible in Theme Editor */
 html[data-shopify-editor="true"] #bdm-sticky-atc,
 html.design-mode #bdm-sticky-atc {
   transform: translateY(0) !important;
@@ -52,9 +47,7 @@ html.design-mode #bdm-sticky-atc {
   pointer-events: auto !important;
 }
 
-/* ------------------------------------------------------------
-   Inner layout (must exist even if empty)
-   ------------------------------------------------------------ */
+/* ---------------- Layout ---------------- */
 
 .bdm-inner {
   width: 100%;
@@ -64,26 +57,11 @@ html.design-mode #bdm-sticky-atc {
   gap: 12px;
 }
 
-/* ------------------------------------------------------------
-   Left content
-   ------------------------------------------------------------ */
-
 .bdm-left {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
-
-/* If all toggles off, still show placeholder height */
-.bdm-left:empty::before {
-  content: "Sticky Add To Cart Bar";
-  opacity: 0.4;
-  font-size: 13px;
-}
-
-/* ------------------------------------------------------------
-   Right controls
-   ------------------------------------------------------------ */
 
 .bdm-right {
   display: flex;
@@ -91,9 +69,7 @@ html.design-mode #bdm-sticky-atc {
   gap: 8px;
 }
 
-/* ------------------------------------------------------------
-   Quantity / variant inputs
-   ------------------------------------------------------------ */
+/* ---------------- Inputs ---------------- */
 
 #bdm-qty,
 .bdm-atc-variants {
@@ -101,13 +77,10 @@ html.design-mode #bdm-sticky-atc {
   font-size: inherit;
 }
 
-/* ------------------------------------------------------------
-   Button — theme proof
-   ------------------------------------------------------------ */
+/* ---------------- Button (theme-proof) ---------------- */
 
-#bdm-sticky-atc .bdm-button,
-#bdm-atc {
-  all: unset;
+#bdm-sticky-atc .bdm-button {
+  all: unset; /* isolate from theme */
 
   display: inline-flex;
   align-items: center;
@@ -115,47 +88,41 @@ html.design-mode #bdm-sticky-atc {
 
   cursor: pointer;
   font-weight: 600;
+  line-height: 1;
   text-align: center;
 
-  background-color: var(--bdm-button-bg, #111111);
-  color: var(--bdm-button-text, #ffffff);
+  background-color: var(--bdm-button-bg, #111111) !important;
+  color: var(--bdm-button-text, #FFFFFF) !important;
 
   border-radius: 6px;
-  padding: 10px 16px;
 }
 
 /* Button styles */
 
 .bdm-button--outline {
-  background: transparent;
-  border: 2px solid var(--bdm-button-bg, #111111);
-  color: var(--bdm-button-bg, #111111);
-}
-
-.bdm-button--rounded {
-  border-radius: 999px;
+  background: transparent !important;
+  border: 2px solid var(--bdm-button-bg, #111111) !important;
+  color: var(--bdm-button-bg, #111111) !important;
 }
 
 /* Button sizes */
 
 .small {
-  font-size: 13px;
   padding: 6px 12px;
+  font-size: 13px;
 }
 
 .medium {
-  font-size: 14px;
   padding: 10px 16px;
+  font-size: 14px;
 }
 
 .large {
-  font-size: 16px;
   padding: 14px 20px;
+  font-size: 16px;
 }
 
-/* ------------------------------------------------------------
-   Mobile layout
-   ------------------------------------------------------------ */
+/* ---------------- Mobile ---------------- */
 
 @media (max-width: 768px) {
   .bdm-inner {
@@ -167,7 +134,7 @@ html.design-mode #bdm-sticky-atc {
     width: 100%;
   }
 
-  #bdm-atc {
+  #bdm-sticky-atc .bdm-button {
     width: 100%;
   }
 }
