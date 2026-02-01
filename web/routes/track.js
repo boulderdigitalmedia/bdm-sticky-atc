@@ -1,3 +1,8 @@
+import express from "express";
+import prisma from "../prisma.js";
+
+const router = express.Router();
+
 router.post("/track", express.json(), async (req, res) => {
   try {
     const body = req.body || {};
@@ -7,7 +12,7 @@ router.post("/track", express.json(), async (req, res) => {
       return res.status(400).json({ ok: false });
     }
 
-    // Support both legacy + current payloads
+    // ✅ Support both legacy + current payload formats
     const data = body.data ?? body;
 
     const {
@@ -19,7 +24,10 @@ router.post("/track", express.json(), async (req, res) => {
 
     const timestamp = new Date();
 
-    // 1️⃣ Always record generic analytics
+    /* ────────────────────────────────────────────── */
+    /* 1️⃣ GENERIC ANALYTICS (DASHBOARD SAFE) */
+    /* ────────────────────────────────────────────── */
+
     await prisma.analyticsEvent.create({
       data: {
         shop,
@@ -28,7 +36,10 @@ router.post("/track", express.json(), async (req, res) => {
       }
     });
 
-    // 2️⃣ Sticky events (dashboard)
+    /* ────────────────────────────────────────────── */
+    /* 2️⃣ STICKY EVENTS (DASHBOARD COUNTS) */
+    /* ────────────────────────────────────────────── */
+
     if (event.includes("sticky")) {
       await prisma.stickyEvent.create({
         data: {
@@ -44,7 +55,10 @@ router.post("/track", express.json(), async (req, res) => {
       });
     }
 
-    // 3️⃣ Sticky ATC intent (attribution)
+    /* ────────────────────────────────────────────── */
+    /* 3️⃣ STICKY ATC INTENT (ATTRIBUTION) */
+    /* ────────────────────────────────────────────── */
+
     if (
       (event === "sticky_atc_click" || event === "sticky_atc_success") &&
       variantId &&
@@ -61,6 +75,7 @@ router.post("/track", express.json(), async (req, res) => {
           }
         });
       } catch (e) {
+        // ⚠️ Do NOT fail the request if attribution fails
         console.warn("Sticky ATC intent skipped:", e.message);
       }
     }
@@ -71,3 +86,5 @@ router.post("/track", express.json(), async (req, res) => {
     return res.status(500).json({ ok: false });
   }
 });
+
+export default router; // ✅ REQUIRED FOR ESM
