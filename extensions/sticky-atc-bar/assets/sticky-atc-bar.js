@@ -1,7 +1,7 @@
 (() => {
   const BAR_ID = "bdm-sticky-atc";
 
-  // Prevent double init
+  // Prevent double init (important for Shopify)
   if (window.__BDM_STICKY_ATC_INIT__) return;
   window.__BDM_STICKY_ATC_INIT__ = true;
 
@@ -52,7 +52,9 @@
       if (parts.length < 2) return null;
 
       const handle = parts[1].split("/")[0].split("?")[0];
-      const res = await fetch(`/products/${handle}.js`, { credentials: "same-origin" });
+      const res = await fetch(`/products/${handle}.js`, {
+        credentials: "same-origin"
+      });
       if (!res.ok) return null;
 
       return await res.json();
@@ -97,16 +99,18 @@
     const price = bar.querySelector("#bdm-price");
     const button = bar.querySelector("#bdm-atc");
     const qtyInput = bar.querySelector("#bdm-qty");
-    const controls = bar.querySelector(".bdm-right");
+    const variantSelect = bar.querySelector("#bdm-variant");
 
-    if (!button || !controls) return;
+    if (!button) return;
 
-    // Content
+    // Populate content (only if present — Liquid controls visibility)
     if (title) title.textContent = product.title;
     if (price) price.textContent = formatMoney(product.price);
 
-    let quantity = 1;
-    let selectedVariantId = String(product.variants[0].id);
+    let quantity = qtyInput ? Number(qtyInput.value) || 1 : 1;
+    let selectedVariantId =
+      (variantSelect && variantSelect.value) ||
+      String(product.variants[0].id);
 
     if (qtyInput) {
       qtyInput.addEventListener("change", () => {
@@ -114,22 +118,10 @@
       });
     }
 
-    if (product.variants.length > 1) {
-      const select = document.createElement("select");
-      select.className = "bdm-atc-variants";
-
-      product.variants.forEach((v) => {
-        const opt = document.createElement("option");
-        opt.value = String(v.id);
-        opt.textContent = v.title;
-        select.appendChild(opt);
+    if (variantSelect) {
+      variantSelect.addEventListener("change", () => {
+        selectedVariantId = variantSelect.value;
       });
-
-      select.addEventListener("change", () => {
-        selectedVariantId = select.value;
-      });
-
-      controls.insertBefore(select, button);
     }
 
     // Show bar
