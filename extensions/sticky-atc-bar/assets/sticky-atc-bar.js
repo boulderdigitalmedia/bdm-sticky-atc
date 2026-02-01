@@ -1,56 +1,45 @@
 (() => {
-  const BAR_ID = "bdm-sticky-atc";
-
   if (window.__BDM_STICKY_ATC_INIT__) return;
   window.__BDM_STICKY_ATC_INIT__ = true;
 
-  /* ---------------- Guards ---------------- */
-
-  if (!document.querySelector('[data-product-page="true"]')) return;
-
-  const bar = document.getElementById(BAR_ID);
+  const bar = document.getElementById("bdm-sticky-atc");
   if (!bar) return;
+
+  if (!bar.hasAttribute("data-product-page")) return;
 
   const titleEl = bar.querySelector("#bdm-title");
   const priceEl = bar.querySelector("#bdm-price");
+  const qtyEl = bar.querySelector("#bdm-qty");
   const button = bar.querySelector("#bdm-atc");
 
-  /* ---------------- Product JSON (CANONICAL) ---------------- */
+  /* ---------------- Product JSON ---------------- */
 
-  function getProductJson() {
-    const script =
-      document.querySelector('script[type="application/json"][data-product-json]') ||
-      document.querySelector("#ProductJson");
-
-    if (!script) return null;
-
-    try {
-      return JSON.parse(script.textContent);
-    } catch {
-      return null;
-    }
-  }
-
-  const product = getProductJson();
-  if (!product || !product.variants?.length) {
-    console.warn("BDM Sticky ATC: product JSON not found");
+  const jsonScript = document.querySelector("script[data-product-json]");
+  if (!jsonScript) {
+    console.warn("BDM Sticky ATC: product JSON missing");
     return;
   }
 
-  /* ---------------- State ---------------- */
+  let product;
+  try {
+    product = JSON.parse(jsonScript.textContent);
+  } catch {
+    console.warn("BDM Sticky ATC: invalid product JSON");
+    return;
+  }
 
-  let selectedVariantId = product.variants[0].id;
+  if (!product?.variants?.length) return;
 
-  /* ---------------- Populate content ---------------- */
+  let selectedVariant = product.variants[0];
+
+  /* ---------------- Populate ---------------- */
 
   if (titleEl) {
     titleEl.textContent = product.title;
   }
 
   if (priceEl) {
-    priceEl.textContent = formatMoney(
-      product.variants[0].price * 100
-    );
+    priceEl.textContent = formatMoney(selectedVariant.price * 100);
   }
 
   /* ---------------- Variant syncing ---------------- */
@@ -59,16 +48,16 @@
     const input = e.target;
     if (!input.name || input.name !== "id") return;
 
-    const variant = product.variants.find(
+    const match = product.variants.find(
       (v) => String(v.id) === String(input.value)
     );
 
-    if (!variant) return;
+    if (!match) return;
 
-    selectedVariantId = variant.id;
+    selectedVariant = match;
 
     if (priceEl) {
-      priceEl.textContent = formatMoney(variant.price * 100);
+      priceEl.textContent = formatMoney(match.price * 100);
     }
   });
 
@@ -81,12 +70,14 @@
 
   if (button) {
     button.addEventListener("click", async () => {
+      const quantity = qtyEl ? Math.max(1, parseInt(qtyEl.value, 10) || 1) : 1;
+
       await fetch("/cart/add.js", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
         body: JSON.stringify({
-          items: [{ id: selectedVariantId, quantity: 1 }]
+          items: [{ id: selectedVariant.id, quantity }]
         })
       });
 
