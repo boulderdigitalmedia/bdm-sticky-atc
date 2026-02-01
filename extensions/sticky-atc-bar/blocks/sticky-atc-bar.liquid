@@ -1,35 +1,60 @@
-<div
-  id="bdm-sticky-atc"
-  aria-hidden="true"
-  data-sticky-atc
->
-  <div class="bdm-inner">
-    <div class="bdm-left">
-      <div id="bdm-title"></div>
-      <div id="bdm-price"></div>
-    </div>
+{% if request.page_type == 'product' %}
 
-    <div class="bdm-right">
-      <input
-        id="bdm-qty"
-        type="number"
-        min="1"
-        value="1"
-      />
+  <div
+    id="bdm-sticky-atc"
+    class="bdm-sticky-atc"
+    aria-hidden="true"
+    data-sticky-atc
+    data-product-page="true"
+  >
+    <div class="bdm-inner">
+      <div class="bdm-left">
+        <div id="bdm-title"></div>
+        <div id="bdm-price"></div>
+      </div>
 
-      <button
-        id="bdm-atc"
-        data-bdm-atc
-        type="button"
-      >
-        {{ settings.button_text }}
-      </button>
+      <div class="bdm-right">
+        <input
+          id="bdm-qty"
+          type="number"
+          min="1"
+          value="1"
+        />
+
+        <button
+          id="bdm-atc"
+          data-bdm-atc
+          type="button"
+        >
+          {{ settings.button_text }}
+        </button>
+      </div>
     </div>
   </div>
-</div>
 
-<link rel="stylesheet" href="{{ 'sticky-atc-bar.css' | asset_url }}">
-<script src="{{ 'sticky-atc-bar.js' | asset_url }}" defer></script>
+  {%- comment -%}
+    Pass config to JS in a safe, deterministic way
+  {%- endcomment -%}
+  <script>
+    window.BDM_STICKY_ATC_CONFIG = {
+      enableDesktop: true,
+      enableMobile: true,
+      showQuantity: true,
+      showVariants: true,
+      buttonText: {{ settings.button_text | json }}
+    };
+  </script>
+
+  <link
+    rel="stylesheet"
+    href="{{ 'sticky-atc-bar.css' | asset_url }}"
+  >
+  <script
+    src="{{ 'sticky-atc-bar.js' | asset_url }}"
+    defer
+  ></script>
+
+{% endif %}
 
 {% schema %}
 {
