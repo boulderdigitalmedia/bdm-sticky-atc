@@ -7,8 +7,8 @@
   right: 0;
   z-index: 9999;
 
-  background: var(--bdm-bg, #fff);
-  color: var(--bdm-text, #000);
+  background: var(--bdm-bg, #ffffff);
+  color: var(--bdm-text, #000000);
   font-size: var(--bdm-font-size, 14px);
 
   padding: 12px 16px;
@@ -51,7 +51,7 @@
   gap: 8px;
 }
 
-/* ---------------- Controls ---------------- */
+/* ---------------- Inputs ---------------- */
 
 #bdm-qty,
 .bdm-atc-variants {
@@ -59,41 +59,53 @@
   font-size: inherit;
 }
 
-.bdm-button {
-  border: none;
+/* ---------------- Button (theme-proof) ---------------- */
+
+#bdm-sticky-atc .bdm-button {
+  all: unset; /* 🔑 removes theme styles */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   font-weight: 600;
   line-height: 1;
+  text-align: center;
 }
 
 /* Button styles */
 
-.bdm-button--solid {
+#bdm-sticky-atc .bdm-button--solid {
+  background: var(--bdm-button-bg, #111111);
+  color: var(--bdm-button-text, #ffffff);
   border-radius: 6px;
 }
 
-.bdm-button--outline {
-  background: transparent !important;
-  border: 2px solid currentColor;
+#bdm-sticky-atc .bdm-button--outline {
+  background: transparent;
+  color: var(--bdm-button-bg, #111111);
+  border: 2px solid var(--bdm-button-bg, #111111);
+  border-radius: 6px;
 }
 
-.bdm-button--rounded {
+#bdm-sticky-atc .bdm-button--rounded {
+  background: var(--bdm-button-bg, #111111);
+  color: var(--bdm-button-text, #ffffff);
   border-radius: 999px;
 }
 
 /* Button sizes */
 
-.bdm-button.small {
+#bdm-sticky-atc .bdm-button.small {
   padding: 6px 12px;
   font-size: 13px;
 }
 
-.bdm-button.medium {
+#bdm-sticky-atc .bdm-button.medium {
   padding: 10px 16px;
   font-size: 14px;
 }
 
-.bdm-button.large {
+#bdm-sticky-atc .bdm-button.large {
   padding: 14px 20px;
   font-size: 16px;
 }
@@ -110,7 +122,7 @@
     width: 100%;
   }
 
-  .bdm-button {
+  #bdm-sticky-atc .bdm-button {
     width: 100%;
   }
 }

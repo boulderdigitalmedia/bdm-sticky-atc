@@ -2,7 +2,7 @@
   const BAR_ID = "bdm-sticky-atc";
   const CONFIG = window.BDM_STICKY_ATC_CONFIG || {};
 
-  // Prevent double init (Shopify sections / navigation)
+  // Prevent double init (Shopify dynamic navigation / sections)
   if (window.__BDM_STICKY_ATC_INIT__) return;
   window.__BDM_STICKY_ATC_INIT__ = true;
 
@@ -133,19 +133,30 @@
 
     if (!button || !controls) return;
 
-    /* ---------------- Apply content ---------------- */
+    /* ---------------- Content ---------------- */
 
     if (title) title.textContent = product.title;
     if (price) price.textContent = formatMoney(product.price);
 
-    /* ---------------- Apply styles from config ---------------- */
+    /* ---------------- Apply config styles ---------------- */
 
-    bar.style.setProperty("--bdm-bg", CONFIG.backgroundColor || "#fff");
-    bar.style.setProperty("--bdm-text", CONFIG.textColor || "#000");
+    bar.style.setProperty("--bdm-bg", CONFIG.backgroundColor || "#ffffff");
+    bar.style.setProperty("--bdm-text", CONFIG.textColor || "#000000");
     bar.style.setProperty("--bdm-font-size", `${CONFIG.fontSize || 14}px`);
+    bar.style.setProperty("--bdm-button-bg", CONFIG.buttonColor || "#111111");
+    bar.style.setProperty("--bdm-button-text", CONFIG.buttonTextColor || "#ffffff");
 
-    button.style.backgroundColor = CONFIG.buttonColor || "#111";
-    button.style.color = CONFIG.buttonTextColor || "#fff";
+    // Force correct button classes (theme-safe)
+    button.classList.remove(
+      "small",
+      "medium",
+      "large",
+      "bdm-button--solid",
+      "bdm-button--outline",
+      "bdm-button--rounded"
+    );
+
+    button.classList.add("bdm-button");
     button.classList.add(`bdm-button--${CONFIG.buttonStyle || "solid"}`);
     button.classList.add(CONFIG.buttonSize || "medium");
 
