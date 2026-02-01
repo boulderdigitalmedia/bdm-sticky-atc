@@ -11,8 +11,8 @@
   z-index: 9999;
 
   /* ALWAYS paint a background */
-  background-color: var(--bdm-bg, #fafafa);
-  color: var(--bdm-text, #000000);
+  background-color: var(--bdm-bg, #FAFAF9) !important;
+  color: var(--bdm-text, #000000) !important;
 
   font-size: var(--bdm-font-size, 14px);
 
