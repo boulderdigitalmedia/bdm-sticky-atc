@@ -1,4 +1,8 @@
-/* ---------------- Container ---------------- */
+/* ============================================================
+   Sticky Add To Cart Bar — FINAL, SHOPIFY-SAFE
+   ============================================================ */
+
+/* ---------------- Base container ---------------- */
 
 #bdm-sticky-atc {
   position: fixed;
@@ -14,17 +18,32 @@
   padding: 12px 16px;
   box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.12);
 
+  /* Hidden by default (LIVE STORE behavior) */
   transform: translateY(100%);
   opacity: 0;
   pointer-events: none;
 
-  transition: transform 0.25s ease, opacity 0.2s ease;
+  transition:
+    transform 0.25s ease,
+    opacity 0.2s ease;
 }
 
+/* Visible state (set by JS on live store) */
 #bdm-sticky-atc.is-visible {
   transform: translateY(0);
   opacity: 1;
   pointer-events: auto;
+}
+
+/* ---------------- Shopify Theme Editor fallback ---------------- */
+/* Shopify does NOT reliably execute app-embed JS in the editor.
+   Force visibility so merchants can see and configure the bar. */
+
+html[data-shopify-editor="true"] #bdm-sticky-atc,
+html.design-mode #bdm-sticky-atc {
+  transform: translateY(0) !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
 }
 
 /* ---------------- Layout ---------------- */
@@ -54,14 +73,15 @@
 #bdm-variant {
   padding: 6px;
   font-size: inherit;
+  line-height: 1.2;
 }
 
 /* ---------------- Button (theme-proof) ---------------- */
+/* We reset theme styles but re-add REQUIRED properties */
 
 #bdm-sticky-atc .bdm-button {
-  all: unset; /* isolate from theme */
-
-  display: inline-flex;          /* 🔑 REQUIRED */
+  all: unset;                /* isolate from theme */
+  display: inline-flex;      /* REQUIRED: button must render */
   align-items: center;
   justify-content: center;
 
@@ -75,7 +95,7 @@
   border-radius: 6px;
 }
 
-/* Button styles */
+/* ---------------- Button styles ---------------- */
 
 .bdm-button--outline {
   background: transparent;
@@ -87,7 +107,7 @@
   border-radius: 999px;
 }
 
-/* Button sizes */
+/* ---------------- Button sizes ---------------- */
 
 .bdm-button.small {
   padding: 6px 12px;
@@ -104,12 +124,16 @@
   font-size: 16px;
 }
 
-/* ---------------- Mobile ---------------- */
+/* ---------------- Mobile layout ---------------- */
 
 @media (max-width: 768px) {
   .bdm-inner {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .bdm-right {
+    width: 100%;
   }
 
   #bdm-sticky-atc .bdm-button {
