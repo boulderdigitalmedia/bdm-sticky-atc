@@ -1,148 +1,308 @@
 (() => {
-  // Prevent double init
+  // Prevent double init on theme editor navigations
   if (window.__BDM_STICKY_ATC_INIT__) return;
   window.__BDM_STICKY_ATC_INIT__ = true;
 
   const bar = document.getElementById("bdm-sticky-atc");
   if (!bar) return;
 
+  // Device toggles
+  const isMobile = () => window.matchMedia("(max-width: 768px)").matches;
+  const enableMobile = bar.getAttribute("data-enable-mobile") !== "false";
+  const enableDesktop = bar.getAttribute("data-enable-desktop") !== "false";
+  if (isMobile() && !enableMobile) return;
+  if (!isMobile() && !enableDesktop) return;
+
   const titleEl = bar.querySelector("#bdm-title");
   const priceEl = bar.querySelector("#bdm-price");
   const qtyEl = bar.querySelector("#bdm-qty");
   const button = bar.querySelector("#bdm-atc");
 
-  // Only run on product URLs (works for app embed too)
-  const isProductUrl = () => /\/products\//.test(window.location.pathname);
-  if (!isProductUrl()) return;
+  const variantWrap = bar.querySelector("#bdm-variant-wrap");
+  const sellingWrap = bar.querySelector("#bdm-selling-plan-wrap");
 
-  function getHandleFromUrl() {
-    const parts = window.location.pathname.split("/products/");
-    if (parts.length < 2) return null;
-    return parts[1].split("/")[0].split("?")[0];
+  const showTitle = bar.getAttribute("data-show-title") !== "false";
+  const showPrice = bar.getAttribute("data-show-price") !== "false";
+  const showQty = bar.getAttribute("data-show-qty") !== "false";
+  const showVariant = bar.getAttribute("data-show-variant") !== "false";
+  const showSellingPlan = bar.getAttribute("data-show-selling-plan") !== "false";
+
+  if (titleEl) titleEl.style.display = showTitle ? "" : "none";
+  if (priceEl) priceEl.style.display = showPrice ? "" : "none";
+  if (qtyEl) qtyEl.style.display = showQty ? "" : "none";
+  if (variantWrap) variantWrap.style.display = showVariant ? "" : "none";
+  if (sellingWrap) sellingWrap.style.display = showSellingPlan ? "" : "none";
+
+  // Product JSON from Liquid
+  const productScript = document.querySelector("script[data-bdm-product-json]");
+  if (!productScript) return;
+
+  let product;
+  try {
+    product = JSON.parse(productScript.textContent);
+  } catch {
+    return;
   }
 
-  function getProductFromEmbeddedJson() {
-    const script = document.querySelector("script[data-product-json]");
-    if (!script) return null;
-    try {
-      const parsed = JSON.parse(script.textContent);
-      return parsed?.variants?.length ? parsed : null;
-    } catch {
-      return null;
+  if (!product?.id || !Array.isArray(product.variants) || product.variants.length === 0) return;
+
+  // Try to bind to main product form inputs
+  const mainVariantInput =
+    document.querySelector('input[name="id"]') ||
+    document.querySelector('select[name="id"]');
+
+  const getSelectedVariantId = () => {
+    const fromMain = mainVariantInput?.value;
+    return fromMain ? String(fromMain) : String(product.variants[0].id);
+  };
+
+  const getSelectedSellingPlanId = () => {
+    // common patterns
+    const checkedRadio = document.querySelector('input[name="selling_plan"]:checked');
+    if (checkedRadio?.value) return String(checkedRadio.value);
+
+    const select = document.querySelector('select[name="selling_plan"]');
+    if (select?.value) return String(select.value);
+
+    return null;
+  };
+
+  const moneyFromCents = (cents) => `$${(cents / 100).toFixed(2)}`;
+
+  // In product JSON, variant.price can be string dollars or integer cents depending on source.
+  const normalizeVariantPriceCents = (v) => {
+    if (typeof v.price === "number") {
+      // Some theme JSON outputs dollars as number. Some outputs cents as number.
+      // Heuristic: if it's > 9999, it's probably cents.
+      return v.price > 9999 ? v.price : Math.round(v.price * 100);
     }
-  }
+    const n = Number(v.price);
+    if (Number.isFinite(n)) return Math.round(n * 100);
+    return null;
+  };
 
-  async function getProductFromShopifyEndpoint() {
-    const handle = getHandleFromUrl();
-    if (!handle) return null;
+  const findVariant = (variantId) =>
+    product.variants.find((v) => String(v.id) === String(variantId)) || product.variants[0];
 
-    try {
-      const res = await fetch(`/products/${handle}.js`, { credentials: "same-origin" });
-      if (!res.ok) return null;
-      const product = await res.json();
-      return product?.variants?.length ? product : null;
-    } catch {
-      return null;
+  // Session + analytics
+  const SESSION_KEY = "bdm_sticky_atc_session_id";
+  const getSessionId = () => {
+    let id = localStorage.getItem(SESSION_KEY);
+    if (!id) {
+      id = crypto.randomUUID();
+      localStorage.setItem(SESSION_KEY, id);
     }
-  }
+    return id;
+  };
 
-  function formatMoneyFromCents(cents) {
-    if (typeof cents !== "number") return "";
-    return `$${(cents / 100).toFixed(2)}`;
-  }
+  const getShop = () =>
+    window.Shopify?.shop ||
+    document.querySelector('meta[name="shopify-shop-domain"]')?.content ||
+    document.documentElement.getAttribute("data-shop") ||
+    null;
 
-  function getSelectedVariantIdFromPage() {
-    const input =
-      document.querySelector('input[name="id"]') ||
-      document.querySelector('select[name="id"]');
-    return input?.value ? String(input.value) : null;
-  }
+  const TRACK_ENDPOINT = "/apps/bdm-sticky-atc/track";
 
-  function showBar() {
-    bar.classList.add("is-visible");
-    bar.setAttribute("aria-hidden", "false");
-  }
+  const track = (event, data = {}) => {
+    const shop = getShop();
+    fetch(TRACK_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(shop ? { "X-Shopify-Shop-Domain": shop } : {})
+      },
+      body: JSON.stringify({
+        shop: shop || undefined,
+        event,
+        data: {
+          ...data,
+          sessionId: getSessionId(),
+          ts: Date.now()
+        }
+      }),
+      keepalive: true
+    }).catch(() => {});
+  };
 
-  async function init() {
-    // Try embedded JSON first (app block case)
-    let product = getProductFromEmbeddedJson();
+  // Populate
+  const render = () => {
+    const variantId = getSelectedVariantId();
+    const variant = findVariant(variantId);
 
-    // Fallback to /products/<handle>.js (app embed case)
-    if (!product) product = await getProductFromShopifyEndpoint();
-
-    if (!product) {
-      console.warn("BDM Sticky ATC: could not load product data");
-      return;
-    }
-
-    // Product.js returns prices in cents already
-    // Embedded Liquid JSON returns variant.price in string dollars sometimes depending on source.
-    // Normalize:
-    const normalizeVariantPriceCents = (variant) => {
-      if (typeof variant.price === "number") return variant.price; // product.js => cents
-      const asNum = Number(variant.price);
-      if (Number.isFinite(asNum)) return Math.round(asNum * 100); // liquid json => dollars
-      return null;
-    };
-
-    // Set initial variant
-    let selectedVariantId = getSelectedVariantIdFromPage() || String(product.variants[0].id);
-
-    const findVariant = (id) =>
-      product.variants.find((v) => String(v.id) === String(id)) || product.variants[0];
-
-    // Fill title/price
     if (titleEl) titleEl.textContent = product.title;
 
-    const initialVariant = findVariant(selectedVariantId);
-    const initialCents = normalizeVariantPriceCents(initialVariant);
-    if (priceEl && initialCents != null) priceEl.textContent = formatMoneyFromCents(initialCents);
+    const cents = normalizeVariantPriceCents(variant);
+    if (priceEl && cents != null) priceEl.textContent = moneyFromCents(cents);
 
-    // Watch variant changes from theme form controls
-    document.addEventListener("change", (e) => {
-      const t = e.target;
-      if (!t) return;
+    return { variantId, variant };
+  };
 
-      const isVariantIdInput = t.name === "id";
-      if (!isVariantIdInput) return;
-
-      selectedVariantId = String(t.value);
-      const v = findVariant(selectedVariantId);
-      const cents = normalizeVariantPriceCents(v);
-      if (priceEl && cents != null) priceEl.textContent = formatMoneyFromCents(cents);
+  // Build variant selector (optional)
+  let barVariantSelect = null;
+  if (showVariant && variantWrap && product.variants.length > 1) {
+    const select = document.createElement("select");
+    select.className = "bdm-variant-select";
+    product.variants.forEach((v) => {
+      const opt = document.createElement("option");
+      opt.value = String(v.id);
+      opt.textContent = v.title;
+      select.appendChild(opt);
     });
+    variantWrap.appendChild(select);
+    barVariantSelect = select;
 
-    // Show bar once ready
-    showBar();
+    // Initialize selection
+    barVariantSelect.value = getSelectedVariantId();
 
-    // Add to cart
-    if (button) {
-      button.addEventListener("click", async () => {
-        const quantity = qtyEl ? Math.max(1, parseInt(qtyEl.value, 10) || 1) : 1;
+    // When user changes variant in bar, update main input if present
+    barVariantSelect.addEventListener("change", () => {
+      if (mainVariantInput) {
+        mainVariantInput.value = barVariantSelect.value;
+        mainVariantInput.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+      render();
+    });
+  }
+
+  // Build selling plan selector (optional)
+  let barSellingSelect = null;
+  if (showSellingPlan && sellingWrap) {
+    // We don't always have plan data in product JSON (depends on theme).
+    // So we mirror whatever is on the page, if present.
+    const pageSelect = document.querySelector('select[name="selling_plan"]');
+    const pageRadios = Array.from(document.querySelectorAll('input[name="selling_plan"]'));
+
+    if (pageSelect) {
+      const clone = document.createElement("select");
+      clone.className = "bdm-selling-select";
+      Array.from(pageSelect.options).forEach((o) => {
+        const opt = document.createElement("option");
+        opt.value = o.value;
+        opt.textContent = o.textContent;
+        clone.appendChild(opt);
+      });
+      sellingWrap.appendChild(clone);
+      barSellingSelect = clone;
+
+      barSellingSelect.value = pageSelect.value;
+
+      barSellingSelect.addEventListener("change", () => {
+        pageSelect.value = barSellingSelect.value;
+        pageSelect.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+    } else if (pageRadios.length) {
+      // If radios exist, we don’t rebuild UI; we just keep it hidden (or you can implement later).
+      // For now: leave wrap empty but visible only if wanted.
+    } else {
+      // No selling plan UI on page
+      sellingWrap.style.display = "none";
+    }
+  }
+
+  // Keep in sync when main variant changes (theme variant pickers)
+  document.addEventListener("change", (e) => {
+    const t = e.target;
+    if (!t) return;
+    if (t.name === "id") {
+      if (barVariantSelect) barVariantSelect.value = String(t.value);
+      render();
+    }
+    if (t.name === "selling_plan") {
+      if (barSellingSelect && t.tagName === "SELECT") barSellingSelect.value = String(t.value);
+    }
+  });
+
+  // Visibility behavior
+  const showOnScroll = bar.getAttribute("data-show-on-scroll") === "true";
+  const scrollOffset = Number(bar.getAttribute("data-scroll-offset") || "250");
+
+  const showBar = () => {
+    bar.classList.add("is-visible");
+    bar.setAttribute("aria-hidden", "false");
+  };
+
+  const setupVisibility = () => {
+    if (!showOnScroll) {
+      showBar();
+      return;
+    }
+    const onScroll = () => {
+      if (window.scrollY >= scrollOffset) {
+        showBar();
+        window.removeEventListener("scroll", onScroll);
+        // Impression when shown
+        const { variantId } = render();
+        track("sticky_atc_impression", { productId: product.id, variantId });
+      }
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    // If already scrolled
+    onScroll();
+  };
+
+  // Initial render
+  const { variantId } = render();
+
+  // If not show-on-scroll, impression right away
+  if (!showOnScroll) {
+    track("sticky_atc_impression", { productId: product.id, variantId });
+  }
+
+  setupVisibility();
+
+  // Add to cart
+  if (button) {
+    button.addEventListener("click", async () => {
+      const variantIdNow = getSelectedVariantId();
+      const sellingPlanId = getSelectedSellingPlanId();
+      const quantity = showQty && qtyEl ? Math.max(1, parseInt(qtyEl.value, 10) || 1) : 1;
+
+      track("sticky_atc_click", {
+        productId: product.id,
+        variantId: variantIdNow,
+        quantity,
+        sellingPlanId: sellingPlanId || null
+      });
+
+      button.disabled = true;
+      const originalText = button.textContent;
+      button.textContent = "Adding…";
+
+      try {
+        const payload = {
+          items: [
+            {
+              id: variantIdNow,
+              quantity,
+              ...(sellingPlanId ? { selling_plan: sellingPlanId } : {})
+            }
+          ]
+        };
 
         const res = await fetch("/cart/add.js", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "same-origin",
-          body: JSON.stringify({
-            items: [{ id: selectedVariantId, quantity }]
-          })
+          body: JSON.stringify(payload)
         });
 
         if (!res.ok) {
-          console.warn("BDM Sticky ATC: add to cart failed");
+          track("sticky_atc_error", { productId: product.id, variantId: variantIdNow });
           return;
         }
 
-        window.location.href = "/cart";
-      });
-    }
-  }
+        track("sticky_atc_success", {
+          productId: product.id,
+          variantId: variantIdNow,
+          quantity,
+          sellingPlanId: sellingPlanId || null
+        });
 
-  // Theme editor safety
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
-  } else {
-    init();
+        window.location.href = "/cart";
+      } finally {
+        button.disabled = false;
+        button.textContent = originalText || "Add to cart";
+      }
+    });
   }
 })();
