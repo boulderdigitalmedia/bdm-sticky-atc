@@ -1,28 +1,20 @@
-{% comment %}
-  Sticky Add To Cart Bar — App Block (Option A)
-  Requires being placed on product template so `product` is available.
-{% endcomment %}
-
-{% if product %}
-  <script type="application/json" data-bdm-product-json>
-    {{ product | json }}
-  </script>
-{% endif %}
-
 <div
   id="bdm-sticky-atc"
   class="bdm-sticky-atc"
   aria-hidden="true"
   data-bdm-sticky-atc
-  data-show-on-scroll="{{ settings.show_on_scroll }}"
-  data-scroll-offset="{{ settings.scroll_offset }}"
+
   data-enable-desktop="{{ settings.enable_desktop }}"
   data-enable-mobile="{{ settings.enable_mobile }}"
-  data-show-title="{{ settings.show_product_title }}"
+  data-show-on-scroll="{{ settings.show_on_scroll }}"
+  data-scroll-offset="{{ settings.scroll_offset }}"
+
+  data-show-title="{{ settings.show_title }}"
   data-show-price="{{ settings.show_price }}"
-  data-show-qty="{{ settings.show_quantity_selector }}"
-  data-show-variant="{{ settings.show_variant_selector }}"
-  data-show-selling-plan="{{ settings.show_selling_plan_selector }}"
+  data-show-qty="{{ settings.show_qty }}"
+  data-show-variant="{{ settings.show_variant }}"
+  data-show-selling-plan="{{ settings.show_selling_plan }}"
+
   style="
     --bdm-bg: {{ settings.bar_background_color }};
     --bdm-text: {{ settings.text_color }};
@@ -31,7 +23,7 @@
     --bdm-border-radius: {{ settings.border_radius }}px;
     --bdm-padding-y: {{ settings.padding_y }}px;
     --bdm-padding-x: {{ settings.padding_x }}px;
-    --bdm-shadow: {% if settings.enable_shadow %}0 -8px 30px rgba(0,0,0,0.12){% else %}none{% endif %};
+    --bdm-shadow: {{ settings.shadow }};
 
     --bdm-button-bg: {{ settings.button_background_color }};
     --bdm-button-text: {{ settings.button_text_color }};
@@ -40,33 +32,13 @@
 >
   <div class="bdm-inner">
     <div class="bdm-left">
-      <div id="bdm-title" class="bdm-title"></div>
-      <div id="bdm-price" class="bdm-price"></div>
+      <div id="bdm-title"></div>
+      <div id="bdm-price"></div>
     </div>
 
     <div class="bdm-right">
-      <!-- Variant selector placeholder (JS will populate if enabled) -->
-      <div id="bdm-variant-wrap" class="bdm-field-wrap"></div>
-
-      <!-- Selling plan selector placeholder (JS will populate if enabled) -->
-      <div id="bdm-selling-plan-wrap" class="bdm-field-wrap"></div>
-
-      <!-- Quantity -->
-      <input
-        id="bdm-qty"
-        class="bdm-qty"
-        type="number"
-        min="1"
-        value="1"
-        inputmode="numeric"
-      />
-
-      <!-- Button -->
-      <button
-        id="bdm-atc"
-        class="bdm-button bdm-button--{{ settings.button_style }} bdm-button--{{ settings.button_size }}"
-        type="button"
-      >
+      <input id="bdm-qty" type="number" min="1" value="1" />
+      <button id="bdm-atc" class="bdm-button" type="button">
         {{ settings.button_text }}
       </button>
     </div>
@@ -81,54 +53,40 @@
   "name": "Sticky Add To Cart Bar",
   "target": "section",
   "settings": [
-    { "type": "checkbox", "id": "enable_desktop", "label": "Show on desktop", "default": true },
-    { "type": "checkbox", "id": "enable_mobile", "label": "Show on mobile", "default": true },
+    { "type": "checkbox", "id": "enable_desktop", "label": "Enable on desktop", "default": true },
+    { "type": "checkbox", "id": "enable_mobile", "label": "Enable on mobile", "default": true },
 
-    { "type": "checkbox", "id": "show_on_scroll", "label": "Show only after scrolling", "default": true },
-    { "type": "range", "id": "scroll_offset", "label": "Scroll offset (px)", "min": 0, "max": 1200, "step": 50, "default": 250 },
+    { "type": "checkbox", "id": "show_on_scroll", "label": "Show after scroll", "default": false },
+    { "type": "range", "id": "scroll_offset", "label": "Scroll offset", "min": 0, "max": 1000, "step": 50, "default": 300 },
 
-    { "type": "checkbox", "id": "show_product_title", "label": "Show product title", "default": true },
+    { "type": "checkbox", "id": "show_title", "label": "Show product title", "default": true },
     { "type": "checkbox", "id": "show_price", "label": "Show price", "default": true },
-    { "type": "checkbox", "id": "show_quantity_selector", "label": "Show quantity selector", "default": true },
-    { "type": "checkbox", "id": "show_variant_selector", "label": "Show variant selector", "default": true },
-    { "type": "checkbox", "id": "show_selling_plan_selector", "label": "Show selling plan selector", "default": true },
+    { "type": "checkbox", "id": "show_qty", "label": "Show quantity selector", "default": true },
+    { "type": "checkbox", "id": "show_variant", "label": "Show variant selector", "default": false },
+    { "type": "checkbox", "id": "show_selling_plan", "label": "Show selling plans", "default": false },
 
-    { "type": "color", "id": "bar_background_color", "label": "Bar background color", "default": "#FAFAF9" },
-    { "type": "color", "id": "text_color", "label": "Text color", "default": "#0A0A0A" },
-    { "type": "range", "id": "font_size", "label": "Font size (px)", "min": 12, "max": 22, "step": 1, "default": 14 },
+    { "type": "color", "id": "bar_background_color", "label": "Bar background", "default": "#FAFAF9" },
+    { "type": "color", "id": "text_color", "label": "Text color", "default": "#000000" },
+    { "type": "range", "id": "font_size", "label": "Font size", "min": 12, "max": 20, "step": 1, "default": 14 },
 
-    { "type": "range", "id": "padding_y", "label": "Padding Y (px)", "min": 8, "max": 24, "step": 1, "default": 12 },
-    { "type": "range", "id": "padding_x", "label": "Padding X (px)", "min": 12, "max": 36, "step": 1, "default": 16 },
-    { "type": "range", "id": "border_radius", "label": "Bar corner radius (px)", "min": 0, "max": 24, "step": 1, "default": 14 },
-    { "type": "checkbox", "id": "enable_shadow", "label": "Enable shadow", "default": true },
+    { "type": "range", "id": "border_radius", "label": "Bar radius", "min": 0, "max": 32, "step": 2, "default": 0 },
+    { "type": "range", "id": "padding_y", "label": "Vertical padding", "min": 8, "max": 32, "step": 2, "default": 12 },
+    { "type": "range", "id": "padding_x", "label": "Horizontal padding", "min": 8, "max": 32, "step": 2, "default": 16 },
 
     {
       "type": "select",
-      "id": "button_style",
-      "label": "Button style",
+      "id": "shadow",
+      "label": "Shadow",
       "options": [
-        { "value": "solid", "label": "Solid" },
-        { "value": "outline", "label": "Outline" },
-        { "value": "soft", "label": "Soft" }
+        { "value": "none", "label": "None" },
+        { "value": "0 -2px 12px rgba(0,0,0,0.15)", "label": "Soft" }
       ],
-      "default": "solid"
-    },
-    {
-      "type": "select",
-      "id": "button_size",
-      "label": "Button size",
-      "options": [
-        { "value": "sm", "label": "Small" },
-        { "value": "md", "label": "Medium" },
-        { "value": "lg", "label": "Large" }
-      ],
-      "default": "md"
+      "default": "0 -2px 12px rgba(0,0,0,0.15)"
     },
 
-    { "type": "range", "id": "button_radius", "label": "Button radius (px)", "min": 0, "max": 24, "step": 1, "default": 12 },
-
-    { "type": "color", "id": "button_background_color", "label": "Button background color", "default": "#111111" },
-    { "type": "color", "id": "button_text_color", "label": "Button text color", "default": "#FFFFFF" },
+    { "type": "color", "id": "button_background_color", "label": "Button background", "default": "#111111" },
+    { "type": "color", "id": "button_text_color", "label": "Button text", "default": "#FFFFFF" },
+    { "type": "range", "id": "button_radius", "label": "Button radius", "min": 0, "max": 32, "step": 2, "default": 6 },
     { "type": "text", "id": "button_text", "label": "Button text", "default": "Add to cart" }
   ]
 }
