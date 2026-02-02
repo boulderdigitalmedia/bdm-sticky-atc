@@ -1,44 +1,65 @@
+{% comment %}
+  Sticky Add To Cart Bar — OPTION A (Theme App Block)
+  MUST be added as a block inside the product template (Product information section).
+  This is NOT an App Embed.
+{% endcomment %}
+
+{% if product %}
+  <script type="application/json" data-bdm-product-json>
+    {{ product | json }}
+  </script>
+{% endif %}
+
 <div
   id="bdm-sticky-atc"
   class="bdm-sticky-atc"
   aria-hidden="true"
   data-bdm-sticky-atc
-
   data-enable-desktop="{{ settings.enable_desktop }}"
   data-enable-mobile="{{ settings.enable_mobile }}"
   data-show-on-scroll="{{ settings.show_on_scroll }}"
   data-scroll-offset="{{ settings.scroll_offset }}"
-
   data-show-title="{{ settings.show_title }}"
   data-show-price="{{ settings.show_price }}"
   data-show-qty="{{ settings.show_qty }}"
   data-show-variant="{{ settings.show_variant }}"
-  data-show-selling-plan="{{ settings.show_selling_plan }}"
-
   style="
     --bdm-bg: {{ settings.bar_background_color }};
     --bdm-text: {{ settings.text_color }};
     --bdm-font-size: {{ settings.font_size }}px;
 
-    --bdm-border-radius: {{ settings.border_radius }}px;
-    --bdm-padding-y: {{ settings.padding_y }}px;
-    --bdm-padding-x: {{ settings.padding_x }}px;
-    --bdm-shadow: {{ settings.shadow }};
+    --bdm-radius: {{ settings.bar_radius }}px;
+    --bdm-shadow: {% if settings.enable_shadow %}0 -10px 30px rgba(0,0,0,0.16){% else %}none{% endif %};
 
     --bdm-button-bg: {{ settings.button_background_color }};
     --bdm-button-text: {{ settings.button_text_color }};
     --bdm-button-radius: {{ settings.button_radius }}px;
+    --bdm-button-border: {% if settings.button_style == 'outline' %}1px solid rgba(0,0,0,0.22){% else %}1px solid transparent{% endif %};
   "
 >
   <div class="bdm-inner">
     <div class="bdm-left">
-      <div id="bdm-title"></div>
-      <div id="bdm-price"></div>
+      <div id="bdm-title" class="bdm-title"></div>
+      <div id="bdm-price" class="bdm-price"></div>
     </div>
 
     <div class="bdm-right">
-      <input id="bdm-qty" type="number" min="1" value="1" />
-      <button id="bdm-atc" class="bdm-button" type="button">
+      <div id="bdm-variant-wrap" class="bdm-field-wrap"></div>
+
+      <input
+        id="bdm-qty"
+        class="bdm-qty"
+        type="number"
+        min="1"
+        value="1"
+        inputmode="numeric"
+      />
+
+      <button
+        id="bdm-atc"
+        class="bdm-button bdm-button--{{ settings.button_style }} bdm-button--{{ settings.button_size }}"
+        type="button"
+      >
         {{ settings.button_text }}
       </button>
     </div>
@@ -53,40 +74,50 @@
   "name": "Sticky Add To Cart Bar",
   "target": "section",
   "settings": [
-    { "type": "checkbox", "id": "enable_desktop", "label": "Enable on desktop", "default": true },
-    { "type": "checkbox", "id": "enable_mobile", "label": "Enable on mobile", "default": true },
+    { "type": "checkbox", "id": "enable_desktop", "label": "Show on desktop", "default": true },
+    { "type": "checkbox", "id": "enable_mobile", "label": "Show on mobile", "default": true },
 
-    { "type": "checkbox", "id": "show_on_scroll", "label": "Show after scroll", "default": false },
-    { "type": "range", "id": "scroll_offset", "label": "Scroll offset", "min": 0, "max": 1000, "step": 50, "default": 300 },
+    { "type": "checkbox", "id": "show_on_scroll", "label": "Show only after scrolling", "default": true },
+    { "type": "range", "id": "scroll_offset", "label": "Scroll offset (px)", "min": 0, "max": 1200, "step": 50, "default": 250 },
 
     { "type": "checkbox", "id": "show_title", "label": "Show product title", "default": true },
     { "type": "checkbox", "id": "show_price", "label": "Show price", "default": true },
     { "type": "checkbox", "id": "show_qty", "label": "Show quantity selector", "default": true },
     { "type": "checkbox", "id": "show_variant", "label": "Show variant selector", "default": false },
-    { "type": "checkbox", "id": "show_selling_plan", "label": "Show selling plans", "default": false },
 
-    { "type": "color", "id": "bar_background_color", "label": "Bar background", "default": "#FAFAF9" },
-    { "type": "color", "id": "text_color", "label": "Text color", "default": "#000000" },
-    { "type": "range", "id": "font_size", "label": "Font size", "min": 12, "max": 20, "step": 1, "default": 14 },
+    { "type": "color", "id": "bar_background_color", "label": "Bar background color", "default": "#FAFAF9" },
+    { "type": "color", "id": "text_color", "label": "Text color", "default": "#0A0A0A" },
+    { "type": "range", "id": "font_size", "label": "Font size (px)", "min": 12, "max": 22, "step": 1, "default": 14 },
 
-    { "type": "range", "id": "border_radius", "label": "Bar radius", "min": 0, "max": 32, "step": 2, "default": 0 },
-    { "type": "range", "id": "padding_y", "label": "Vertical padding", "min": 8, "max": 32, "step": 2, "default": 12 },
-    { "type": "range", "id": "padding_x", "label": "Horizontal padding", "min": 8, "max": 32, "step": 2, "default": 16 },
+    { "type": "range", "id": "bar_radius", "label": "Bar corner radius (px)", "min": 0, "max": 24, "step": 1, "default": 14 },
+    { "type": "checkbox", "id": "enable_shadow", "label": "Enable shadow", "default": true },
 
     {
       "type": "select",
-      "id": "shadow",
-      "label": "Shadow",
+      "id": "button_style",
+      "label": "Button style",
       "options": [
-        { "value": "none", "label": "None" },
-        { "value": "0 -2px 12px rgba(0,0,0,0.15)", "label": "Soft" }
+        { "value": "solid", "label": "Solid" },
+        { "value": "outline", "label": "Outline" }
       ],
-      "default": "0 -2px 12px rgba(0,0,0,0.15)"
+      "default": "solid"
+    },
+    {
+      "type": "select",
+      "id": "button_size",
+      "label": "Button size",
+      "options": [
+        { "value": "sm", "label": "Small" },
+        { "value": "md", "label": "Medium" },
+        { "value": "lg", "label": "Large" }
+      ],
+      "default": "md"
     },
 
-    { "type": "color", "id": "button_background_color", "label": "Button background", "default": "#111111" },
-    { "type": "color", "id": "button_text_color", "label": "Button text", "default": "#FFFFFF" },
-    { "type": "range", "id": "button_radius", "label": "Button radius", "min": 0, "max": 32, "step": 2, "default": 6 },
+    { "type": "range", "id": "button_radius", "label": "Button radius (px)", "min": 0, "max": 24, "step": 1, "default": 12 },
+
+    { "type": "color", "id": "button_background_color", "label": "Button background color", "default": "#111111" },
+    { "type": "color", "id": "button_text_color", "label": "Button text color", "default": "#FFFFFF" },
     { "type": "text", "id": "button_text", "label": "Button text", "default": "Add to cart" }
   ]
 }
