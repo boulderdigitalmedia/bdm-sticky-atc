@@ -1,31 +1,25 @@
-/* Sticky ATC Bar — Option A (Theme App Block) */
-
 .bdm-sticky-atc {
   position: fixed;
-  left: 12px;
-  right: 12px;
-  bottom: 12px;
-  z-index: 999999;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 9999;
 
   background: var(--bdm-bg, #fafaf9);
-  color: var(--bdm-text, #0a0a0a);
+  color: var(--bdm-text, #000);
   font-size: var(--bdm-font-size, 14px);
 
-  border-radius: var(--bdm-radius, 14px);
-  box-shadow: var(--bdm-shadow, 0 -10px 30px rgba(0,0,0,0.16));
-
   padding: 12px 16px;
+  box-shadow: var(--bdm-shadow, 0 -4px 12px rgba(0,0,0,.08));
 
   opacity: 0;
-  transform: translateY(16px);
-  pointer-events: none;
-  transition: opacity 180ms ease, transform 180ms ease;
+  transform: translateY(100%);
+  transition: all .3s ease;
 }
 
 .bdm-sticky-atc.is-visible {
   opacity: 1;
   transform: translateY(0);
-  pointer-events: auto;
 }
 
 .bdm-inner {
@@ -38,105 +32,19 @@
 .bdm-left {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  min-width: 140px;
-}
-
-.bdm-title {
-  font-weight: 700;
-  line-height: 1.1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.bdm-price {
-  opacity: 0.85;
-  font-weight: 600;
 }
 
 .bdm-right {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.bdm-field-wrap select,
-.bdm-qty {
-  border: 1px solid rgba(0,0,0,0.14);
-  background: rgba(255,255,255,0.8);
-  color: inherit;
-  border-radius: 10px;
-  padding: 10px 12px;
-  min-height: 42px;
-  font-size: 1em;
-}
-
-.bdm-qty {
-  width: 82px;
+  gap: 8px;
 }
 
 .bdm-button {
-  border: var(--bdm-button-border, 1px solid transparent);
-  border-radius: var(--bdm-button-radius, 12px);
-  min-height: 42px;
-  padding: 10px 14px;
-  font-weight: 800;
-  cursor: pointer;
-  user-select: none;
-  white-space: nowrap;
-  transition: transform 120ms ease, opacity 120ms ease;
-}
-
-.bdm-button:active {
-  transform: scale(0.98);
-}
-
-.bdm-button[disabled] {
-  opacity: 0.65;
-  cursor: not-allowed;
-}
-
-.bdm-button--sm { min-height: 38px; padding: 9px 12px; font-size: 0.95em; }
-.bdm-button--md { min-height: 42px; padding: 10px 14px; font-size: 1em; }
-.bdm-button--lg { min-height: 48px; padding: 12px 18px; font-size: 1.05em; }
-
-.bdm-button--solid {
   background: var(--bdm-button-bg, #111);
   color: var(--bdm-button-text, #fff);
-}
-
-.bdm-button--outline {
-  background: transparent;
-  color: var(--bdm-text, #0a0a0a);
-}
-
-@media (max-width: 768px) {
-  .bdm-sticky-atc {
-    left: 10px;
-    right: 10px;
-    bottom: 10px;
-  }
-
-  .bdm-inner {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .bdm-left {
-    min-width: 0;
-  }
-
-  .bdm-right {
-    justify-content: stretch;
-  }
-
-  .bdm-field-wrap,
-  .bdm-field-wrap select,
-  .bdm-qty,
-  .bdm-button {
-    width: 100%;
-  }
+  border-radius: var(--bdm-button-radius, 6px);
+  padding: 10px 16px;
+  border: none;
+  cursor: pointer;
 }
