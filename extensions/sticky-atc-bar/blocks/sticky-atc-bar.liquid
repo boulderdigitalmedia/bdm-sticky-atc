@@ -53,3 +53,141 @@
 
 <link rel="stylesheet" href="{{ 'sticky-atc-bar.css' | asset_url }}">
 <script src="{{ 'sticky-atc-bar.js' | asset_url }}" defer></script>
+
+{% schema %}
+{
+  "name": "Sticky Add To Cart Bar",
+  "target": "body",
+  "settings": [
+    {
+      "type": "checkbox",
+      "id": "show_on_desktop",
+      "label": "Show on desktop",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_on_mobile",
+      "label": "Show on mobile",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_on_scroll",
+      "label": "Show only after scrolling",
+      "default": false
+    },
+    {
+      "type": "range",
+      "id": "scroll_offset",
+      "label": "Scroll offset (px)",
+      "min": 0,
+      "max": 1000,
+      "step": 50,
+      "default": 250
+    },
+    {
+      "type": "checkbox",
+      "id": "show_product_title",
+      "label": "Show product title",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_price",
+      "label": "Show price",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_quantity_selector",
+      "label": "Show quantity selector",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_variant_selector",
+      "label": "Show variant selector",
+      "default": true
+    },
+    {
+      "type": "color",
+      "id": "bar_background_color",
+      "label": "Bar background color",
+      "default": "#ffffff"
+    },
+    {
+      "type": "color",
+      "id": "text_color",
+      "label": "Text color",
+      "default": "#000000"
+    },
+    {
+      "type": "range",
+      "id": "font_size",
+      "label": "Font size (px)",
+      "min": 12,
+      "max": 20,
+      "step": 1,
+      "default": 14
+    },
+    {
+      "type": "range",
+      "id": "bar_radius",
+      "label": "Bar corner radius (px)",
+      "min": 0,
+      "max": 24,
+      "step": 2,
+      "default": 12
+    },
+    {
+      "type": "select",
+      "id": "button_style",
+      "label": "Button style",
+      "options": [
+        { "value": "solid", "label": "Solid" },
+        { "value": "outline", "label": "Outline" }
+      ],
+      "default": "solid"
+    },
+    {
+      "type": "select",
+      "id": "button_size",
+      "label": "Button size",
+      "options": [
+        { "value": "small", "label": "Small" },
+        { "value": "medium", "label": "Medium" },
+        { "value": "large", "label": "Large" }
+      ],
+      "default": "medium"
+    },
+    {
+      "type": "range",
+      "id": "button_radius",
+      "label": "Button radius (px)",
+      "min": 0,
+      "max": 30,
+      "step": 2,
+      "default": 8
+    },
+    {
+      "type": "color",
+      "id": "button_background_color",
+      "label": "Button background color",
+      "default": "#111111"
+    },
+    {
+      "type": "color",
+      "id": "button_text_color",
+      "label": "Button text color",
+      "default": "#ffffff"
+    },
+    {
+      "type": "text",
+      "id": "button_text",
+      "label": "Button text",
+      "default": "Add to cart"
+    }
+  ]
+}
+{% endschema %}
