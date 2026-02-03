@@ -2,126 +2,169 @@
   if (window.__BDM_STICKY_ATC_INIT__) return;
   window.__BDM_STICKY_ATC_INIT__ = true;
 
-  const bar = document.getElementById("bdm-sticky-atc");
-  if (!bar) return;
+  const BAR_ID = "bdm-sticky-atc";
 
-  const $ = (s) => bar.querySelector(s);
-
-  /* ---------------------------
-     Read settings from block
-  ---------------------------- */
-  const cfg = {
-    showTitle: bar.dataset.showTitle === "true",
-    showPrice: bar.dataset.showPrice === "true",
-    showQty: bar.dataset.showQty === "true",
-    showOnScroll: bar.dataset.showOnScroll === "true",
-    scrollOffset: parseInt(bar.dataset.scrollOffset || "0", 10),
-  };
-
-  /* ---------------------------
-     Elements
-  ---------------------------- */
-  const titleEl = $("#bdm-title");
-  const priceEl = $("#bdm-price");
-  const qtyEl = $("#bdm-qty");
-  const atcBtn = $("#bdm-atc");
-
-  if (titleEl) titleEl.style.display = cfg.showTitle ? "" : "none";
-  if (priceEl) priceEl.style.display = cfg.showPrice ? "" : "none";
-  if (qtyEl) qtyEl.style.display = cfg.showQty ? "" : "none";
-
-  /* ---------------------------
-     Get product data
-  ---------------------------- */
-  const product =
-    window.ShopifyAnalytics?.meta?.product ||
-    window.meta?.product ||
-    null;
-
-  if (!product) return;
-
-  let currentVariant =
-    product.variants?.find((v) => v.id === product.selectedVariantId) ||
-    product.variants?.[0];
-
-  /* ---------------------------
-     Populate UI
-  ---------------------------- */
-  function render() {
-    if (!currentVariant) return;
-
-    if (titleEl) titleEl.textContent = product.title;
-    if (priceEl)
-      priceEl.textContent =
-        (currentVariant.price / 100).toLocaleString(undefined, {
-          style: "currency",
-          currency: Shopify.currency.active,
-        });
-
-    atcBtn.disabled = !currentVariant.available;
+  function ready(fn) {
+    if (document.readyState === "complete") fn();
+    else document.addEventListener("DOMContentLoaded", fn);
   }
 
-  render();
+  ready(() => {
+    const bar = document.getElementById(BAR_ID);
+    if (!bar) return;
 
-  /* ---------------------------
-     Variant syncing
-  ---------------------------- */
-  document.addEventListener("change", (e) => {
-    if (!e.target.name?.includes("options")) return;
+    /* ------------------------
+       FIND REAL PRODUCT FORM
+    ------------------------- */
+    const productForm =
+      document.querySelector('form[action*="/cart/add"]') ||
+      document.querySelector("product-form form");
 
-    const selected = [...document.querySelectorAll("input[name^='options']:checked, select[name^='options']")]
-      .map((el) => el.value);
+    if (!productForm) {
+      console.warn("[BDM ATC] No product form found");
+      return;
+    }
 
-    currentVariant =
-      product.variants.find((v) =>
-        v.options.every((opt, i) => opt === selected[i])
-      ) || currentVariant;
+    const variantInput =
+      productForm.querySelector('[name="id"]');
 
-    render();
-  });
+    const sellingPlanInput =
+      productForm.querySelector('[name="selling_plan"]');
 
-  /* ---------------------------
-     Selling plans
-  ---------------------------- */
-  function getSellingPlanId() {
-    const el = document.querySelector(
-      'input[name="selling_plan"]:checked'
-    );
-    return el ? el.value : null;
-  }
+    const qtyInputMain =
+      productForm.querySelector('[name="quantity"]');
 
-  /* ---------------------------
-     Add to cart
-  ---------------------------- */
-  atcBtn.addEventListener("click", async () => {
-    const quantity = qtyEl ? parseInt(qtyEl.value || "1", 10) : 1;
+    /* ------------------------
+       BAR ELEMENTS
+    ------------------------- */
+    const titleEl = bar.querySelector("#bdm-title");
+    const priceEl = bar.querySelector("#bdm-price");
+    const qtyEl = bar.querySelector("#bdm-qty");
+    const atcBtn = bar.querySelector("#bdm-atc");
 
-    await fetch("/cart/add.js", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        id: currentVariant.id,
-        quantity,
-        selling_plan: getSellingPlanId(),
-      }),
+    /* ------------------------
+       SETTINGS (DATA ATTRS)
+    ------------------------- */
+    const showDesktop = bar.hasAttribute("data-enable-desktop");
+    const showMobile = bar.hasAttribute("data-enable-mobile");
+    const showOnScroll = bar.hasAttribute("data-show-on-scroll");
+    const scrollOffset = parseInt(bar.dataset.scrollOffset || "250", 10);
+
+    const showTitle = bar.hasAttribute("data-show-title");
+    const showPrice = bar.hasAttribute("data-show-price");
+    const showQty = bar.hasAttribute("data-show-qty");
+
+    /* ------------------------
+       APPLY VISIBILITY
+    ------------------------- */
+    const isMobile = window.matchMedia("(max-width: 768px)").matches;
+
+    if ((isMobile && !showMobile) || (!isMobile && !showDesktop)) {
+      bar.remove();
+      return;
+    }
+
+    function updateScrollVisibility() {
+      if (!showOnScroll) {
+        bar.classList.add("is-visible");
+        bar.setAttribute("aria-hidden", "false");
+        return;
+      }
+
+      if (window.scrollY >= scrollOffset) {
+        bar.classList.add("is-visible");
+        bar.setAttribute("aria-hidden", "false");
+      } else {
+        bar.classList.remove("is-visible");
+        bar.setAttribute("aria-hidden", "true");
+      }
+    }
+
+    updateScrollVisibility();
+    window.addEventListener("scroll", updateScrollVisibility);
+
+    /* ------------------------
+       SYNC PRODUCT DATA
+    ------------------------- */
+    function getProductJSON() {
+      const handle = window.location.pathname.split("/products/")[1];
+      if (!handle) return null;
+
+      return fetch(`/products/${handle}.js`)
+        .then(r => r.json())
+        .catch(() => null);
+    }
+
+    getProductJSON().then(product => {
+      if (!product) return;
+
+      if (showTitle && titleEl) {
+        titleEl.textContent = product.title;
+        titleEl.style.display = "";
+      }
+
+      function updatePrice(variantId) {
+        const variant = product.variants.find(v => v.id == variantId);
+        if (!variant) return;
+
+        if (showPrice && priceEl) {
+          priceEl.textContent =
+            (variant.price / 100).toLocaleString(undefined, {
+              style: "currency",
+              currency: product.currency || "USD"
+            });
+          priceEl.style.display = "";
+        }
+      }
+
+      if (variantInput) {
+        updatePrice(variantInput.value);
+        variantInput.addEventListener("change", e =>
+          updatePrice(e.target.value)
+        );
+      }
     });
 
-    document.dispatchEvent(new CustomEvent("bdm:added_to_cart"));
-  });
+    /* ------------------------
+       QTY SYNC
+    ------------------------- */
+    if (qtyEl && qtyInputMain) {
+      qtyEl.value = qtyInputMain.value || 1;
+      qtyEl.style.display = showQty ? "" : "none";
 
-  /* ---------------------------
-     Scroll behavior
-  ---------------------------- */
-  if (cfg.showOnScroll) {
-    const onScroll = () => {
-      bar.setAttribute(
-        "aria-hidden",
-        window.scrollY < cfg.scrollOffset
+      qtyEl.addEventListener("change", () => {
+        qtyInputMain.value = qtyEl.value;
+      });
+    }
+
+    /* ------------------------
+       ADD TO CART
+    ------------------------- */
+    atcBtn.addEventListener("click", () => {
+      if (!variantInput || !variantInput.value) return;
+
+      const formData = new FormData();
+      formData.append("id", variantInput.value);
+      formData.append(
+        "quantity",
+        qtyEl?.value || qtyInputMain?.value || 1
       );
-    };
-    window.addEventListener("scroll", onScroll);
-    onScroll();
-  } else {
-    bar.setAttribute("aria-hidden", "false");
-  }
+
+      if (sellingPlanInput?.value) {
+        formData.append("selling_plan", sellingPlanInput.value);
+      }
+
+      fetch("/cart/add.js", {
+        method: "POST",
+        body: formData,
+        headers: { Accept: "application/json" }
+      })
+        .then(() => {
+          document.dispatchEvent(
+            new CustomEvent("bdm:sticky-atc:added")
+          );
+        })
+        .catch(console.error);
+    });
+  });
 })();
