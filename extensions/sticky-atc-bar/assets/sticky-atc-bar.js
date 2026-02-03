@@ -1,123 +1,127 @@
-/**
- * BDM Sticky Add To Cart Bar
- * Safe init, theme-config driven, scroll aware
- */
-
-(function () {
+(() => {
   if (window.__BDM_STICKY_ATC_INIT__) return;
   window.__BDM_STICKY_ATC_INIT__ = true;
 
-  function init() {
-    const bar = document.getElementById("bdm-sticky-atc");
-    if (!bar) return;
+  const bar = document.getElementById("bdm-sticky-atc");
+  if (!bar) return;
 
-    /* ---------------- Settings ---------------- */
+  const $ = (s) => bar.querySelector(s);
 
-    const bool = (v) => v === "" || v === "true";
+  /* ---------------------------
+     Read settings from block
+  ---------------------------- */
+  const cfg = {
+    showTitle: bar.dataset.showTitle === "true",
+    showPrice: bar.dataset.showPrice === "true",
+    showQty: bar.dataset.showQty === "true",
+    showOnScroll: bar.dataset.showOnScroll === "true",
+    scrollOffset: parseInt(bar.dataset.scrollOffset || "0", 10),
+  };
 
-    const showOnScroll   = bool(bar.dataset.showOnScroll);
-    const scrollOffset   = parseInt(bar.dataset.scrollOffset || "0", 10);
-    const enableDesktop  = bool(bar.dataset.enableDesktop);
-    const enableMobile   = bool(bar.dataset.enableMobile);
-    const showTitle      = bool(bar.dataset.showTitle);
-    const showPrice      = bool(bar.dataset.showPrice);
-    const showQty        = bool(bar.dataset.showQty);
+  /* ---------------------------
+     Elements
+  ---------------------------- */
+  const titleEl = $("#bdm-title");
+  const priceEl = $("#bdm-price");
+  const qtyEl = $("#bdm-qty");
+  const atcBtn = $("#bdm-atc");
 
-    const isMobile = window.matchMedia("(max-width: 768px)").matches;
+  if (titleEl) titleEl.style.display = cfg.showTitle ? "" : "none";
+  if (priceEl) priceEl.style.display = cfg.showPrice ? "" : "none";
+  if (qtyEl) qtyEl.style.display = cfg.showQty ? "" : "none";
 
-    if ((isMobile && !enableMobile) || (!isMobile && !enableDesktop)) {
-      return;
-    }
+  /* ---------------------------
+     Get product data
+  ---------------------------- */
+  const product =
+    window.ShopifyAnalytics?.meta?.product ||
+    window.meta?.product ||
+    null;
 
-    /* ---------------- Elements ---------------- */
+  if (!product) return;
 
-    const titleEl = bar.querySelector("#bdm-title");
-    const priceEl = bar.querySelector("#bdm-price");
-    const qtyEl   = bar.querySelector("#bdm-qty");
-    const atcBtn  = bar.querySelector("#bdm-atc");
+  let currentVariant =
+    product.variants?.find((v) => v.id === product.selectedVariantId) ||
+    product.variants?.[0];
 
-    /* ---------------- Populate Data ---------------- */
+  /* ---------------------------
+     Populate UI
+  ---------------------------- */
+  function render() {
+    if (!currentVariant) return;
 
-    const product = window.ShopifyAnalytics?.meta?.product;
+    if (titleEl) titleEl.textContent = product.title;
+    if (priceEl)
+      priceEl.textContent =
+        (currentVariant.price / 100).toLocaleString(undefined, {
+          style: "currency",
+          currency: Shopify.currency.active,
+        });
 
-    if (product) {
-      if (titleEl && showTitle) {
-        titleEl.textContent = product.title;
-        titleEl.style.display = "";
-      }
-
-      if (priceEl && showPrice) {
-        fetch(`/products/${product.handle}.js`)
-          .then(r => r.json())
-          .then(p => {
-            const v = p.variants?.[0];
-            if (!v) return;
-            priceEl.textContent =
-              (v.price / 100).toLocaleString(undefined, {
-                style: "currency",
-                currency: Shopify.currency.active
-              });
-            priceEl.style.display = "";
-          });
-      }
-    }
-
-    if (qtyEl && showQty) {
-      qtyEl.style.display = "";
-    }
-
-    /* ---------------- Visibility ---------------- */
-
-    function showBar() {
-      bar.classList.add("is-visible");
-      bar.setAttribute("aria-hidden", "false");
-    }
-
-    if (!showOnScroll) {
-      showBar();
-    } else {
-      window.addEventListener(
-        "scroll",
-        () => {
-          if (window.scrollY >= scrollOffset) showBar();
-        },
-        { passive: true }
-      );
-    }
-
-    /* ---------------- Add To Cart ---------------- */
-
-    if (atcBtn) {
-      atcBtn.addEventListener("click", async () => {
-        try {
-          const form =
-            document.querySelector('form[action*="/cart/add"]') ||
-            document.querySelector("form[action='/cart/add']");
-
-          if (!form) return;
-
-          const data = new FormData(form);
-          if (qtyEl) data.set("quantity", qtyEl.value || 1);
-
-          await fetch("/cart/add.js", {
-            method: "POST",
-            body: data,
-            headers: { Accept: "application/json" }
-          });
-
-          document.dispatchEvent(
-            new CustomEvent("bdm:atc", { detail: { source: "sticky-bar" } })
-          );
-        } catch (e) {
-          console.error("[BDM Sticky ATC]", e);
-        }
-      });
-    }
+    atcBtn.disabled = !currentVariant.available;
   }
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
+  render();
+
+  /* ---------------------------
+     Variant syncing
+  ---------------------------- */
+  document.addEventListener("change", (e) => {
+    if (!e.target.name?.includes("options")) return;
+
+    const selected = [...document.querySelectorAll("input[name^='options']:checked, select[name^='options']")]
+      .map((el) => el.value);
+
+    currentVariant =
+      product.variants.find((v) =>
+        v.options.every((opt, i) => opt === selected[i])
+      ) || currentVariant;
+
+    render();
+  });
+
+  /* ---------------------------
+     Selling plans
+  ---------------------------- */
+  function getSellingPlanId() {
+    const el = document.querySelector(
+      'input[name="selling_plan"]:checked'
+    );
+    return el ? el.value : null;
+  }
+
+  /* ---------------------------
+     Add to cart
+  ---------------------------- */
+  atcBtn.addEventListener("click", async () => {
+    const quantity = qtyEl ? parseInt(qtyEl.value || "1", 10) : 1;
+
+    await fetch("/cart/add.js", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: currentVariant.id,
+        quantity,
+        selling_plan: getSellingPlanId(),
+      }),
+    });
+
+    document.dispatchEvent(new CustomEvent("bdm:added_to_cart"));
+  });
+
+  /* ---------------------------
+     Scroll behavior
+  ---------------------------- */
+  if (cfg.showOnScroll) {
+    const onScroll = () => {
+      bar.setAttribute(
+        "aria-hidden",
+        window.scrollY < cfg.scrollOffset
+      );
+    };
+    window.addEventListener("scroll", onScroll);
+    onScroll();
   } else {
-    init();
+    bar.setAttribute("aria-hidden", "false");
   }
 })();
