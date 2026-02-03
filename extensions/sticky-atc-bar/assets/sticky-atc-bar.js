@@ -1,87 +1,151 @@
 (() => {
+  if (window.__BDM_STICKY_ATC_INIT__) return;
+  window.__BDM_STICKY_ATC_INIT__ = true;
+
   const bar = document.querySelector('[data-bdm-sticky-atc]');
   if (!bar) return;
 
-  // 🔥 IMPORTANT: element-scoped init (NOT global)
-  if (bar.dataset.bdmInit === 'true') return;
-  bar.dataset.bdmInit = 'true';
+  /* ---------------- Utilities ---------------- */
 
-  /* ---------------- Settings ---------------- */
-
-  const bool = (val, fallback = true) =>
-    val === '' ? true : val === 'true' ? true : val === 'false' ? false : fallback;
-
-  const settings = {
-    enableDesktop: bool(bar.dataset.enableDesktop),
-    enableMobile: bool(bar.dataset.enableMobile),
-    showOnScroll: bool(bar.dataset.showOnScroll),
-    scrollOffset: Number(bar.dataset.scrollOffset || 300),
-    showTitle: bool(bar.dataset.showTitle),
-    showPrice: bool(bar.dataset.showPrice),
-    showQty: bool(bar.dataset.showQty),
-    showVariant: bool(bar.dataset.showVariant),
-    showSellingPlan: bool(bar.dataset.showSellingPlan),
+  const attrBool = (name, fallback = true) => {
+    const v = bar.getAttribute(name);
+    if (v === null || v === '') return fallback;
+    return v !== 'false';
   };
 
-  /* ---------------- Device gating ---------------- */
+  const getVar = (name, fallback) =>
+    getComputedStyle(bar).getPropertyValue(name).trim() || fallback;
 
-  const isMobile = () => window.matchMedia('(max-width: 768px)').matches;
-
-  if (isMobile() && !settings.enableMobile) return;
-  if (!isMobile() && !settings.enableDesktop) return;
+  const formatMoney = (cents) =>
+    `$${(cents / 100).toFixed(2)}`;
 
   /* ---------------- Visibility ---------------- */
 
-  const showBar = () => {
-    bar.classList.add('is-visible');
-    bar.setAttribute('aria-hidden', 'false');
-  };
+  const showOnScroll = attrBool('data-show-on-scroll', false);
+  const scrollOffset = Number(bar.getAttribute('data-scroll-offset')) || 300;
 
-  if (!settings.showOnScroll) {
-    showBar();
+  if (!showOnScroll) {
+    bar.classList.add('is-visible');
   } else {
     const onScroll = () => {
-      if (window.scrollY >= settings.scrollOffset) {
-        showBar();
+      if (window.scrollY >= scrollOffset) {
+        bar.classList.add('is-visible');
         window.removeEventListener('scroll', onScroll);
       }
     };
     window.addEventListener('scroll', onScroll);
   }
 
-  /* ---------------- Product data ---------------- */
+  /* ---------------- Product Resolution ---------------- */
 
-  const titleEl = bar.querySelector('#bdm-title');
-  const priceEl = bar.querySelector('#bdm-price');
-  const qtyEl = bar.querySelector('#bdm-qty');
-  const btn = bar.querySelector('#bdm-atc');
+  const metaProduct = window.ShopifyAnalytics?.meta?.product;
+  if (!metaProduct?.handle) {
+    console.warn('[BDM Sticky ATC] No product handle found');
+    return;
+  }
 
-  if (titleEl && !settings.showTitle) titleEl.style.display = 'none';
-  if (priceEl && !settings.showPrice) priceEl.style.display = 'none';
-  if (qtyEl && !settings.showQty) qtyEl.style.display = 'none';
-
-  /* ---------------- Add to cart ---------------- */
-
-  btn?.addEventListener('click', async () => {
-    const variantId =
-      document.querySelector('[name="id"]')?.value ||
-      window.ShopifyAnalytics?.meta?.selectedVariantId;
-
-    if (!variantId) return;
-
-    await fetch('/cart/add.js', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        items: [{ id: Number(variantId), quantity: Number(qtyEl?.value || 1) }],
-      }),
+  fetch(`/products/${metaProduct.handle}.js`)
+    .then((r) => r.json())
+    .then((product) => init(product))
+    .catch(() => {
+      console.warn('[BDM Sticky ATC] Failed to load product JSON');
     });
 
-    // Analytics hook (safe)
+  /* ---------------- Init ---------------- */
+
+  function init(product) {
+    if (!product?.variants?.length) return;
+
+    const titleEl = bar.querySelector('#bdm-title');
+    const priceEl = bar.querySelector('#bdm-price');
+    const qtyEl = bar.querySelector('#bdm-qty');
+    const btn = bar.querySelector('#bdm-atc');
+    const right = bar.querySelector('.bdm-right');
+
+    let variantId = product.variants[0].id;
+    let quantity = 1;
+
+    /* ---------- Populate ---------- */
+
+    if (attrBool('data-show-title') && titleEl) {
+      titleEl.textContent = product.title;
+      titleEl.style.display = '';
+    }
+
+    if (attrBool('data-show-price') && priceEl) {
+      priceEl.textContent = formatMoney(product.price);
+      priceEl.style.display = '';
+    }
+
+    if (!attrBool('data-show-qty') && qtyEl) {
+      qtyEl.remove();
+    } else if (qtyEl) {
+      qtyEl.addEventListener('change', () => {
+        quantity = Math.max(1, Number(qtyEl.value) || 1);
+      });
+    }
+
+    /* ---------- Variant selector ---------- */
+
+    if (attrBool('data-show-variant') && product.variants.length > 1) {
+      const select = document.createElement('select');
+      select.className = 'bdm-atc-variants';
+
+      product.variants.forEach((v) => {
+        const opt = document.createElement('option');
+        opt.value = v.id;
+        opt.textContent = v.title;
+        select.appendChild(opt);
+      });
+
+      select.addEventListener('change', () => {
+        variantId = Number(select.value);
+      });
+
+      right.insertBefore(select, btn);
+    }
+
+    /* ---------- Button ---------- */
+
+    btn.textContent = btn.textContent?.trim() || 'Add to cart';
+
+    btn.addEventListener('click', async () => {
+      track('sticky_atc_click', { productId: product.id, variantId });
+
+      await fetch('/cart/add.js', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          items: [{ id: variantId, quantity }],
+        }),
+      });
+
+      track('sticky_atc_add', { productId: product.id, variantId, quantity });
+
+      window.location.href = '/cart';
+    });
+
+    /* ---------- Impression ---------- */
+
+    track('sticky_atc_impression', {
+      productId: product.id,
+      variantId,
+    });
+  }
+
+  /* ---------------- Analytics ---------------- */
+
+  function track(event, payload = {}) {
     fetch('/apps/bdm-sticky-atc/track', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event: 'sticky_atc_click', variantId }),
+      body: JSON.stringify({
+        event,
+        payload,
+        ts: Date.now(),
+      }),
+      keepalive: true,
     }).catch(() => {});
-  });
+  }
 })();
