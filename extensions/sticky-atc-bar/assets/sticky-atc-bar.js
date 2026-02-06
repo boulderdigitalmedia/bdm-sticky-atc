@@ -107,12 +107,29 @@
   /* ------------------------
      QTY SYNC
   ------------------------- */
-  if (qtyEl && qtyInputMain) {
-    qtyEl.value = qtyInputMain.value || 1;
-    qtyEl.addEventListener("change", () => {
-      qtyInputMain.value = qtyEl.value;
-    });
-  }
+  const qtyWrapper = bar.querySelector(".bdm-qty");
+
+if (qtyWrapper && qtyEl && qtyInputMain) {
+  qtyEl.value = qtyInputMain.value || 1;
+  qtyWrapper.style.display = showQty ? "" : "none";
+
+  qtyEl.addEventListener("change", () => {
+    qtyInputMain.value = qtyEl.value;
+  });
+}
+
+bar.querySelectorAll(".bdm-qty-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    let value = parseInt(qtyEl.value || "1", 10);
+
+    if (btn.dataset.action === "increase") value++;
+    if (btn.dataset.action === "decrease") value = Math.max(1, value - 1);
+
+    qtyEl.value = value;
+    qtyInputMain.value = value;
+  });
+});
+
 
   /* ------------------------
      ADD TO CART

@@ -29,13 +29,12 @@
     </div>
 
     <div class="bdm-right">
-      <input
-        id="bdm-qty"
-        type="number"
-        min="1"
-        value="1"
-        style="display:none"
-      />
+      <div class="bdm-qty" style="display:none">
+  <button type="button" class="bdm-qty-btn" data-action="decrease">−</button>
+  <input id="bdm-qty" type="number" min="1" value="1" />
+  <button type="button" class="bdm-qty-btn" data-action="increase">+</button>
+</div>
+
 
       <button
         id="bdm-atc"
