@@ -105,30 +105,44 @@
     });
 
   /* ------------------------
-     QTY SYNC
-  ------------------------- */
-  const qtyWrapper = bar.querySelector(".bdm-qty");
+   QTY SYNC + STEPPER
+------------------------- */
+const qtyWrapper =
+  bar.querySelector(".bdm-qty") ||
+  qtyEl?.closest(".bdm-qty") || // fallback if markup differs
+  qtyEl?.parentElement;        // last-resort fallback
 
-if (qtyWrapper && qtyEl && qtyInputMain) {
+if (qtyEl && qtyInputMain) {
+  // Always keep values synced
   qtyEl.value = qtyInputMain.value || 1;
-  qtyWrapper.style.display = showQty ? "" : "none";
+
+  // Show/hide the *wrapper* (preferred), otherwise the input
+  if (qtyWrapper) qtyWrapper.style.display = showQty ? "" : "none";
+  else qtyEl.style.display = showQty ? "" : "none";
 
   qtyEl.addEventListener("change", () => {
-    qtyInputMain.value = qtyEl.value;
+    const v = Math.max(1, parseInt(qtyEl.value || "1", 10));
+    qtyEl.value = v;
+    qtyInputMain.value = v;
+  });
+
+  // Stepper buttons (if present)
+  bar.querySelectorAll(".bdm-qty-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      let value = parseInt(qtyEl.value || "1", 10);
+
+      if (btn.dataset.action === "increase") value++;
+      if (btn.dataset.action === "decrease") value = Math.max(1, value - 1);
+
+      qtyEl.value = value;
+      qtyInputMain.value = value;
+
+      // Trigger change for any listeners
+      qtyEl.dispatchEvent(new Event("change", { bubbles: true }));
+    });
   });
 }
 
-bar.querySelectorAll(".bdm-qty-btn").forEach(btn => {
-  btn.addEventListener("click", () => {
-    let value = parseInt(qtyEl.value || "1", 10);
-
-    if (btn.dataset.action === "increase") value++;
-    if (btn.dataset.action === "decrease") value = Math.max(1, value - 1);
-
-    qtyEl.value = value;
-    qtyInputMain.value = value;
-  });
-});
 
 
   /* ------------------------
