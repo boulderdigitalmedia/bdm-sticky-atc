@@ -3,25 +3,25 @@
   class="bdm-sticky-atc"
   aria-hidden="true"
 
-  {% if settings.show_on_desktop %}data-enable-desktop{% endif %}
-  {% if settings.show_on_mobile %}data-enable-mobile{% endif %}
-  {% if settings.show_only_after_scroll %}data-show-on-scroll{% endif %}
-  data-scroll-offset="{{ settings.scroll_offset | default: 250 }}"
+  {% if block.settings.show_on_desktop %}data-enable-desktop{% endif %}
+  {% if block.settings.show_on_mobile %}data-enable-mobile{% endif %}
+  {% if block.settings.show_only_after_scroll %}data-show-on-scroll{% endif %}
+  data-scroll-offset="{{ block.settings.scroll_offset | default: 250 }}"
 
-  {% if settings.show_product_title %}data-show-title{% endif %}
-  {% if settings.show_price %}data-show-price{% endif %}
-  {% if settings.show_quantity_selector %}data-show-qty{% endif %}
-  {% if settings.show_variant_selector %}data-show-variant{% endif %}
-  {% if settings.show_selling_plan %}data-show-selling-plan{% endif %}
+  {% if block.settings.show_product_title %}data-show-title{% endif %}
+  {% if block.settings.show_price %}data-show-price{% endif %}
+  {% if block.settings.show_quantity_selector %}data-show-qty{% endif %}
+  {% if block.settings.show_variant_selector %}data-show-variant{% endif %}
+  {% if block.settings.show_selling_plan %}data-show-selling-plan{% endif %}
 
   style="
-    --bdm-bg: {{ settings.bar_background_color }};
-    --bdm-text: {{ settings.text_color }};
-    --bdm-font-size: {{ settings.font_size }}px;
-    --bdm-shadow: {% if settings.enable_shadow %}0 -2px 10px rgba(0,0,0,.12){% else %}none{% endif %};
-    --bdm-button-bg: {{ settings.button_background_color }};
-    --bdm-button-text: {{ settings.button_text_color }};
-    --bdm-button-radius: {{ settings.button_radius }}px;
+    --bdm-bg: {{ block.settings.bar_background_color }};
+    --bdm-text: {{ block.settings.text_color }};
+    --bdm-font-size: {{ block.settings.font_size }}px;
+    --bdm-shadow: {% if block.settings.enable_shadow %}0 -2px 10px rgba(0,0,0,.12){% else %}none{% endif %};
+    --bdm-button-bg: {{ block.settings.button_background_color }};
+    --bdm-button-text: {{ block.settings.button_text_color }};
+    --bdm-button-radius: {{ block.settings.button_radius }}px;
   "
 >
   <div class="bdm-inner">
@@ -41,22 +41,22 @@
 
       <button
         id="bdm-atc"
-        class="bdm-button bdm-button--{{ settings.button_style | downcase }}"
+        class="bdm-button bdm-button--{{ block.settings.button_style | downcase }}"
         type="button"
       >
-        {{ settings.button_text }}
+        {{ block.settings.button_text }}
       </button>
     </div>
   </div>
 </div>
 
-<link rel="stylesheet" href="{{ 'sticky-atc-bar.css' | asset_url }}">
-<script src="{{ 'sticky-atc-bar.js' | asset_url }}" defer></script>
+{{ 'sticky-atc-bar.css' | asset_url | stylesheet_tag }}
+{{ 'sticky-atc-bar.js' | asset_url | script_tag }}
 
 {% schema %}
 {
   "name": "Sticky Add To Cart Bar",
-  "target": "section",
+  "target": "body",
   "settings": [
     { "type": "checkbox", "id": "show_on_desktop", "label": "Show on desktop", "default": true },
     { "type": "checkbox", "id": "show_on_mobile", "label": "Show on mobile", "default": true },
