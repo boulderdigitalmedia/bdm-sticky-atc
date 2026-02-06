@@ -2,37 +2,50 @@
   id="bdm-sticky-atc"
   class="bdm-sticky-atc"
   aria-hidden="true"
-  data-bdm-sticky-atc
-  data-show-desktop="{{ block.settings.show_desktop }}"
-  data-show-mobile="{{ block.settings.show_mobile }}"
-  data-show-on-scroll="{{ block.settings.show_on_scroll }}"
-  data-scroll-offset="{{ block.settings.scroll_offset }}"
-  data-show-title="{{ block.settings.show_title }}"
-  data-show-price="{{ block.settings.show_price }}"
-  data-show-qty="{{ block.settings.show_qty }}"
-  data-show-variant="{{ block.settings.show_variant }}"
-  data-show-selling-plan="{{ block.settings.show_selling_plan }}"
-  data-bg="{{ block.settings.bar_bg }}"
-  data-text="{{ block.settings.text_color }}"
-  data-font-size="{{ block.settings.font_size }}"
-  data-radius="{{ block.settings.bar_radius }}"
-  data-shadow="{{ block.settings.enable_shadow }}"
-  data-button-bg="{{ block.settings.button_bg }}"
-  data-button-text="{{ block.settings.button_text_color }}"
-  data-button-radius="{{ block.settings.button_radius }}"
-  data-button-style="{{ block.settings.button_style }}"
-  data-button-size="{{ block.settings.button_size }}"
+
+  {% if settings.show_on_desktop %}data-enable-desktop{% endif %}
+  {% if settings.show_on_mobile %}data-enable-mobile{% endif %}
+  {% if settings.show_only_after_scroll %}data-show-on-scroll{% endif %}
+  data-scroll-offset="{{ settings.scroll_offset | default: 250 }}"
+
+  {% if settings.show_product_title %}data-show-title{% endif %}
+  {% if settings.show_price %}data-show-price{% endif %}
+  {% if settings.show_quantity_selector %}data-show-qty{% endif %}
+  {% if settings.show_variant_selector %}data-show-variant{% endif %}
+  {% if settings.show_selling_plan %}data-show-selling-plan{% endif %}
+
+  style="
+    --bdm-bg: {{ settings.bar_background_color }};
+    --bdm-text: {{ settings.text_color }};
+    --bdm-font-size: {{ settings.font_size }}px;
+    --bdm-shadow: {% if settings.enable_shadow %}0 -2px 10px rgba(0,0,0,.12){% else %}none{% endif %};
+    --bdm-button-bg: {{ settings.button_background_color }};
+    --bdm-button-text: {{ settings.button_text_color }};
+    --bdm-button-radius: {{ settings.button_radius }}px;
+  "
 >
   <div class="bdm-inner">
     <div class="bdm-left">
-      <div class="bdm-title"></div>
-      <div class="bdm-price"></div>
+      <div id="bdm-title" style="display:none"></div>
+      <div id="bdm-price" style="display:none"></div>
     </div>
+
     <div class="bdm-right">
-      <input class="bdm-qty" type="number" min="1" value="1" />
-      <select class="bdm-variants"></select>
-      <select class="bdm-selling-plans"></select>
-      <button class="bdm-atc"></button>
+      <input
+        id="bdm-qty"
+        type="number"
+        min="1"
+        value="1"
+        style="display:none"
+      />
+
+      <button
+        id="bdm-atc"
+        class="bdm-button bdm-button--{{ settings.button_style | downcase }}"
+        type="button"
+      >
+        {{ settings.button_text }}
+      </button>
     </div>
   </div>
 </div>
@@ -43,39 +56,39 @@
 {% schema %}
 {
   "name": "Sticky Add To Cart Bar",
-  "target": "body",
+  "target": "section",
   "settings": [
-    { "type": "checkbox", "id": "show_desktop", "label": "Show on desktop", "default": true },
-    { "type": "checkbox", "id": "show_mobile", "label": "Show on mobile", "default": true },
-    { "type": "checkbox", "id": "show_on_scroll", "label": "Show only after scrolling", "default": false },
-    { "type": "range", "id": "scroll_offset", "label": "Scroll offset (px)", "min": 0, "max": 800, "step": 50, "default": 250 },
+    { "type": "checkbox", "id": "show_on_desktop", "label": "Show on desktop", "default": true },
+    { "type": "checkbox", "id": "show_on_mobile", "label": "Show on mobile", "default": true },
+    { "type": "checkbox", "id": "show_only_after_scroll", "label": "Show only after scrolling", "default": false },
+    { "type": "range", "id": "scroll_offset", "label": "Scroll offset (px)", "min": 0, "max": 1000, "step": 10, "default": 250 },
 
-    { "type": "checkbox", "id": "show_title", "label": "Show product title", "default": true },
+    { "type": "checkbox", "id": "show_product_title", "label": "Show product title", "default": true },
     { "type": "checkbox", "id": "show_price", "label": "Show price", "default": true },
-    { "type": "checkbox", "id": "show_qty", "label": "Show quantity selector", "default": true },
-    { "type": "checkbox", "id": "show_variant", "label": "Show variant selector", "default": true },
-    { "type": "checkbox", "id": "show_selling_plan", "label": "Show selling plans", "default": true },
+    { "type": "checkbox", "id": "show_quantity_selector", "label": "Show quantity selector", "default": true },
+    { "type": "checkbox", "id": "show_variant_selector", "label": "Show variant selector", "default": true },
+    { "type": "checkbox", "id": "show_selling_plan", "label": "Show selling plan", "default": true },
 
-    { "type": "color", "id": "bar_bg", "label": "Bar background", "default": "#FAFAF9" },
+    { "type": "color", "id": "bar_background_color", "label": "Bar background color", "default": "#FAFAF9" },
     { "type": "color", "id": "text_color", "label": "Text color", "default": "#000000" },
-    { "type": "range", "id": "font_size", "label": "Font size", "min": 12, "max": 20, "step": 1, "default": 14 },
-    { "type": "range", "id": "bar_radius", "label": "Bar radius", "min": 0, "max": 24, "step": 2, "default": 12 },
+    { "type": "range", "id": "font_size", "label": "Font size (px)", "min": 12, "max": 20, "step": 1, "default": 14 },
     { "type": "checkbox", "id": "enable_shadow", "label": "Enable shadow", "default": true },
 
-    { "type": "select", "id": "button_style", "label": "Button style", "options": [
-      { "value": "solid", "label": "Solid" },
-      { "value": "outline", "label": "Outline" }
-    ], "default": "solid" },
+    {
+      "type": "select",
+      "id": "button_style",
+      "label": "Button style",
+      "options": [
+        { "value": "solid", "label": "Solid" },
+        { "value": "outline", "label": "Outline" }
+      ],
+      "default": "solid"
+    },
 
-    { "type": "select", "id": "button_size", "label": "Button size", "options": [
-      { "value": "small", "label": "Small" },
-      { "value": "medium", "label": "Medium" },
-      { "value": "large", "label": "Large" }
-    ], "default": "medium" },
-
-    { "type": "range", "id": "button_radius", "label": "Button radius", "min": 0, "max": 24, "step": 2, "default": 12 },
-    { "type": "color", "id": "button_bg", "label": "Button background", "default": "#111111" },
-    { "type": "color", "id": "button_text_color", "label": "Button text color", "default": "#FFFFFF" }
+    { "type": "range", "id": "button_radius", "label": "Button radius (px)", "min": 0, "max": 30, "step": 1, "default": 12 },
+    { "type": "color", "id": "button_background_color", "label": "Button background color", "default": "#111111" },
+    { "type": "color", "id": "button_text_color", "label": "Button text color", "default": "#FFFFFF" },
+    { "type": "text", "id": "button_text", "label": "Button text", "default": "Add to cart" }
   ]
 }
 {% endschema %}
