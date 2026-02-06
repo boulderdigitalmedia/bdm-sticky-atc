@@ -57,3 +57,28 @@
   border: 1px solid var(--bdm-button-bg, #111);
   color: var(--bdm-button-bg, #111);
 }
+
+@media (max-width: 768px) {
+  .bdm-inner {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .bdm-right {
+    width: 100%;
+    display: flex;
+    gap: 12px;
+  }
+
+  #bdm-qty {
+    width: 72px;
+    flex-shrink: 0;
+  }
+
+  .bdm-button {
+    flex: 1;
+    padding: 14px 20px;
+    font-size: 16px;
+  }
+}
