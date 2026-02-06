@@ -11,8 +11,6 @@
   {% if block.settings.show_product_title %}data-show-title{% endif %}
   {% if block.settings.show_price %}data-show-price{% endif %}
   {% if block.settings.show_quantity_selector %}data-show-qty{% endif %}
-  {% if block.settings.show_variant_selector %}data-show-variant{% endif %}
-  {% if block.settings.show_selling_plan %}data-show-selling-plan{% endif %}
 
   style="
     --bdm-bg: {{ block.settings.bar_background_color }};
@@ -66,8 +64,6 @@
     { "type": "checkbox", "id": "show_product_title", "label": "Show product title", "default": true },
     { "type": "checkbox", "id": "show_price", "label": "Show price", "default": true },
     { "type": "checkbox", "id": "show_quantity_selector", "label": "Show quantity selector", "default": true },
-    { "type": "checkbox", "id": "show_variant_selector", "label": "Show variant selector", "default": false },
-    { "type": "checkbox", "id": "show_selling_plan", "label": "Show selling plan", "default": false },
 
     { "type": "color", "id": "bar_background_color", "label": "Bar background color", "default": "#FAFAF9" },
     { "type": "color", "id": "text_color", "label": "Text color", "default": "#000000" },

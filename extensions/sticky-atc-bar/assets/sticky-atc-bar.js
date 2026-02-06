@@ -1,3 +1,10 @@
+/**
+ * MODE A: Mirror main product form
+ * - No variant UI rendered in sticky bar
+ * - No selling plan UI rendered in sticky bar
+ * - Variant & selling plan are read from the main product form only
+ */
+
 (() => {
   if (window.__BDM_STICKY_ATC_INIT__) return;
   window.__BDM_STICKY_ATC_INIT__ = true;
