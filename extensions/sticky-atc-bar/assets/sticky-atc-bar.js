@@ -4,32 +4,27 @@
 
   const BAR_ID = "bdm-sticky-atc";
 
-  function ready(fn) {
-    if (document.readyState === "complete") fn();
-    else document.addEventListener("DOMContentLoaded", fn);
-  }
-
-  ready(() => {
+  document.addEventListener("DOMContentLoaded", () => {
     const bar = document.getElementById(BAR_ID);
     if (!bar) return;
 
-    /* ======================
-       READ SETTINGS (FIXED)
-    ====================== */
-    const showDesktop = bar.dataset.enableDesktop === "true";
-    const showMobile = bar.dataset.enableMobile === "true";
-    const showOnScroll = bar.dataset.showOnScroll === "true";
+    /* ------------------------
+       READ SETTINGS (CORRECT)
+    ------------------------- */
+    const showDesktop = bar.hasAttribute("data-enable-desktop");
+    const showMobile = bar.hasAttribute("data-enable-mobile");
+    const showOnScroll = bar.hasAttribute("data-show-on-scroll");
     const scrollOffset = parseInt(bar.dataset.scrollOffset || "250", 10);
 
-    const showTitle = bar.dataset.showTitle === "true";
-    const showPrice = bar.dataset.showPrice === "true";
-    const showQty = bar.dataset.showQty === "true";
-    const showVariant = bar.dataset.showVariant === "true";
-    const showSellingPlan = bar.dataset.showSellingPlan === "true";
+    const showTitle = bar.hasAttribute("data-show-title");
+    const showPrice = bar.hasAttribute("data-show-price");
+    const showQty = bar.hasAttribute("data-show-qty");
+    const showVariant = bar.hasAttribute("data-show-variant");
+    const showSellingPlan = bar.hasAttribute("data-show-selling-plan");
 
-    /* ======================
-       DEVICE VISIBILITY
-    ====================== */
+    /* ------------------------
+       DEVICE FILTER
+    ------------------------- */
     const isMobile = window.matchMedia("(max-width: 768px)").matches;
 
     if ((isMobile && !showMobile) || (!isMobile && !showDesktop)) {
@@ -37,14 +32,11 @@
       return;
     }
 
-    function updateScrollVisibility() {
-      if (!showOnScroll) {
-        bar.classList.add("is-visible");
-        bar.setAttribute("aria-hidden", "false");
-        return;
-      }
-
-      if (window.scrollY >= scrollOffset) {
+    /* ------------------------
+       VISIBILITY
+    ------------------------- */
+    function updateVisibility() {
+      if (!showOnScroll || window.scrollY >= scrollOffset) {
         bar.classList.add("is-visible");
         bar.setAttribute("aria-hidden", "false");
       } else {
@@ -53,12 +45,12 @@
       }
     }
 
-    updateScrollVisibility();
-    window.addEventListener("scroll", updateScrollVisibility);
+    updateVisibility();
+    window.addEventListener("scroll", updateVisibility);
 
-    /* ======================
+    /* ------------------------
        FIND PRODUCT FORM
-    ====================== */
+    ------------------------- */
     const productForm =
       document.querySelector('form[action*="/cart/add"]') ||
       document.querySelector("product-form form");
@@ -67,19 +59,19 @@
 
     const variantInput = productForm.querySelector('[name="id"]');
     const sellingPlanInput = productForm.querySelector('[name="selling_plan"]');
-    const qtyInputMain = productForm.querySelector('[name="quantity"]');
+    const mainQtyInput = productForm.querySelector('[name="quantity"]');
 
-    /* ======================
+    /* ------------------------
        BAR ELEMENTS
-    ====================== */
+    ------------------------- */
     const titleEl = bar.querySelector("#bdm-title");
     const priceEl = bar.querySelector("#bdm-price");
     const qtyEl = bar.querySelector("#bdm-qty");
     const atcBtn = bar.querySelector("#bdm-atc");
 
-    /* ======================
+    /* ------------------------
        PRODUCT DATA
-    ====================== */
+    ------------------------- */
     const handle = window.location.pathname.split("/products/")[1];
     if (!handle) return;
 
@@ -90,21 +82,18 @@
 
         if (showTitle && titleEl) {
           titleEl.textContent = product.title;
-          titleEl.style.display = "";
+          titleEl.hidden = false;
         }
 
         function updatePrice(variantId) {
           const variant = product.variants.find(v => v.id == variantId);
-          if (!variant) return;
+          if (!variant || !showPrice || !priceEl) return;
 
-          if (showPrice && priceEl) {
-            priceEl.textContent =
-              (variant.price / 100).toLocaleString(undefined, {
-                style: "currency",
-                currency: product.currency || "USD"
-              });
-            priceEl.style.display = "";
-          }
+          priceEl.textContent = (variant.price / 100).toLocaleString(undefined, {
+            style: "currency",
+            currency: product.currency || "USD"
+          });
+          priceEl.hidden = false;
         }
 
         if (variantInput) {
@@ -115,34 +104,21 @@
         }
       });
 
-    /* ======================
-       QUANTITY
-    ====================== */
-    if (qtyEl && qtyInputMain && showQty) {
-      qtyEl.value = qtyInputMain.value || 1;
-      qtyEl.style.display = "";
+    /* ------------------------
+       QTY SYNC
+    ------------------------- */
+    if (showQty && qtyEl && mainQtyInput) {
+      qtyEl.hidden = false;
+      qtyEl.value = mainQtyInput.value || 1;
 
       qtyEl.addEventListener("change", () => {
-        qtyInputMain.value = qtyEl.value;
+        mainQtyInput.value = qtyEl.value;
       });
-    } else if (qtyEl) {
-      qtyEl.style.display = "none";
     }
 
-    /* ======================
-       VARIANT / SELLING PLAN
-    ====================== */
-    if (!showVariant && variantInput) {
-      variantInput.setAttribute("hidden", "");
-    }
-
-    if (!showSellingPlan && sellingPlanInput) {
-      sellingPlanInput.setAttribute("hidden", "");
-    }
-
-    /* ======================
+    /* ------------------------
        ADD TO CART
-    ====================== */
+    ------------------------- */
     atcBtn.addEventListener("click", () => {
       if (!variantInput?.value) return;
 
@@ -150,10 +126,10 @@
       formData.append("id", variantInput.value);
       formData.append(
         "quantity",
-        qtyEl?.value || qtyInputMain?.value || 1
+        qtyEl?.value || mainQtyInput?.value || 1
       );
 
-      if (sellingPlanInput?.value && showSellingPlan) {
+      if (showSellingPlan && sellingPlanInput?.value) {
         formData.append("selling_plan", sellingPlanInput.value);
       }
 
@@ -161,13 +137,7 @@
         method: "POST",
         body: formData,
         headers: { Accept: "application/json" }
-      })
-        .then(() => {
-          document.dispatchEvent(
-            new CustomEvent("bdm:sticky-atc:added")
-          );
-        })
-        .catch(console.error);
+      });
     });
   });
 })();
