@@ -56,7 +56,7 @@
 {% schema %}
 {
   "name": "Sticky Add To Cart Bar",
-  "target": "body",
+  "target": "app_block",
   "settings": [
     { "type": "checkbox", "id": "show_on_desktop", "label": "Show on desktop", "default": true },
     { "type": "checkbox", "id": "show_on_mobile", "label": "Show on mobile", "default": true },
@@ -66,8 +66,8 @@
     { "type": "checkbox", "id": "show_product_title", "label": "Show product title", "default": true },
     { "type": "checkbox", "id": "show_price", "label": "Show price", "default": true },
     { "type": "checkbox", "id": "show_quantity_selector", "label": "Show quantity selector", "default": true },
-    { "type": "checkbox", "id": "show_variant_selector", "label": "Show variant selector", "default": true },
-    { "type": "checkbox", "id": "show_selling_plan", "label": "Show selling plan", "default": true },
+    { "type": "checkbox", "id": "show_variant_selector", "label": "Show variant selector", "default": false },
+    { "type": "checkbox", "id": "show_selling_plan", "label": "Show selling plan", "default": false },
 
     { "type": "color", "id": "bar_background_color", "label": "Bar background color", "default": "#FAFAF9" },
     { "type": "color", "id": "text_color", "label": "Text color", "default": "#000000" },
