@@ -13,74 +13,107 @@
     const bar = document.getElementById(BAR_ID);
     if (!bar) return;
 
-    /* -----------------------------------
-       SETTINGS FROM CUSTOMIZER
-    ----------------------------------- */
+    /* ---------------------------
+       BASIC VISIBILITY (NEVER FAIL)
+    ---------------------------- */
+    bar.classList.add("is-visible");
+    bar.setAttribute("aria-hidden", "false");
+
+    const right = bar.querySelector(".bdm-right");
+    const titleEl = bar.querySelector("#bdm-title");
+    const priceEl = bar.querySelector("#bdm-price");
+    const qtyEl = bar.querySelector("#bdm-qty");
+    const atcBtn = bar.querySelector("#bdm-atc");
+
+    /* ---------------------------
+       SETTINGS
+    ---------------------------- */
     const showVariant = bar.hasAttribute("data-show-variant");
     const showSellingPlan = bar.hasAttribute("data-show-selling-plan");
     const showQty = bar.hasAttribute("data-show-qty");
 
-    /* -----------------------------------
-       FIND MAIN PRODUCT FORM
-    ----------------------------------- */
-    const productForm =
-      document.querySelector('form[action*="/cart/add"]') ||
-      document.querySelector("product-form form");
+    /* ---------------------------
+       PRODUCT JSON (SAFE)
+    ---------------------------- */
+    const handle = location.pathname.split("/products/")[1]?.split("/")[0];
+    if (handle) {
+      fetch(`/products/${handle}.js`)
+        .then(r => r.json())
+        .then(product => {
+          if (!product) return;
 
-    if (!productForm) return;
+          if (titleEl && bar.hasAttribute("data-show-title")) {
+            titleEl.textContent = product.title;
+            titleEl.style.display = "";
+          }
 
-    const variantInput = productForm.querySelector('[name="id"]');
-    const sellingPlanInput =
-      productForm.querySelector('[name="selling_plan"]');
-
-    /* -----------------------------------
-       BAR ELEMENTS
-    ----------------------------------- */
-    const right = bar.querySelector(".bdm-right");
-    const qtyEl = bar.querySelector("#bdm-qty");
-    const atcBtn = bar.querySelector("#bdm-atc");
-
-    /* -----------------------------------
-       VARIANT SELECTOR
-    ----------------------------------- */
-    if (showVariant) {
-      const sourceVariantSelector =
-        productForm.querySelector("select[name='id']") ||
-        productForm.querySelector("[data-variant-picker] select");
-
-      if (sourceVariantSelector) {
-        const clone = sourceVariantSelector.cloneNode(true);
-        clone.removeAttribute("id");
-        clone.classList.add("bdm-variant");
-
-        clone.value = variantInput.value;
-
-        clone.addEventListener("change", () => {
-          variantInput.value = clone.value;
-          variantInput.dispatchEvent(new Event("change", { bubbles: true }));
+          if (priceEl && bar.hasAttribute("data-show-price")) {
+            const v = product.variants[0];
+            if (v) {
+              priceEl.textContent =
+                (v.price / 100).toLocaleString(undefined, {
+                  style: "currency",
+                  currency: product.currency || "USD"
+                });
+              priceEl.style.display = "";
+            }
+          }
         });
-
-        variantInput.addEventListener("change", () => {
-          clone.value = variantInput.value;
-        });
-
-        right.prepend(clone);
-      }
     }
 
-    /* -----------------------------------
-       SELLING PLAN SELECTOR
-    ----------------------------------- */
-    if (showSellingPlan && sellingPlanInput) {
-      const sourcePlan =
-        productForm.querySelector("[name='selling_plan']");
+    /* ---------------------------
+       FIND PRODUCT FORM (LAZY)
+    ---------------------------- */
+    function findProductForm() {
+      return (
+        document.querySelector('form[action*="/cart/add"]') ||
+        document.querySelector("product-form form")
+      );
+    }
 
-      if (sourcePlan) {
-        const clone = sourcePlan.cloneNode(true);
-        clone.removeAttribute("id");
+    function attachWhenReady() {
+      const productForm = findProductForm();
+      if (!productForm) return false;
+
+      const variantInput = productForm.querySelector('[name="id"]');
+      const sellingPlanInput =
+        productForm.querySelector('[name="selling_plan"]');
+      const mainQty =
+        productForm.querySelector('[name="quantity"]');
+
+      /* ---------------------------
+         VARIANT SELECTOR
+      ---------------------------- */
+      if (showVariant && variantInput && !bar.querySelector(".bdm-variant")) {
+        const source =
+          productForm.querySelector("select[name='id']");
+
+        if (source) {
+          const clone = source.cloneNode(true);
+          clone.classList.add("bdm-variant");
+          clone.value = variantInput.value;
+
+          clone.addEventListener("change", () => {
+            variantInput.value = clone.value;
+            variantInput.dispatchEvent(
+              new Event("change", { bubbles: true })
+            );
+          });
+
+          right.prepend(clone);
+        }
+      }
+
+      /* ---------------------------
+         SELLING PLAN
+      ---------------------------- */
+      if (
+        showSellingPlan &&
+        sellingPlanInput &&
+        !bar.querySelector(".bdm-selling-plan")
+      ) {
+        const clone = sellingPlanInput.cloneNode(true);
         clone.classList.add("bdm-selling-plan");
-
-        clone.value = sellingPlanInput.value;
 
         clone.addEventListener("change", () => {
           sellingPlanInput.value = clone.value;
@@ -89,54 +122,49 @@
           );
         });
 
-        sellingPlanInput.addEventListener("change", () => {
-          clone.value = sellingPlanInput.value;
-        });
-
         right.prepend(clone);
       }
-    }
 
-    /* -----------------------------------
-       QUANTITY
-    ----------------------------------- */
-    if (qtyEl && showQty) {
-      const mainQty = productForm.querySelector('[name="quantity"]');
-      qtyEl.style.display = "";
-
-      qtyEl.value = mainQty?.value || 1;
-
-      qtyEl.addEventListener("change", () => {
-        if (mainQty) mainQty.value = qtyEl.value;
-      });
-    }
-
-    /* -----------------------------------
-       ADD TO CART
-    ----------------------------------- */
-    atcBtn.addEventListener("click", () => {
-      if (!variantInput?.value) return;
-
-      const formData = new FormData();
-      formData.append("id", variantInput.value);
-      formData.append(
-        "quantity",
-        qtyEl?.value || productForm.querySelector('[name="quantity"]')?.value || 1
-      );
-
-      if (sellingPlanInput?.value) {
-        formData.append("selling_plan", sellingPlanInput.value);
+      /* ---------------------------
+         QTY
+      ---------------------------- */
+      if (qtyEl && showQty && mainQty) {
+        qtyEl.style.display = "";
+        qtyEl.value = mainQty.value || 1;
+        qtyEl.addEventListener("change", () => {
+          mainQty.value = qtyEl.value;
+        });
       }
 
-      fetch("/cart/add.js", {
-        method: "POST",
-        body: formData,
-        headers: { Accept: "application/json" }
-      }).then(() => {
-        document.dispatchEvent(
-          new CustomEvent("bdm:sticky-atc:added")
-        );
+      /* ---------------------------
+         ADD TO CART
+      ---------------------------- */
+      atcBtn.addEventListener("click", () => {
+        if (!variantInput?.value) return;
+
+        const fd = new FormData();
+        fd.append("id", variantInput.value);
+        fd.append("quantity", qtyEl?.value || mainQty?.value || 1);
+
+        if (sellingPlanInput?.value) {
+          fd.append("selling_plan", sellingPlanInput.value);
+        }
+
+        fetch("/cart/add.js", {
+          method: "POST",
+          body: fd,
+          headers: { Accept: "application/json" }
+        });
       });
-    });
+
+      return true;
+    }
+
+    /* ---------------------------
+       RETRY UNTIL FORM EXISTS
+    ---------------------------- */
+    const interval = setInterval(() => {
+      if (attachWhenReady()) clearInterval(interval);
+    }, 300);
   });
 })();
