@@ -4,167 +4,170 @@
 
   const BAR_ID = "bdm-sticky-atc";
 
-  const ready = (fn) =>
-    document.readyState === "loading"
-      ? document.addEventListener("DOMContentLoaded", fn)
-      : fn();
+  function ready(fn) {
+    if (document.readyState === "complete") fn();
+    else document.addEventListener("DOMContentLoaded", fn);
+  }
 
   ready(() => {
     const bar = document.getElementById(BAR_ID);
     if (!bar) return;
 
-    /* ---------------------------
-       BASIC VISIBILITY (NEVER FAIL)
-    ---------------------------- */
-    bar.classList.add("is-visible");
-    bar.setAttribute("aria-hidden", "false");
+    /* ======================
+       READ SETTINGS (FIXED)
+    ====================== */
+    const showDesktop = bar.dataset.enableDesktop === "true";
+    const showMobile = bar.dataset.enableMobile === "true";
+    const showOnScroll = bar.dataset.showOnScroll === "true";
+    const scrollOffset = parseInt(bar.dataset.scrollOffset || "250", 10);
 
-    const right = bar.querySelector(".bdm-right");
+    const showTitle = bar.dataset.showTitle === "true";
+    const showPrice = bar.dataset.showPrice === "true";
+    const showQty = bar.dataset.showQty === "true";
+    const showVariant = bar.dataset.showVariant === "true";
+    const showSellingPlan = bar.dataset.showSellingPlan === "true";
+
+    /* ======================
+       DEVICE VISIBILITY
+    ====================== */
+    const isMobile = window.matchMedia("(max-width: 768px)").matches;
+
+    if ((isMobile && !showMobile) || (!isMobile && !showDesktop)) {
+      bar.remove();
+      return;
+    }
+
+    function updateScrollVisibility() {
+      if (!showOnScroll) {
+        bar.classList.add("is-visible");
+        bar.setAttribute("aria-hidden", "false");
+        return;
+      }
+
+      if (window.scrollY >= scrollOffset) {
+        bar.classList.add("is-visible");
+        bar.setAttribute("aria-hidden", "false");
+      } else {
+        bar.classList.remove("is-visible");
+        bar.setAttribute("aria-hidden", "true");
+      }
+    }
+
+    updateScrollVisibility();
+    window.addEventListener("scroll", updateScrollVisibility);
+
+    /* ======================
+       FIND PRODUCT FORM
+    ====================== */
+    const productForm =
+      document.querySelector('form[action*="/cart/add"]') ||
+      document.querySelector("product-form form");
+
+    if (!productForm) return;
+
+    const variantInput = productForm.querySelector('[name="id"]');
+    const sellingPlanInput = productForm.querySelector('[name="selling_plan"]');
+    const qtyInputMain = productForm.querySelector('[name="quantity"]');
+
+    /* ======================
+       BAR ELEMENTS
+    ====================== */
     const titleEl = bar.querySelector("#bdm-title");
     const priceEl = bar.querySelector("#bdm-price");
     const qtyEl = bar.querySelector("#bdm-qty");
     const atcBtn = bar.querySelector("#bdm-atc");
 
-    /* ---------------------------
-       SETTINGS
-    ---------------------------- */
-    const showVariant = bar.hasAttribute("data-show-variant");
-    const showSellingPlan = bar.hasAttribute("data-show-selling-plan");
-    const showQty = bar.hasAttribute("data-show-qty");
+    /* ======================
+       PRODUCT DATA
+    ====================== */
+    const handle = window.location.pathname.split("/products/")[1];
+    if (!handle) return;
 
-    /* ---------------------------
-       PRODUCT JSON (SAFE)
-    ---------------------------- */
-    const handle = location.pathname.split("/products/")[1]?.split("/")[0];
-    if (handle) {
-      fetch(`/products/${handle}.js`)
-        .then(r => r.json())
-        .then(product => {
-          if (!product) return;
+    fetch(`/products/${handle}.js`)
+      .then(r => r.json())
+      .then(product => {
+        if (!product) return;
 
-          if (titleEl && bar.hasAttribute("data-show-title")) {
-            titleEl.textContent = product.title;
-            titleEl.style.display = "";
-          }
-
-          if (priceEl && bar.hasAttribute("data-show-price")) {
-            const v = product.variants[0];
-            if (v) {
-              priceEl.textContent =
-                (v.price / 100).toLocaleString(undefined, {
-                  style: "currency",
-                  currency: product.currency || "USD"
-                });
-              priceEl.style.display = "";
-            }
-          }
-        });
-    }
-
-    /* ---------------------------
-       FIND PRODUCT FORM (LAZY)
-    ---------------------------- */
-    function findProductForm() {
-      return (
-        document.querySelector('form[action*="/cart/add"]') ||
-        document.querySelector("product-form form")
-      );
-    }
-
-    function attachWhenReady() {
-      const productForm = findProductForm();
-      if (!productForm) return false;
-
-      const variantInput = productForm.querySelector('[name="id"]');
-      const sellingPlanInput =
-        productForm.querySelector('[name="selling_plan"]');
-      const mainQty =
-        productForm.querySelector('[name="quantity"]');
-
-      /* ---------------------------
-         VARIANT SELECTOR
-      ---------------------------- */
-      if (showVariant && variantInput && !bar.querySelector(".bdm-variant")) {
-        const source =
-          productForm.querySelector("select[name='id']");
-
-        if (source) {
-          const clone = source.cloneNode(true);
-          clone.classList.add("bdm-variant");
-          clone.value = variantInput.value;
-
-          clone.addEventListener("change", () => {
-            variantInput.value = clone.value;
-            variantInput.dispatchEvent(
-              new Event("change", { bubbles: true })
-            );
-          });
-
-          right.prepend(clone);
+        if (showTitle && titleEl) {
+          titleEl.textContent = product.title;
+          titleEl.style.display = "";
         }
-      }
 
-      /* ---------------------------
-         SELLING PLAN
-      ---------------------------- */
-      if (
-        showSellingPlan &&
-        sellingPlanInput &&
-        !bar.querySelector(".bdm-selling-plan")
-      ) {
-        const clone = sellingPlanInput.cloneNode(true);
-        clone.classList.add("bdm-selling-plan");
+        function updatePrice(variantId) {
+          const variant = product.variants.find(v => v.id == variantId);
+          if (!variant) return;
 
-        clone.addEventListener("change", () => {
-          sellingPlanInput.value = clone.value;
-          sellingPlanInput.dispatchEvent(
-            new Event("change", { bubbles: true })
+          if (showPrice && priceEl) {
+            priceEl.textContent =
+              (variant.price / 100).toLocaleString(undefined, {
+                style: "currency",
+                currency: product.currency || "USD"
+              });
+            priceEl.style.display = "";
+          }
+        }
+
+        if (variantInput) {
+          updatePrice(variantInput.value);
+          variantInput.addEventListener("change", e =>
+            updatePrice(e.target.value)
           );
-        });
-
-        right.prepend(clone);
-      }
-
-      /* ---------------------------
-         QTY
-      ---------------------------- */
-      if (qtyEl && showQty && mainQty) {
-        qtyEl.style.display = "";
-        qtyEl.value = mainQty.value || 1;
-        qtyEl.addEventListener("change", () => {
-          mainQty.value = qtyEl.value;
-        });
-      }
-
-      /* ---------------------------
-         ADD TO CART
-      ---------------------------- */
-      atcBtn.addEventListener("click", () => {
-        if (!variantInput?.value) return;
-
-        const fd = new FormData();
-        fd.append("id", variantInput.value);
-        fd.append("quantity", qtyEl?.value || mainQty?.value || 1);
-
-        if (sellingPlanInput?.value) {
-          fd.append("selling_plan", sellingPlanInput.value);
         }
-
-        fetch("/cart/add.js", {
-          method: "POST",
-          body: fd,
-          headers: { Accept: "application/json" }
-        });
       });
 
-      return true;
+    /* ======================
+       QUANTITY
+    ====================== */
+    if (qtyEl && qtyInputMain && showQty) {
+      qtyEl.value = qtyInputMain.value || 1;
+      qtyEl.style.display = "";
+
+      qtyEl.addEventListener("change", () => {
+        qtyInputMain.value = qtyEl.value;
+      });
+    } else if (qtyEl) {
+      qtyEl.style.display = "none";
     }
 
-    /* ---------------------------
-       RETRY UNTIL FORM EXISTS
-    ---------------------------- */
-    const interval = setInterval(() => {
-      if (attachWhenReady()) clearInterval(interval);
-    }, 300);
+    /* ======================
+       VARIANT / SELLING PLAN
+    ====================== */
+    if (!showVariant && variantInput) {
+      variantInput.setAttribute("hidden", "");
+    }
+
+    if (!showSellingPlan && sellingPlanInput) {
+      sellingPlanInput.setAttribute("hidden", "");
+    }
+
+    /* ======================
+       ADD TO CART
+    ====================== */
+    atcBtn.addEventListener("click", () => {
+      if (!variantInput?.value) return;
+
+      const formData = new FormData();
+      formData.append("id", variantInput.value);
+      formData.append(
+        "quantity",
+        qtyEl?.value || qtyInputMain?.value || 1
+      );
+
+      if (sellingPlanInput?.value && showSellingPlan) {
+        formData.append("selling_plan", sellingPlanInput.value);
+      }
+
+      fetch("/cart/add.js", {
+        method: "POST",
+        body: formData,
+        headers: { Accept: "application/json" }
+      })
+        .then(() => {
+          document.dispatchEvent(
+            new CustomEvent("bdm:sticky-atc:added")
+          );
+        })
+        .catch(console.error);
+    });
   });
 })();
