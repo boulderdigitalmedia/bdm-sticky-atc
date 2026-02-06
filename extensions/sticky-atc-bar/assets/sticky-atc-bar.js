@@ -4,20 +4,25 @@
 
   const BAR_ID = "bdm-sticky-atc";
 
-  function ready(fn) {
-    if (document.readyState === "complete") fn();
-    else document.addEventListener("DOMContentLoaded", fn);
-  }
+  const ready = (fn) =>
+    document.readyState === "loading"
+      ? document.addEventListener("DOMContentLoaded", fn)
+      : fn();
 
   ready(() => {
     const bar = document.getElementById(BAR_ID);
     if (!bar) return;
 
-    const titleEl = bar.querySelector("#bdm-title");
-    const priceEl = bar.querySelector("#bdm-price");
-    const qtyEl = bar.querySelector("#bdm-qty");
-    const atcBtn = bar.querySelector("#bdm-atc");
+    /* -----------------------------------
+       SETTINGS FROM CUSTOMIZER
+    ----------------------------------- */
+    const showVariant = bar.hasAttribute("data-show-variant");
+    const showSellingPlan = bar.hasAttribute("data-show-selling-plan");
+    const showQty = bar.hasAttribute("data-show-qty");
 
+    /* -----------------------------------
+       FIND MAIN PRODUCT FORM
+    ----------------------------------- */
     const productForm =
       document.querySelector('form[action*="/cart/add"]') ||
       document.querySelector("product-form form");
@@ -25,111 +30,113 @@
     if (!productForm) return;
 
     const variantInput = productForm.querySelector('[name="id"]');
-    const sellingPlanInput = productForm.querySelector('[name="selling_plan"]');
-    const qtyInputMain = productForm.querySelector('[name="quantity"]');
+    const sellingPlanInput =
+      productForm.querySelector('[name="selling_plan"]');
 
-    /* ---------------------------
-       APPLY SETTINGS (CORE FIX)
-    ---------------------------- */
-    function applySettings() {
-      const showTitle = bar.hasAttribute("data-show-title");
-      const showPrice = bar.hasAttribute("data-show-price");
-      const showQty = bar.hasAttribute("data-show-qty");
+    /* -----------------------------------
+       BAR ELEMENTS
+    ----------------------------------- */
+    const right = bar.querySelector(".bdm-right");
+    const qtyEl = bar.querySelector("#bdm-qty");
+    const atcBtn = bar.querySelector("#bdm-atc");
 
-      if (titleEl) titleEl.style.display = showTitle ? "" : "none";
-      if (priceEl) priceEl.style.display = showPrice ? "" : "none";
-      if (qtyEl) qtyEl.style.display = showQty ? "" : "none";
-    }
+    /* -----------------------------------
+       VARIANT SELECTOR
+    ----------------------------------- */
+    if (showVariant) {
+      const sourceVariantSelector =
+        productForm.querySelector("select[name='id']") ||
+        productForm.querySelector("[data-variant-picker] select");
 
-    applySettings();
+      if (sourceVariantSelector) {
+        const clone = sourceVariantSelector.cloneNode(true);
+        clone.removeAttribute("id");
+        clone.classList.add("bdm-variant");
 
-    /* ---------------------------
-       OBSERVE EDITOR CHANGES
-    ---------------------------- */
-    const observer = new MutationObserver(applySettings);
-    observer.observe(bar, { attributes: true });
+        clone.value = variantInput.value;
 
-    /* ---------------------------
-       SCROLL VISIBILITY
-    ---------------------------- */
-    const showOnScroll = bar.hasAttribute("data-show-on-scroll");
-    const scrollOffset = parseInt(bar.dataset.scrollOffset || "250", 10);
+        clone.addEventListener("change", () => {
+          variantInput.value = clone.value;
+          variantInput.dispatchEvent(new Event("change", { bubbles: true }));
+        });
 
-    function updateScroll() {
-      if (!showOnScroll || window.scrollY >= scrollOffset) {
-        bar.classList.add("is-visible");
-        bar.setAttribute("aria-hidden", "false");
-      } else {
-        bar.classList.remove("is-visible");
-        bar.setAttribute("aria-hidden", "true");
+        variantInput.addEventListener("change", () => {
+          clone.value = variantInput.value;
+        });
+
+        right.prepend(clone);
       }
     }
 
-    updateScroll();
-    window.addEventListener("scroll", updateScroll);
+    /* -----------------------------------
+       SELLING PLAN SELECTOR
+    ----------------------------------- */
+    if (showSellingPlan && sellingPlanInput) {
+      const sourcePlan =
+        productForm.querySelector("[name='selling_plan']");
 
-    /* ---------------------------
-       PRODUCT DATA
-    ---------------------------- */
-    fetch(`/products/${location.pathname.split("/products/")[1]}.js`)
-      .then(r => r.json())
-      .then(product => {
-        if (!product) return;
+      if (sourcePlan) {
+        const clone = sourcePlan.cloneNode(true);
+        clone.removeAttribute("id");
+        clone.classList.add("bdm-selling-plan");
 
-        if (titleEl) titleEl.textContent = product.title;
+        clone.value = sellingPlanInput.value;
 
-        function updatePrice(variantId) {
-          const variant = product.variants.find(v => v.id == variantId);
-          if (!variant || !priceEl) return;
-
-          priceEl.textContent =
-            (variant.price / 100).toLocaleString(undefined, {
-              style: "currency",
-              currency: product.currency || "USD"
-            });
-        }
-
-        if (variantInput) {
-          updatePrice(variantInput.value);
-          variantInput.addEventListener("change", e =>
-            updatePrice(e.target.value)
+        clone.addEventListener("change", () => {
+          sellingPlanInput.value = clone.value;
+          sellingPlanInput.dispatchEvent(
+            new Event("change", { bubbles: true })
           );
-        }
-      });
+        });
 
-    /* ---------------------------
-       QTY SYNC
-    ---------------------------- */
-    if (qtyEl && qtyInputMain) {
-      qtyEl.value = qtyInputMain.value || 1;
+        sellingPlanInput.addEventListener("change", () => {
+          clone.value = sellingPlanInput.value;
+        });
+
+        right.prepend(clone);
+      }
+    }
+
+    /* -----------------------------------
+       QUANTITY
+    ----------------------------------- */
+    if (qtyEl && showQty) {
+      const mainQty = productForm.querySelector('[name="quantity"]');
+      qtyEl.style.display = "";
+
+      qtyEl.value = mainQty?.value || 1;
+
       qtyEl.addEventListener("change", () => {
-        qtyInputMain.value = qtyEl.value;
+        if (mainQty) mainQty.value = qtyEl.value;
       });
     }
 
-    /* ---------------------------
+    /* -----------------------------------
        ADD TO CART
-    ---------------------------- */
+    ----------------------------------- */
     atcBtn.addEventListener("click", () => {
       if (!variantInput?.value) return;
 
-      const data = new FormData();
-      data.append("id", variantInput.value);
-      data.append("quantity", qtyEl?.value || qtyInputMain?.value || 1);
+      const formData = new FormData();
+      formData.append("id", variantInput.value);
+      formData.append(
+        "quantity",
+        qtyEl?.value || productForm.querySelector('[name="quantity"]')?.value || 1
+      );
 
       if (sellingPlanInput?.value) {
-        data.append("selling_plan", sellingPlanInput.value);
+        formData.append("selling_plan", sellingPlanInput.value);
       }
 
       fetch("/cart/add.js", {
         method: "POST",
-        body: data,
+        body: formData,
         headers: { Accept: "application/json" }
-      }).then(() =>
+      }).then(() => {
         document.dispatchEvent(
           new CustomEvent("bdm:sticky-atc:added")
-        )
-      );
+        );
+      });
     });
   });
 })();
