@@ -1,11 +1,22 @@
 (() => {
-  // Prevent double init (theme reloads, section renders)
   if (window.__BDM_STICKY_ATC_INIT__) return;
   window.__BDM_STICKY_ATC_INIT__ = true;
 
   document.addEventListener("DOMContentLoaded", () => {
     const bar = document.getElementById("bdm-sticky-atc");
     if (!bar) return;
+
+    /* ================================
+       ONLY RUN ON PRODUCT PAGES
+    ================================= */
+    const productForm =
+      document.querySelector('form[action*="/cart/add"]') ||
+      document.querySelector("product-form form");
+
+    if (!productForm) {
+      bar.hidden = true;
+      return;
+    }
 
     /* ================================
        SETTINGS (DATA ATTRIBUTES)
@@ -20,15 +31,15 @@
     const showQty = bar.hasAttribute("data-show-qty");
 
     /* ================================
-       DEVICE VISIBILITY (SAFE)
+       DEVICE VISIBILITY
     ================================= */
     const isMobile = window.matchMedia("(max-width: 768px)").matches;
 
     if ((isMobile && !showMobile) || (!isMobile && !showDesktop)) {
-      bar.setAttribute("hidden", "");
+      bar.hidden = true;
       return;
     }
-    bar.removeAttribute("hidden");
+    bar.hidden = false;
 
     /* ================================
        SCROLL VISIBILITY
@@ -36,10 +47,8 @@
     const updateScrollVisibility = () => {
       if (!showOnScroll || window.scrollY >= scrollOffset) {
         bar.classList.add("is-visible");
-        bar.setAttribute("aria-hidden", "false");
       } else {
         bar.classList.remove("is-visible");
-        bar.setAttribute("aria-hidden", "true");
       }
     };
 
@@ -47,19 +56,16 @@
     window.addEventListener("scroll", updateScrollVisibility);
 
     /* ================================
-       FIND MAIN PRODUCT FORM
+       PRODUCT FORM INPUTS
     ================================= */
-    const productForm =
-      document.querySelector('form[action*="/cart/add"]') ||
-      document.querySelector("product-form form");
-
-    if (!productForm) return;
-
     const variantInput = productForm.querySelector('[name="id"]');
     const sellingPlanInput = productForm.querySelector('[name="selling_plan"]');
     const qtyInputMain = productForm.querySelector('[name="quantity"]');
 
-    if (!variantInput) return;
+    if (!variantInput) {
+      bar.hidden = true;
+      return;
+    }
 
     /* ================================
        BAR ELEMENTS
@@ -70,7 +76,10 @@
     const qtyEl = bar.querySelector("#bdm-qty");
     const atcBtn = bar.querySelector("#bdm-atc");
 
-    if (!atcBtn) return;
+    if (!atcBtn) {
+      bar.hidden = true;
+      return;
+    }
 
     /* ================================
        INITIAL VISIBILITY
@@ -83,7 +92,10 @@
        PRODUCT DATA
     ================================= */
     const handle = window.location.pathname.split("/products/")[1];
-    if (!handle) return;
+    if (!handle) {
+      bar.hidden = true;
+      return;
+    }
 
     fetch(`/products/${handle}.js`)
       .then(r => r.json())
@@ -109,7 +121,7 @@
       });
 
     /* ================================
-       QTY SYNC + STEPPER
+       QTY SYNC
     ================================= */
     let currentQty = parseInt(qtyInputMain?.value || "1", 10);
 
@@ -136,86 +148,15 @@
     }
 
     /* ================================
-       ADD TO CART (OS 2.0 CORRECT)
+       ADD TO CART (THEME-SAFE)
     ================================= */
-    atcBtn.addEventListener("click", async () => {
-      const variantId = variantInput.value;
-      if (!variantId) return;
+    atcBtn.addEventListener("click", () => {
+      if (!variantInput.value) return;
 
-      atcBtn.disabled = true;
+      if (qtyInputMain) qtyInputMain.value = currentQty;
 
-      const fd = new FormData();
-      fd.append("id", variantId);
-      fd.append("quantity", currentQty);
-
-      if (sellingPlanInput?.value) {
-        fd.append("selling_plan", sellingPlanInput.value);
-      }
-
-      const res = await fetch("/cart/add.js", {
-        method: "POST",
-        body: fd,
-        headers: { Accept: "application/json" }
-      });
-
-      atcBtn.disabled = false;
-      if (!res.ok) return;
-
-      refreshCartAndOpenDrawer();
+      // 🔑 Let Shopify theme handle cart + drawer
+      productForm.requestSubmit();
     });
-
-    /* ================================
-       CART REFRESH + DRAWER (CORRECT)
-    ================================= */
-    async function refreshCartAndOpenDrawer() {
-      // Ask Shopify to re-render cart sections
-      const sections = ["cart-drawer", "cart-icon-bubble"];
-
-      const res = await fetch(
-        `/?sections=${sections.join(",")}`,
-        { credentials: "same-origin" }
-      );
-
-      if (!res.ok) return;
-
-      const data = await res.json();
-
-      // Update cart icon
-      if (data["cart-icon-bubble"]) {
-        const bubble = document.getElementById("cart-icon-bubble");
-        if (bubble) bubble.innerHTML = data["cart-icon-bubble"];
-      }
-
-      // Update drawer contents
-      if (data["cart-drawer"]) {
-        const drawer =
-          document.querySelector("cart-drawer") ||
-          document.getElementById("CartDrawer");
-
-        if (drawer) {
-          const doc = new DOMParser().parseFromString(
-            data["cart-drawer"],
-            "text/html"
-          );
-
-          const fresh =
-            doc.querySelector("cart-drawer") ||
-            doc.getElementById("CartDrawer");
-
-          if (fresh) drawer.innerHTML = fresh.innerHTML;
-        }
-      }
-
-      // Open drawer
-      const drawer =
-        document.querySelector("cart-drawer") ||
-        document.getElementById("CartDrawer");
-
-      if (drawer) {
-        drawer.classList.add("active");
-        drawer.setAttribute("open", "");
-        drawer.dispatchEvent(new Event("open", { bubbles: true }));
-      }
-    }
   });
 })();
