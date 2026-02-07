@@ -112,48 +112,48 @@
     /* ------------------------
        QTY SYNC + STEPPER
     ------------------------- */
-    if (qtyEl && qtyInputMain) {
-      qtyEl.value = qtyInputMain.value || 1;
+    let currentQty = 1;
 
-      qtyEl.addEventListener("change", () => {
-        const v = Math.max(1, parseInt(qtyEl.value || "1", 10));
-        qtyEl.value = v;
-        qtyInputMain.value = v;
-      });
+if (qtyWrapper && qtyEl) {
+  qtyWrapper.style.display = showQty ? "inline-flex" : "none";
+  qtyEl.value = currentQty;
 
-      bar.querySelectorAll(".bdm-qty-btn").forEach(btn => {
-        btn.addEventListener("click", () => {
-          let value = parseInt(qtyEl.value || "1", 10);
+  qtyEl.addEventListener("change", () => {
+    currentQty = Math.max(1, parseInt(qtyEl.value || "1", 10));
+    qtyEl.value = currentQty;
+  });
 
-          if (btn.dataset.action === "increase") value++;
-          if (btn.dataset.action === "decrease") value = Math.max(1, value - 1);
+  bar.querySelectorAll(".bdm-qty-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      if (btn.dataset.action === "increase") currentQty++;
+      if (btn.dataset.action === "decrease") currentQty = Math.max(1, currentQty - 1);
 
-          qtyEl.value = value;
-          qtyInputMain.value = value;
-          qtyEl.dispatchEvent(new Event("change", { bubbles: true }));
-        });
-      });
-    }
+      qtyEl.value = currentQty;
+    });
+  });
+}
+
 
     /* ------------------------
        ADD TO CART
     ------------------------- */
-    atcBtn.addEventListener("click", () => {
-      if (!variantInput?.value) return;
+atcBtn.addEventListener("click", () => {
+  if (!variantInput?.value) return;
 
-      const fd = new FormData();
-      fd.append("id", variantInput.value);
-      fd.append("quantity", qtyEl?.value || qtyInputMain?.value || 1);
+  const fd = new FormData();
+  fd.append("id", variantInput.value);
+  fd.append("quantity", currentQty);
 
-      if (sellingPlanInput?.value) {
-        fd.append("selling_plan", sellingPlanInput.value);
-      }
+  if (sellingPlanInput?.value) {
+    fd.append("selling_plan", sellingPlanInput.value);
+  }
 
-      fetch("/cart/add.js", {
-        method: "POST",
-        body: fd,
-        headers: { Accept: "application/json" }
-      });
-    });
+  fetch("/cart/add.js", {
+    method: "POST",
+    body: fd,
+    headers: { Accept: "application/json" }
+  });
+});
+
   });
 })();

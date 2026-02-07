@@ -44,13 +44,23 @@
 }
 
 .bdm-button {
+  height: 44px;
+  min-height: 44px;
+  padding: 0 24px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
   background: var(--bdm-button-bg, #111);
   color: var(--bdm-button-text, #fff);
-  border-radius: var(--bdm-button-radius, 6px);
+  border-radius: var(--bdm-button-radius, 999px);
   border: none;
-  padding: 10px 16px;
+  font-size: 15px;
+  font-weight: 600;
   cursor: pointer;
 }
+
 
 .bdm-button--outline {
   background: transparent;
@@ -78,7 +88,7 @@
 
   .bdm-button {
     flex: 1;
-    padding: 0px 20px;
+    height: 48px;
     font-size: 16px;
   }
 }
