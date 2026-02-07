@@ -1,4 +1,5 @@
 (() => {
+  // Prevent double init (theme reloads, section renders)
   if (window.__BDM_STICKY_ATC_INIT__) return;
   window.__BDM_STICKY_ATC_INIT__ = true;
 
@@ -6,9 +7,9 @@
     const bar = document.getElementById("bdm-sticky-atc");
     if (!bar) return;
 
-    /* ------------------------
-       SETTINGS (ATTRIBUTES)
-    ------------------------- */
+    /* ================================
+       SETTINGS (DATA ATTRIBUTES)
+    ================================= */
     const showDesktop = bar.hasAttribute("data-enable-desktop");
     const showMobile = bar.hasAttribute("data-enable-mobile");
     const showOnScroll = bar.hasAttribute("data-show-on-scroll");
@@ -18,21 +19,20 @@
     const showPrice = bar.hasAttribute("data-show-price");
     const showQty = bar.hasAttribute("data-show-qty");
 
-    /* ------------------------
-       DEVICE VISIBILITY
-    ------------------------- */
+    /* ================================
+       DEVICE VISIBILITY (SAFE)
+    ================================= */
     const isMobile = window.matchMedia("(max-width: 768px)").matches;
 
     if ((isMobile && !showMobile) || (!isMobile && !showDesktop)) {
       bar.setAttribute("hidden", "");
       return;
-    } else {
-      bar.removeAttribute("hidden");
     }
+    bar.removeAttribute("hidden");
 
-    /* ------------------------
+    /* ================================
        SCROLL VISIBILITY
-    ------------------------- */
+    ================================= */
     const updateScrollVisibility = () => {
       if (!showOnScroll || window.scrollY >= scrollOffset) {
         bar.classList.add("is-visible");
@@ -46,46 +46,42 @@
     updateScrollVisibility();
     window.addEventListener("scroll", updateScrollVisibility);
 
-    /* ------------------------
-       FIND PRODUCT FORM (SAFE)
-    ------------------------- */
+    /* ================================
+       FIND MAIN PRODUCT FORM
+    ================================= */
     const productForm =
       document.querySelector('form[action*="/cart/add"]') ||
       document.querySelector("product-form form");
 
-    if (!productForm) {
-      console.warn("[BDM Sticky ATC] Product form not found");
-      return;
-    }
+    if (!productForm) return;
 
     const variantInput = productForm.querySelector('[name="id"]');
     const sellingPlanInput = productForm.querySelector('[name="selling_plan"]');
     const qtyInputMain = productForm.querySelector('[name="quantity"]');
 
-    if (!variantInput) {
-      console.warn("[BDM Sticky ATC] Variant input not found");
-      return;
-    }
+    if (!variantInput) return;
 
-    /* ------------------------
+    /* ================================
        BAR ELEMENTS
-    ------------------------- */
+    ================================= */
     const titleEl = bar.querySelector("#bdm-title");
     const priceEl = bar.querySelector("#bdm-price");
     const qtyWrapper = bar.querySelector(".bdm-qty");
     const qtyEl = bar.querySelector("#bdm-qty");
     const atcBtn = bar.querySelector("#bdm-atc");
 
-    /* ------------------------
+    if (!atcBtn) return;
+
+    /* ================================
        INITIAL VISIBILITY
-    ------------------------- */
+    ================================= */
     if (titleEl) titleEl.style.display = showTitle ? "" : "none";
     if (priceEl) priceEl.style.display = showPrice ? "" : "none";
     if (qtyWrapper) qtyWrapper.style.display = showQty ? "inline-flex" : "none";
 
-    /* ------------------------
+    /* ================================
        PRODUCT DATA
-    ------------------------- */
+    ================================= */
     const handle = window.location.pathname.split("/products/")[1];
     if (!handle) return;
 
@@ -109,15 +105,12 @@
         };
 
         updatePrice(variantInput.value);
-
-        variantInput.addEventListener("change", e => {
-          updatePrice(e.target.value);
-        });
+        variantInput.addEventListener("change", e => updatePrice(e.target.value));
       });
 
-    /* ------------------------
+    /* ================================
        QTY SYNC + STEPPER
-    ------------------------- */
+    ================================= */
     let currentQty = parseInt(qtyInputMain?.value || "1", 10);
 
     if (qtyEl && qtyWrapper) {
@@ -140,78 +133,43 @@
       });
     }
 
-    /* ------------------------
-   ADD TO CART (THEME-SAFE)
-------------------------- */
-if (atcBtn) {
-  atcBtn.addEventListener("click", async () => {
-    const variantId = variantInput.value;
-    if (!variantId) return;
+    /* ================================
+       ADD TO CART (STABLE)
+    ================================= */
+    atcBtn.addEventListener("click", async () => {
+      const variantId = variantInput.value;
+      if (!variantId) return;
 
-    atcBtn.disabled = true;
-    atcBtn.classList.add("is-loading");
+      atcBtn.disabled = true;
 
-    const fd = new FormData();
-    fd.append("id", variantId);
-    fd.append("quantity", currentQty);
+      const fd = new FormData();
+      fd.append("id", variantId);
+      fd.append("quantity", currentQty);
 
-    if (sellingPlanInput?.value) {
-      fd.append("selling_plan", sellingPlanInput.value);
-    }
+      if (sellingPlanInput?.value) {
+        fd.append("selling_plan", sellingPlanInput.value);
+      }
 
-    const res = await fetch("/cart/add.js", {
-      method: "POST",
-      body: fd,
-      headers: { Accept: "application/json" }
-    });
-
-    atcBtn.disabled = false;
-    atcBtn.classList.remove("is-loading");
-
-    if (!res.ok) return;
-
-    /* ------------------------
-       1️⃣ Refresh cart data
-    ------------------------- */
-    fetch("/cart.js")
-      .then(r => r.json())
-      .then(cart => {
-        document.dispatchEvent(
-          new CustomEvent("cart:updated", {
-            bubbles: true,
-            detail: { cart }
-          })
-        );
+      const res = await fetch("/cart/add.js", {
+        method: "POST",
+        body: fd,
+        headers: { Accept: "application/json" }
       });
 
-    /* ------------------------
-       2️⃣ Reload cart sections (OS 2.0)
-    ------------------------- */
-    const sections = document.querySelectorAll(
-      'cart-drawer, cart-notification, [id^="CartDrawer"], [id^="cart-drawer"]'
-    );
+      atcBtn.disabled = false;
+      if (!res.ok) return;
 
-    sections.forEach(section => {
-      fetch(`${window.location.pathname}?section_id=${section.id}`)
-        .then(r => r.text())
-        .then(html => {
-          const doc = new DOMParser().parseFromString(html, "text/html");
-          const fresh = doc.getElementById(section.id);
-          if (fresh) section.innerHTML = fresh.innerHTML;
+      // Notify theme
+      fetch("/cart.js")
+        .then(r => r.json())
+        .then(cart => {
+          document.dispatchEvent(
+            new CustomEvent("cart:updated", {
+              bubbles: true,
+              detail: { cart }
+            })
+          );
         });
     });
-
-    /* ------------------------
-       3️⃣ Open drawer (Dawn + similar)
-    ------------------------- */
-    const drawer =
-      document.querySelector("cart-drawer") ||
-      document.getElementById("CartDrawer");
-
-    if (drawer) {
-      drawer.classList.add("active");
-      drawer.setAttribute("open", "");
-      drawer.dispatchEvent(new Event("open"));
-    }
   });
-}
+})();
