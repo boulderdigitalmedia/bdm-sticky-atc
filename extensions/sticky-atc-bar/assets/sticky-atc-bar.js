@@ -137,7 +137,7 @@ if (qtyWrapper && qtyEl) {
     /* ------------------------
        ADD TO CART
     ------------------------- */
-atcBtn.addEventListener("click", () => {
+atcBtn.addEventListener("click", async () => {
   if (!variantInput?.value) return;
 
   const fd = new FormData();
@@ -148,12 +148,18 @@ atcBtn.addEventListener("click", () => {
     fd.append("selling_plan", sellingPlanInput.value);
   }
 
-  fetch("/cart/add.js", {
+  const res = await fetch("/cart/add.js", {
     method: "POST",
     body: fd,
     headers: { Accept: "application/json" }
   });
-});
 
-  });
-})();
+  if (!res.ok) return;
+
+  // 🔔 Let Shopify/theme know cart changed
+  document.dispatchEvent(new CustomEvent("cart:refresh", { bubbles: true }));
+  document.dispatchEvent(new CustomEvent("cart:updated", { bubbles: true }));
+
+  // Dawn / modern themes
+  document.dispatchEvent(new Event("cart-drawer-open", { bubbles: true }));
+});
