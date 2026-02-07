@@ -125,7 +125,9 @@
       bar.querySelectorAll(".bdm-qty-btn").forEach(btn => {
         btn.addEventListener("click", () => {
           if (btn.dataset.action === "increase") currentQty++;
-          if (btn.dataset.action === "decrease") currentQty = Math.max(1, currentQty - 1);
+          if (btn.dataset.action === "decrease") {
+            currentQty = Math.max(1, currentQty - 1);
+          }
 
           qtyEl.value = currentQty;
           if (qtyInputMain) qtyInputMain.value = currentQty;
@@ -134,7 +136,7 @@
     }
 
     /* ================================
-       ADD TO CART (STABLE)
+       ADD TO CART
     ================================= */
     atcBtn.addEventListener("click", async () => {
       const variantId = variantInput.value;
@@ -159,17 +161,60 @@
       atcBtn.disabled = false;
       if (!res.ok) return;
 
-      // Notify theme
-      fetch("/cart.js")
-        .then(r => r.json())
-        .then(cart => {
-          document.dispatchEvent(
-            new CustomEvent("cart:updated", {
-              bubbles: true,
-              detail: { cart }
-            })
-          );
-        });
+      refreshCartAndOpenDrawer();
     });
+
+    /* ================================
+       CART REFRESH + DRAWER
+    ================================= */
+    async function refreshCartAndOpenDrawer() {
+      // 1️⃣ Fetch fresh cart
+      const cartRes = await fetch("/cart.js");
+      const cart = await cartRes.json();
+
+      document.dispatchEvent(
+        new CustomEvent("cart:updated", {
+          bubbles: true,
+          detail: { cart }
+        })
+      );
+
+      // 2️⃣ Reload cart sections (OS 2.0)
+      const sectionSelectors = [
+        "cart-drawer",
+        "cart-notification",
+        "CartDrawer",
+        "cart-icon-bubble"
+      ];
+
+      for (const selector of sectionSelectors) {
+        const el =
+          document.getElementById(selector) ||
+          document.querySelector(selector);
+
+        if (!el || !el.id) continue;
+
+        try {
+          const html = await fetch(
+            `${window.location.pathname}?section_id=${el.id}`
+          ).then(r => r.text());
+
+          const doc = new DOMParser().parseFromString(html, "text/html");
+          const fresh = doc.getElementById(el.id);
+          if (fresh) el.innerHTML = fresh.innerHTML;
+        } catch {}
+      }
+
+      // 3️⃣ Open drawer (Dawn / modern themes)
+      const drawer =
+        document.querySelector("cart-drawer") ||
+        document.getElementById("CartDrawer");
+
+      if (drawer) {
+        drawer.classList.add("active");
+        drawer.setAttribute("open", "");
+        drawer.dispatchEvent(new Event("open", { bubbles: true }));
+      }
+    }
   });
 })();
