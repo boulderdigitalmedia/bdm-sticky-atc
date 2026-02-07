@@ -136,7 +136,7 @@
     }
 
     /* ================================
-       ADD TO CART
+       ADD TO CART (OS 2.0 CORRECT)
     ================================= */
     atcBtn.addEventListener("click", async () => {
       const variantId = variantInput.value;
@@ -165,47 +165,48 @@
     });
 
     /* ================================
-       CART REFRESH + DRAWER
+       CART REFRESH + DRAWER (CORRECT)
     ================================= */
     async function refreshCartAndOpenDrawer() {
-      // 1️⃣ Fetch fresh cart
-      const cartRes = await fetch("/cart.js");
-      const cart = await cartRes.json();
+      // Ask Shopify to re-render cart sections
+      const sections = ["cart-drawer", "cart-icon-bubble"];
 
-      document.dispatchEvent(
-        new CustomEvent("cart:updated", {
-          bubbles: true,
-          detail: { cart }
-        })
+      const res = await fetch(
+        `/?sections=${sections.join(",")}`,
+        { credentials: "same-origin" }
       );
 
-      // 2️⃣ Reload cart sections (OS 2.0)
-      const sectionSelectors = [
-        "cart-drawer",
-        "cart-notification",
-        "CartDrawer",
-        "cart-icon-bubble"
-      ];
+      if (!res.ok) return;
 
-      for (const selector of sectionSelectors) {
-        const el =
-          document.getElementById(selector) ||
-          document.querySelector(selector);
+      const data = await res.json();
 
-        if (!el || !el.id) continue;
-
-        try {
-          const html = await fetch(
-            `${window.location.pathname}?section_id=${el.id}`
-          ).then(r => r.text());
-
-          const doc = new DOMParser().parseFromString(html, "text/html");
-          const fresh = doc.getElementById(el.id);
-          if (fresh) el.innerHTML = fresh.innerHTML;
-        } catch {}
+      // Update cart icon
+      if (data["cart-icon-bubble"]) {
+        const bubble = document.getElementById("cart-icon-bubble");
+        if (bubble) bubble.innerHTML = data["cart-icon-bubble"];
       }
 
-      // 3️⃣ Open drawer (Dawn / modern themes)
+      // Update drawer contents
+      if (data["cart-drawer"]) {
+        const drawer =
+          document.querySelector("cart-drawer") ||
+          document.getElementById("CartDrawer");
+
+        if (drawer) {
+          const doc = new DOMParser().parseFromString(
+            data["cart-drawer"],
+            "text/html"
+          );
+
+          const fresh =
+            doc.querySelector("cart-drawer") ||
+            doc.getElementById("CartDrawer");
+
+          if (fresh) drawer.innerHTML = fresh.innerHTML;
+        }
+      }
+
+      // Open drawer
       const drawer =
         document.querySelector("cart-drawer") ||
         document.getElementById("CartDrawer");
