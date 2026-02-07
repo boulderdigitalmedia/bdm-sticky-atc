@@ -1,4 +1,5 @@
 (() => {
+  // Prevent double init (theme reloads, section renders)
   if (window.__BDM_STICKY_ATC_INIT__) return;
   window.__BDM_STICKY_ATC_INIT__ = true;
 
@@ -7,14 +8,10 @@
     if (!bar) return;
 
     /* ================================
-       ONLY RUN ON PRODUCT PAGES
+       ONLY SHOW ON PRODUCT PAGES
     ================================= */
-    const productForm =
-      document.querySelector('form[action*="/cart/add"]') ||
-      document.querySelector("product-form form");
-
-    if (!productForm) {
-      bar.hidden = true;
+    if (!window.location.pathname.includes("/products/")) {
+      bar.setAttribute("hidden", "");
       return;
     }
 
@@ -31,15 +28,15 @@
     const showQty = bar.hasAttribute("data-show-qty");
 
     /* ================================
-       DEVICE VISIBILITY
+       DEVICE VISIBILITY (SAFE)
     ================================= */
     const isMobile = window.matchMedia("(max-width: 768px)").matches;
 
     if ((isMobile && !showMobile) || (!isMobile && !showDesktop)) {
-      bar.hidden = true;
+      bar.setAttribute("hidden", "");
       return;
     }
-    bar.hidden = false;
+    bar.removeAttribute("hidden");
 
     /* ================================
        SCROLL VISIBILITY
@@ -47,8 +44,10 @@
     const updateScrollVisibility = () => {
       if (!showOnScroll || window.scrollY >= scrollOffset) {
         bar.classList.add("is-visible");
+        bar.setAttribute("aria-hidden", "false");
       } else {
         bar.classList.remove("is-visible");
+        bar.setAttribute("aria-hidden", "true");
       }
     };
 
@@ -56,16 +55,19 @@
     window.addEventListener("scroll", updateScrollVisibility);
 
     /* ================================
-       PRODUCT FORM INPUTS
+       FIND MAIN PRODUCT FORM
     ================================= */
+    const productForm =
+      document.querySelector('form[action*="/cart/add"]') ||
+      document.querySelector("product-form form");
+
+    if (!productForm) return;
+
     const variantInput = productForm.querySelector('[name="id"]');
     const sellingPlanInput = productForm.querySelector('[name="selling_plan"]');
     const qtyInputMain = productForm.querySelector('[name="quantity"]');
 
-    if (!variantInput) {
-      bar.hidden = true;
-      return;
-    }
+    if (!variantInput) return;
 
     /* ================================
        BAR ELEMENTS
@@ -76,10 +78,10 @@
     const qtyEl = bar.querySelector("#bdm-qty");
     const atcBtn = bar.querySelector("#bdm-atc");
 
-    if (!atcBtn) {
-      bar.hidden = true;
-      return;
-    }
+    if (!atcBtn) return;
+
+    // Save original button text for Sold Out toggle
+    atcBtn.dataset.originalText = atcBtn.textContent;
 
     /* ================================
        INITIAL VISIBILITY
@@ -92,10 +94,7 @@
        PRODUCT DATA
     ================================= */
     const handle = window.location.pathname.split("/products/")[1];
-    if (!handle) {
-      bar.hidden = true;
-      return;
-    }
+    if (!handle) return;
 
     fetch(`/products/${handle}.js`)
       .then(r => r.json())
@@ -106,22 +105,34 @@
           titleEl.textContent = product.title;
         }
 
-        const updatePrice = (variantId) => {
+        const updateVariantUI = (variantId) => {
           const variant = product.variants.find(v => v.id == variantId);
-          if (!variant || !showPrice || !priceEl) return;
+          if (!variant) return;
 
-          priceEl.textContent = (variant.price / 100).toLocaleString(undefined, {
-            style: "currency",
-            currency: product.currency || "USD"
-          });
+          if (showPrice && priceEl) {
+            priceEl.textContent = (variant.price / 100).toLocaleString(undefined, {
+              style: "currency",
+              currency: product.currency || "USD"
+            });
+          }
+
+          if (!variant.available) {
+            atcBtn.textContent = "Sold Out";
+            atcBtn.disabled = true;
+            atcBtn.classList.add("is-sold-out");
+          } else {
+            atcBtn.textContent = atcBtn.dataset.originalText;
+            atcBtn.disabled = false;
+            atcBtn.classList.remove("is-sold-out");
+          }
         };
 
-        updatePrice(variantInput.value);
-        variantInput.addEventListener("change", e => updatePrice(e.target.value));
+        updateVariantUI(variantInput.value);
+        variantInput.addEventListener("change", e => updateVariantUI(e.target.value));
       });
 
     /* ================================
-       QTY SYNC
+       QTY SYNC + STEPPER
     ================================= */
     let currentQty = parseInt(qtyInputMain?.value || "1", 10);
 
@@ -148,14 +159,18 @@
     }
 
     /* ================================
-       ADD TO CART (THEME-SAFE)
+       ADD TO CART (THEME-NATIVE)
     ================================= */
     atcBtn.addEventListener("click", () => {
-      if (!variantInput.value) return;
+      if (!variantInput.value || atcBtn.disabled) return;
 
-      if (qtyInputMain) qtyInputMain.value = currentQty;
+      // Sync quantity into real product form
+      if (qtyInputMain) {
+        qtyInputMain.value = currentQty;
+        qtyInputMain.dispatchEvent(new Event("change", { bubbles: true }));
+      }
 
-      // 🔑 Let Shopify theme handle cart + drawer
+      // Let theme handle cart, drawer, icon
       productForm.requestSubmit();
     });
   });
