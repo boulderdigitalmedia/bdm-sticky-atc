@@ -80,7 +80,7 @@
 
     if (!atcBtn) return;
 
-    // Save original button text for Sold Out toggle
+    // Preserve original button text
     atcBtn.dataset.originalText = atcBtn.textContent;
 
     /* ================================
@@ -128,11 +128,13 @@
         };
 
         updateVariantUI(variantInput.value);
-        variantInput.addEventListener("change", e => updateVariantUI(e.target.value));
+        variantInput.addEventListener("change", e =>
+          updateVariantUI(e.target.value)
+        );
       });
 
     /* ================================
-       QTY SYNC + STEPPER
+       QTY SYNC + STEPPER (SOURCE OF TRUTH)
     ================================= */
     let currentQty = parseInt(qtyInputMain?.value || "1", 10);
 
@@ -142,7 +144,6 @@
       qtyEl.addEventListener("change", () => {
         currentQty = Math.max(1, parseInt(qtyEl.value || "1", 10));
         qtyEl.value = currentQty;
-        if (qtyInputMain) qtyInputMain.value = currentQty;
       });
 
       bar.querySelectorAll(".bdm-qty-btn").forEach(btn => {
@@ -151,12 +152,29 @@
           if (btn.dataset.action === "decrease") {
             currentQty = Math.max(1, currentQty - 1);
           }
-
           qtyEl.value = currentQty;
-          if (qtyInputMain) qtyInputMain.value = currentQty;
         });
       });
     }
+
+    /* ================================
+       THE CRITICAL FIX: SUBMIT-TIME QTY
+    ================================= */
+    let submittingFromStickyATC = false;
+
+    productForm.addEventListener(
+      "submit",
+      () => {
+        if (!submittingFromStickyATC) return;
+
+        if (qtyInputMain) {
+          qtyInputMain.value = currentQty;
+        }
+
+        submittingFromStickyATC = false;
+      },
+      true // capture phase = required
+    );
 
     /* ================================
        ADD TO CART (THEME-NATIVE)
@@ -164,13 +182,14 @@
     atcBtn.addEventListener("click", () => {
       if (!variantInput.value || atcBtn.disabled) return;
 
-      // Sync quantity into real product form
+      submittingFromStickyATC = true;
+
       if (qtyInputMain) {
+        qtyInputMain.removeAttribute("disabled");
         qtyInputMain.value = currentQty;
-        qtyInputMain.dispatchEvent(new Event("change", { bubbles: true }));
       }
 
-      // Let theme handle cart, drawer, icon
+      // Let theme handle drawer + cart icon
       productForm.requestSubmit();
     });
   });
