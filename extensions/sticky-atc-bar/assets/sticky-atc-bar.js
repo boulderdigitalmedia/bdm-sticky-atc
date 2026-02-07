@@ -141,37 +141,77 @@
     }
 
     /* ------------------------
-       ADD TO CART (SAFE)
+   ADD TO CART (THEME-SAFE)
+------------------------- */
+if (atcBtn) {
+  atcBtn.addEventListener("click", async () => {
+    const variantId = variantInput.value;
+    if (!variantId) return;
+
+    atcBtn.disabled = true;
+    atcBtn.classList.add("is-loading");
+
+    const fd = new FormData();
+    fd.append("id", variantId);
+    fd.append("quantity", currentQty);
+
+    if (sellingPlanInput?.value) {
+      fd.append("selling_plan", sellingPlanInput.value);
+    }
+
+    const res = await fetch("/cart/add.js", {
+      method: "POST",
+      body: fd,
+      headers: { Accept: "application/json" }
+    });
+
+    atcBtn.disabled = false;
+    atcBtn.classList.remove("is-loading");
+
+    if (!res.ok) return;
+
+    /* ------------------------
+       1️⃣ Refresh cart data
     ------------------------- */
-    if (atcBtn) {
-      atcBtn.addEventListener("click", async () => {
-        const variantId = variantInput.value;
-        if (!variantId) return;
-
-        const fd = new FormData();
-        fd.append("id", variantId);
-        fd.append("quantity", currentQty);
-
-        if (sellingPlanInput?.value) {
-          fd.append("selling_plan", sellingPlanInput.value);
-        }
-
-        const res = await fetch("/cart/add.js", {
-          method: "POST",
-          body: fd,
-          headers: { Accept: "application/json" }
-        });
-
-        if (!res.ok) return;
-
-        // Notify themes safely
-        document.dispatchEvent(new CustomEvent("cart:updated", { bubbles: true }));
-        document.dispatchEvent(new CustomEvent("cart:refresh", { bubbles: true }));
-
-        // Force bar visibility
-        bar.classList.add("is-visible");
-        bar.setAttribute("aria-hidden", "false");
+    fetch("/cart.js")
+      .then(r => r.json())
+      .then(cart => {
+        document.dispatchEvent(
+          new CustomEvent("cart:updated", {
+            bubbles: true,
+            detail: { cart }
+          })
+        );
       });
+
+    /* ------------------------
+       2️⃣ Reload cart sections (OS 2.0)
+    ------------------------- */
+    const sections = document.querySelectorAll(
+      'cart-drawer, cart-notification, [id^="CartDrawer"], [id^="cart-drawer"]'
+    );
+
+    sections.forEach(section => {
+      fetch(`${window.location.pathname}?section_id=${section.id}`)
+        .then(r => r.text())
+        .then(html => {
+          const doc = new DOMParser().parseFromString(html, "text/html");
+          const fresh = doc.getElementById(section.id);
+          if (fresh) section.innerHTML = fresh.innerHTML;
+        });
+    });
+
+    /* ------------------------
+       3️⃣ Open drawer (Dawn + similar)
+    ------------------------- */
+    const drawer =
+      document.querySelector("cart-drawer") ||
+      document.getElementById("CartDrawer");
+
+    if (drawer) {
+      drawer.classList.add("active");
+      drawer.setAttribute("open", "");
+      drawer.dispatchEvent(new Event("open"));
     }
   });
-})();
+}
