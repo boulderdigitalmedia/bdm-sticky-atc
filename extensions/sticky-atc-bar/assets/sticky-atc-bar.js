@@ -20,7 +20,7 @@
     const showQty = bar.hasAttribute("data-show-qty");
 
     /* ================================
-       DEVICE VISIBILITY (SAFE)
+       DEVICE VISIBILITY
     ================================= */
     const isMobile = window.matchMedia("(max-width: 768px)").matches;
 
@@ -136,7 +136,7 @@
     }
 
     /* ================================
-       ADD TO CART (OS 2.0 CORRECT)
+       ADD TO CART
     ================================= */
     atcBtn.addEventListener("click", async () => {
       const variantId = variantInput.value;
@@ -161,61 +161,55 @@
       atcBtn.disabled = false;
       if (!res.ok) return;
 
-      refreshCartAndOpenDrawer();
+      await refreshCartAndOpenDrawer();
     });
 
     /* ================================
-       CART REFRESH + DRAWER (CORRECT)
+       CART REFRESH + DRAWER (ROBUST)
     ================================= */
     async function refreshCartAndOpenDrawer() {
-      // Ask Shopify to re-render cart sections
-      const sections = ["cart-drawer", "cart-icon-bubble"];
-
-      const res = await fetch(
-        `/?sections=${sections.join(",")}`,
-        { credentials: "same-origin" }
-      );
-
-      if (!res.ok) return;
-
-      const data = await res.json();
-
-      // Update cart icon
-      if (data["cart-icon-bubble"]) {
-        const bubble = document.getElementById("cart-icon-bubble");
-        if (bubble) bubble.innerHTML = data["cart-icon-bubble"];
-      }
-
-      // Update drawer contents
-      if (data["cart-drawer"]) {
-        const drawer =
-          document.querySelector("cart-drawer") ||
-          document.getElementById("CartDrawer");
-
-        if (drawer) {
-          const doc = new DOMParser().parseFromString(
-            data["cart-drawer"],
-            "text/html"
-          );
-
-          const fresh =
-            doc.querySelector("cart-drawer") ||
-            doc.getElementById("CartDrawer");
-
-          if (fresh) drawer.innerHTML = fresh.innerHTML;
-        }
-      }
-
-      // Open drawer
       const drawer =
         document.querySelector("cart-drawer") ||
         document.getElementById("CartDrawer");
 
-      if (drawer) {
-        drawer.classList.add("active");
-        drawer.setAttribute("open", "");
-        drawer.dispatchEvent(new Event("open", { bubbles: true }));
+      const bubble = document.getElementById("cart-icon-bubble");
+
+      // 🔴 EMPTY CART BOOTSTRAP CASE
+      if (!drawer || !bubble) {
+        // Shopify has not mounted cart UI yet
+        window.location.href = "/cart";
+        return;
       }
+
+      // 🟢 NORMAL CASE
+      const res = await fetch(
+        "/?sections=cart-drawer,cart-icon-bubble",
+        { credentials: "same-origin" }
+      );
+
+      if (!res.ok) return;
+      const data = await res.json();
+
+      if (data["cart-icon-bubble"] && bubble) {
+        bubble.innerHTML = data["cart-icon-bubble"];
+      }
+
+      if (data["cart-drawer"] && drawer) {
+        const doc = new DOMParser().parseFromString(
+          data["cart-drawer"],
+          "text/html"
+        );
+
+        const fresh =
+          doc.querySelector("cart-drawer") ||
+          doc.getElementById("CartDrawer");
+
+        if (fresh) drawer.innerHTML = fresh.innerHTML;
+      }
+
+      drawer.classList.add("active");
+      drawer.setAttribute("open", "");
+      drawer.dispatchEvent(new Event("open", { bubbles: true }));
     }
   });
 })();
