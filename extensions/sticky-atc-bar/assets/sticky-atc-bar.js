@@ -19,7 +19,7 @@
     const showQty = bar.hasAttribute("data-show-qty");
 
     /* ------------------------
-       DEVICE VISIBILITY (NON-DESTRUCTIVE)
+       DEVICE VISIBILITY
     ------------------------- */
     const isMobile = window.matchMedia("(max-width: 768px)").matches;
 
@@ -47,17 +47,25 @@
     window.addEventListener("scroll", updateScrollVisibility);
 
     /* ------------------------
-       MAIN PRODUCT FORM
+       FIND PRODUCT FORM (SAFE)
     ------------------------- */
     const productForm =
       document.querySelector('form[action*="/cart/add"]') ||
       document.querySelector("product-form form");
 
-    if (!productForm) return;
+    if (!productForm) {
+      console.warn("[BDM Sticky ATC] Product form not found");
+      return;
+    }
 
     const variantInput = productForm.querySelector('[name="id"]');
     const sellingPlanInput = productForm.querySelector('[name="selling_plan"]');
     const qtyInputMain = productForm.querySelector('[name="quantity"]');
+
+    if (!variantInput) {
+      console.warn("[BDM Sticky ATC] Variant input not found");
+      return;
+    }
 
     /* ------------------------
        BAR ELEMENTS
@@ -76,7 +84,7 @@
     if (qtyWrapper) qtyWrapper.style.display = showQty ? "inline-flex" : "none";
 
     /* ------------------------
-       PRODUCT DATA (SOURCE OF TRUTH)
+       PRODUCT DATA
     ------------------------- */
     const handle = window.location.pathname.split("/products/")[1];
     if (!handle) return;
@@ -100,11 +108,9 @@
           });
         };
 
-        if (variantInput?.value) {
-          updatePrice(variantInput.value);
-        }
+        updatePrice(variantInput.value);
 
-        variantInput?.addEventListener("change", e => {
+        variantInput.addEventListener("change", e => {
           updatePrice(e.target.value);
         });
       });
@@ -112,54 +118,60 @@
     /* ------------------------
        QTY SYNC + STEPPER
     ------------------------- */
-    let currentQty = 1;
+    let currentQty = parseInt(qtyInputMain?.value || "1", 10);
 
-if (qtyWrapper && qtyEl) {
-  qtyWrapper.style.display = showQty ? "inline-flex" : "none";
-  qtyEl.value = currentQty;
-
-  qtyEl.addEventListener("change", () => {
-    currentQty = Math.max(1, parseInt(qtyEl.value || "1", 10));
-    qtyEl.value = currentQty;
-  });
-
-  bar.querySelectorAll(".bdm-qty-btn").forEach(btn => {
-    btn.addEventListener("click", () => {
-      if (btn.dataset.action === "increase") currentQty++;
-      if (btn.dataset.action === "decrease") currentQty = Math.max(1, currentQty - 1);
-
+    if (qtyEl && qtyWrapper) {
       qtyEl.value = currentQty;
-    });
-  });
-}
 
+      qtyEl.addEventListener("change", () => {
+        currentQty = Math.max(1, parseInt(qtyEl.value || "1", 10));
+        qtyEl.value = currentQty;
+        if (qtyInputMain) qtyInputMain.value = currentQty;
+      });
+
+      bar.querySelectorAll(".bdm-qty-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          if (btn.dataset.action === "increase") currentQty++;
+          if (btn.dataset.action === "decrease") currentQty = Math.max(1, currentQty - 1);
+
+          qtyEl.value = currentQty;
+          if (qtyInputMain) qtyInputMain.value = currentQty;
+        });
+      });
+    }
 
     /* ------------------------
-       ADD TO CART
+       ADD TO CART (SAFE)
     ------------------------- */
-atcBtn.addEventListener("click", async () => {
-  if (!variantInput?.value) return;
+    if (atcBtn) {
+      atcBtn.addEventListener("click", async () => {
+        const variantId = variantInput.value;
+        if (!variantId) return;
 
-  const fd = new FormData();
-  fd.append("id", variantInput.value);
-  fd.append("quantity", currentQty);
+        const fd = new FormData();
+        fd.append("id", variantId);
+        fd.append("quantity", currentQty);
 
-  if (sellingPlanInput?.value) {
-    fd.append("selling_plan", sellingPlanInput.value);
-  }
+        if (sellingPlanInput?.value) {
+          fd.append("selling_plan", sellingPlanInput.value);
+        }
 
-  const res = await fetch("/cart/add.js", {
-    method: "POST",
-    body: fd,
-    headers: { Accept: "application/json" }
+        const res = await fetch("/cart/add.js", {
+          method: "POST",
+          body: fd,
+          headers: { Accept: "application/json" }
+        });
+
+        if (!res.ok) return;
+
+        // Notify themes safely
+        document.dispatchEvent(new CustomEvent("cart:updated", { bubbles: true }));
+        document.dispatchEvent(new CustomEvent("cart:refresh", { bubbles: true }));
+
+        // Force bar visibility
+        bar.classList.add("is-visible");
+        bar.setAttribute("aria-hidden", "false");
+      });
+    }
   });
-
-  if (!res.ok) return;
-
-  // 🔔 Let Shopify/theme know cart changed
-  document.dispatchEvent(new CustomEvent("cart:refresh", { bubbles: true }));
-  document.dispatchEvent(new CustomEvent("cart:updated", { bubbles: true }));
-
-  // Dawn / modern themes
-  document.dispatchEvent(new Event("cart-drawer-open", { bubbles: true }));
-});
+})();
