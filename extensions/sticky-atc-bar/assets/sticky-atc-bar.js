@@ -57,8 +57,6 @@
     if (!productForm) return;
 
     const variantInput = productForm.querySelector('[name="id"]');
-    const sellingPlanInput = productForm.querySelector('[name="selling_plan"]');
-
     if (!variantInput) return;
 
     /* ================================
@@ -83,12 +81,9 @@
     const handle = location.pathname.split("/products/")[1];
     if (!handle) return;
 
-    let productData = null;
-
     fetch(`/products/${handle}.js`)
       .then(r => r.json())
       .then(product => {
-        productData = product;
         if (showTitle && titleEl) titleEl.textContent = product.title;
 
         const updateVariantUI = id => {
@@ -112,7 +107,9 @@
         };
 
         updateVariantUI(variantInput.value);
-        variantInput.addEventListener("change", e => updateVariantUI(e.target.value));
+        variantInput.addEventListener("change", e =>
+          updateVariantUI(e.target.value)
+        );
       });
 
     /* ================================
@@ -130,14 +127,16 @@
       btn.addEventListener("click", e => {
         e.preventDefault();
         if (btn.dataset.action === "increase") currentQty++;
-        if (btn.dataset.action === "decrease") currentQty = Math.max(1, currentQty - 1);
+        if (btn.dataset.action === "decrease") {
+          currentQty = Math.max(1, currentQty - 1);
+        }
         qtyEl.value = currentQty;
       });
     });
 
     /* ================================
        SUBMIT-TIME QUANTITY INJECTION
-       (THIS IS THE FIX)
+       (CRITICAL — DO NOT REMOVE)
     ================================= */
     productForm.addEventListener(
       "submit",
@@ -151,16 +150,30 @@
         }
         q.value = currentQty;
       },
-      true // CAPTURE PHASE — critical
+      true
     );
 
     /* ================================
-       ADD TO CART (NATIVE)
+       ADD TO CART (NATIVE + DRAWER DETECT)
     ================================= */
     atcBtn.addEventListener("click", e => {
       e.preventDefault();
       if (atcBtn.disabled) return;
+
       productForm.requestSubmit();
+
+      // 🔍 PASSIVE drawer detection (safe)
+      setTimeout(() => {
+        const drawer =
+          document.querySelector("cart-drawer") ||
+          document.getElementById("CartDrawer");
+
+        if (!drawer) return;
+
+        drawer.classList.add("active");
+        drawer.setAttribute("open", "");
+        drawer.dispatchEvent(new Event("open", { bubbles: true }));
+      }, 150);
     });
   });
 })();
