@@ -213,4 +213,6 @@ atcBtn.addEventListener("click", async e => {
   // 🔹 No drawer → native submit (redirect)
   productForm.requestSubmit();
 });
+  });
+})();
 
