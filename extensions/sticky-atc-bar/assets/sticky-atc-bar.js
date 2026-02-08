@@ -134,28 +134,40 @@
       });
 
     /* ================================
-       QTY SYNC + STEPPER (SOURCE OF TRUTH)
-    ================================= */
-    let currentQty = parseInt(qtyInputMain?.value || "1", 10);
+   QTY SYNC (THEME IS SOURCE OF TRUTH)
+================================= */
 
-    if (qtyEl && qtyWrapper) {
-      qtyEl.value = currentQty;
+let currentQty = parseInt(qtyInputMain?.value || "1", 10);
 
-      qtyEl.addEventListener("change", () => {
-        currentQty = Math.max(1, parseInt(qtyEl.value || "1", 10));
-        qtyEl.value = currentQty;
-      });
+// Initial sync
+if (qtyEl && qtyInputMain) {
+  qtyEl.value = currentQty;
+}
 
-      bar.querySelectorAll(".bdm-qty-btn").forEach(btn => {
-        btn.addEventListener("click", () => {
-          if (btn.dataset.action === "increase") currentQty++;
-          if (btn.dataset.action === "decrease") {
-            currentQty = Math.max(1, currentQty - 1);
-          }
-          qtyEl.value = currentQty;
-        });
-      });
-    }
+// Sticky input → theme input
+qtyEl?.addEventListener("change", () => {
+  currentQty = Math.max(1, parseInt(qtyEl.value || "1", 10));
+  qtyEl.value = currentQty;
+  qtyInputMain.value = currentQty;
+  qtyInputMain.dispatchEvent(new Event("change", { bubbles: true }));
+});
+
+// +/- buttons → theme input
+bar.querySelectorAll(".bdm-qty-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    let value = parseInt(qtyInputMain.value || "1", 10);
+
+    if (btn.dataset.action === "increase") value++;
+    if (btn.dataset.action === "decrease") value = Math.max(1, value - 1);
+
+    qtyInputMain.value = value;
+    qtyEl.value = value;
+    currentQty = value;
+
+    qtyInputMain.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+});
+
 
     /* ================================
        THE CRITICAL FIX: SUBMIT-TIME QTY
