@@ -8,13 +8,14 @@ const router = express.Router();
  */
 function getShop(req) {
   return (
+    req.query.shop ||
     req.get("X-Shopify-Shop-Domain") ||
     req.get("x-shopify-shop-domain") ||
-    req.query.shop ||
     req.body?.shop ||
     ""
   ).toString().trim();
 }
+
 
 function daysAgoDate(days) {
   const d = new Date();
