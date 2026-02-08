@@ -1,246 +1,120 @@
-import crypto from "crypto";
 import express from "express";
 import prisma from "../prisma.js";
 
 const router = express.Router();
-const generateId = () =>
-  crypto.randomUUID
-    ? crypto.randomUUID()
-    : crypto.randomBytes(16).toString("hex");
 
 /**
- * POST /apps/bdm-sticky-atc/track
- * Public storefront endpoint
- * Stores raw events in StickyEvent
+ * Helpers
  */
-router.post("/track", async (req, res) => {
-  try {
-    const {
-      event,
-      productId,
-      variantId,
-      quantity,
-      price,
-      timestamp,
-    } = req.body || {};
+function getShop(req) {
+  return (
+    req.get("X-Shopify-Shop-Domain") ||
+    req.get("x-shopify-shop-domain") ||
+    req.query.shop ||
+    req.body?.shop ||
+    ""
+  ).toString().trim();
+}
 
-    // ✅ ALWAYS derive shop server-side
-    const shop =
-      req.headers["x-shopify-shop-domain"] ||
-      req.query.shop ||
-      null;
-
-    if (!shop || !event) {
-      return res.status(400).json({ error: "Missing shop or event" });
-    }
-
-    await prisma.stickyEvent.create({
-      data: {
-        id: generateId(),
-        shop: String(shop),
-        event: String(event),
-        productId: productId ? String(productId) : null,
-        variantId: variantId ? String(variantId) : null,
-        quantity: typeof quantity === "number" ? quantity : null,
-        price: typeof price === "number" ? price : null,
-        timestamp: timestamp ? new Date(timestamp) : undefined,
-      },
-    });
-    return res.json({ ok: true });
-  } catch (err) {
-    console.error("track error:", err);
-    return res.status(500).json({ error: "Track failed" });
-  }
-});
+function daysAgoDate(days) {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d;
+}
 
 /**
- * POST /apps/bdm-sticky-atc/checkout
- * Web Pixel posts here when checkout completes
- * Stores attribution token for Orders Paid webhook
- */
-router.post("/checkout", async (req, res) => {
-  try {
-    const {
-      checkoutToken,
-      cartToken,
-      productId,
-      variantId,
-      occurredAt,
-    } = req.body || {};
-
-    const shop =
-      req.headers["x-shopify-shop-domain"] ||
-      req.query.shop ||
-      null;
-
-    const attributionToken = checkoutToken || cartToken;
-
-    if (!shop || !attributionToken) {
-      return res.status(400).json({ error: "Missing shop or attribution token" });
-    }
-
-    await prisma.stickyAttribution.upsert({
-      where: { checkoutToken: String(attributionToken) },
-      update: {
-        shop: String(shop),
-        productId: productId ? String(productId) : "unknown",
-        variantId: variantId ? String(variantId) : "unknown",
-        timestamp: BigInt(Date.now()),
-      },
-      create: {
-        shop: String(shop),
-        checkoutToken: String(attributionToken),
-        productId: productId ? String(productId) : "unknown",
-        variantId: variantId ? String(variantId) : "unknown",
-        timestamp: BigInt(Date.now()),
-      },
-    });
-
-    // Optional event log for analytics
-    await prisma.stickyEvent.create({
-      data: {
-        id: generateId(),
-        shop: String(shop),
-        event: "checkout_completed",
-        productId: productId ? String(productId) : null,
-        variantId: variantId ? String(variantId) : null,
-        timestamp: occurredAt ? new Date(occurredAt) : undefined,
-      },
-    });
-
-    return res.json({ ok: true });
-  } catch (err) {
-    console.error("checkout error:", err);
-    return res.status(500).json({ error: "Checkout attribution failed" });
-  }
-});
-
-/**
- * GET /apps/bdm-sticky-atc/summary
- * KPI dashboard
+ * GET /apps/bdm-sticky-atc/summary?days=7
+ * Returns analytics used by your dashboard:
+ * {
+ *   days,
+ *   pageViews,
+ *   addToCart,
+ *   atcRate,
+ *   conversions,
+ *   revenue
+ * }
  */
 router.get("/summary", async (req, res) => {
   try {
-    const shop =
-      req.query.shop ||
-      req.headers["x-shopify-shop-domain"];
+    const shop = getShop(req);
+    const days = Math.max(1, parseInt(req.query.days || "7", 10));
+    const since = daysAgoDate(days);
 
-    const days = Math.max(1, Number(req.query.days) || 30);
-    if (!shop) return res.status(400).json({ error: "Missing shop" });
-
-    const since = new Date(Date.now() - days * 86400000);
-
-    const [
-      pageViews,
-      addToCart,
-      conversionsAgg,
-      conversionsCount,
-    ] = await Promise.all([
-      prisma.stickyEvent.count({
-        where: { shop: String(shop), event: "page_view", timestamp: { gte: since } },
+    // Page views + add to cart from AnalyticsEvent
+    const [pageViews, addToCart] = await Promise.all([
+      prisma.analyticsEvent.count({
+        where: {
+          ...(shop ? { shop } : {}),
+          event: "page_view",
+          createdAt: { gte: since },
+        },
       }),
-      prisma.stickyEvent.count({
-        where: { shop: String(shop), event: "add_to_cart", timestamp: { gte: since } },
-      }),
-      prisma.stickyConversion.aggregate({
-        where: { shop: String(shop), occurredAt: { gte: since } },
-        _sum: { revenue: true },
-      }),
-      prisma.stickyConversion.count({
-        where: { shop: String(shop), occurredAt: { gte: since } },
+      prisma.analyticsEvent.count({
+        where: {
+          ...(shop ? { shop } : {}),
+          event: "add_to_cart",
+          createdAt: { gte: since },
+        },
       }),
     ]);
 
-    const revenue = conversionsAgg._sum.revenue || 0;
-    const atcRate = pageViews > 0 ? (addToCart / pageViews) * 100 : 0;
+    // Conversions + revenue from StickyConversion (already in your schema)
+    const conversions = await prisma.stickyConversion.count({
+      where: {
+        ...(shop ? { shop } : {}),
+        occurredAt: { gte: since },
+      },
+    });
 
-    return res.json({
+    const revenueAgg = await prisma.stickyConversion.aggregate({
+      where: {
+        ...(shop ? { shop } : {}),
+        occurredAt: { gte: since },
+      },
+      _sum: { revenue: true },
+    });
+
+    const revenue = Number(revenueAgg?._sum?.revenue || 0);
+
+    const atcRate =
+      pageViews > 0 ? Math.round((addToCart / pageViews) * 1000) / 10 : 0;
+
+    res.json({
       days,
       pageViews,
       addToCart,
       atcRate,
-      conversions: conversionsCount,
+      conversions,
       revenue,
     });
   } catch (err) {
-    console.error("summary error:", err);
-    return res.status(500).json({ error: "Summary failed" });
+    console.error("[BDM summary] error", err);
+    res.status(500).json({ error: "Failed to load summary" });
   }
 });
 
 /**
- * GET /apps/bdm-sticky-atc/timeseries
+ * Optional: a simple event feed for debugging
+ * GET /apps/bdm-sticky-atc/events?limit=50
  */
-router.get("/timeseries", async (req, res) => {
+router.get("/events", async (req, res) => {
   try {
-    const shop =
-      req.query.shop ||
-      req.headers["x-shopify-shop-domain"];
+    const shop = getShop(req);
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit || "50", 10)));
 
-    const days = Math.max(1, Number(req.query.days) || 30);
-    if (!shop) return res.status(400).json({ error: "Missing shop" });
-
-    const since = new Date(Date.now() - days * 86400000);
-
-    const eventsByDay = await prisma.$queryRaw`
-      SELECT
-        date_trunc('day', "timestamp")::date AS day,
-        SUM(CASE WHEN event = 'page_view' THEN 1 ELSE 0 END)::int AS page_views,
-        SUM(CASE WHEN event = 'add_to_cart' THEN 1 ELSE 0 END)::int AS add_to_cart
-      FROM "StickyEvent"
-      WHERE shop = ${String(shop)} AND "timestamp" >= ${since}
-      GROUP BY 1
-      ORDER BY 1 ASC;
-    `;
-
-    const convByDay = await prisma.$queryRaw`
-      SELECT
-        date_trunc('day', "occurredAt")::date AS day,
-        COUNT(*)::int AS conversions,
-        COALESCE(SUM("revenue"), 0)::float AS revenue
-      FROM "StickyConversion"
-      WHERE shop = ${String(shop)} AND "occurredAt" >= ${since}
-      GROUP BY 1
-      ORDER BY 1 ASC;
-    `;
-
-    const map = new Map();
-
-    for (const r of eventsByDay) {
-      map.set(String(r.day), {
-        day: String(r.day),
-        pageViews: Number(r.page_views || 0),
-        addToCart: Number(r.add_to_cart || 0),
-        conversions: 0,
-        revenue: 0,
-      });
-    }
-
-    for (const r of convByDay) {
-      const key = String(r.day);
-      const row = map.get(key) || {
-        day: key,
-        pageViews: 0,
-        addToCart: 0,
-        conversions: 0,
-        revenue: 0,
-      };
-      row.conversions = Number(r.conversions || 0);
-      row.revenue = Number(r.revenue || 0);
-      map.set(key, row);
-    }
-
-    return res.json({
-      days,
-      points: Array.from(map.values()).sort((a, b) =>
-        a.day.localeCompare(b.day)
-      ),
+    const events = await prisma.analyticsEvent.findMany({
+      where: {
+        ...(shop ? { shop } : {}),
+      },
+      orderBy: { createdAt: "desc" },
+      take: limit,
     });
+
+    res.json({ events });
   } catch (err) {
-    console.error("timeseries error:", err);
-    return res.status(500).json({ error: "Timeseries failed" });
+    console.error("[BDM events] error", err);
+    res.status(500).json({ error: "Failed to load events" });
   }
 });
 
-export { router };
 export default router;
