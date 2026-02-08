@@ -154,26 +154,63 @@
     );
 
     /* ================================
-       ADD TO CART (NATIVE + DRAWER DETECT)
-    ================================= */
-    atcBtn.addEventListener("click", e => {
-      e.preventDefault();
-      if (atcBtn.disabled) return;
+   ADD TO CART (SMART MODE)
+================================= */
+atcBtn.addEventListener("click", async e => {
+  e.preventDefault();
+  if (atcBtn.disabled) return;
 
-      productForm.requestSubmit();
+  const drawer =
+    document.querySelector("cart-drawer") ||
+    document.getElementById("CartDrawer");
 
-      // 🔍 PASSIVE drawer detection (safe)
-      setTimeout(() => {
-        const drawer =
-          document.querySelector("cart-drawer") ||
-          document.getElementById("CartDrawer");
+  // 🔹 If drawer exists → AJAX add (stay on page)
+  if (drawer) {
+    atcBtn.disabled = true;
 
-        if (!drawer) return;
+    const fd = new FormData();
+    fd.append("id", variantInput.value);
+    fd.append("quantity", currentQty);
 
-        drawer.classList.add("active");
-        drawer.setAttribute("open", "");
-        drawer.dispatchEvent(new Event("open", { bubbles: true }));
-      }, 150);
+    const res = await fetch("/cart/add.js", {
+      method: "POST",
+      body: fd,
+      headers: { Accept: "application/json" }
     });
-  });
-})();
+
+    atcBtn.disabled = false;
+    if (!res.ok) return;
+
+    // Refresh drawer + icon
+    const sections = ["cart-drawer", "cart-icon-bubble"];
+    const sectionRes = await fetch(`/?sections=${sections.join(",")}`);
+    const data = await sectionRes.json();
+
+    if (data["cart-icon-bubble"]) {
+      const bubble = document.getElementById("cart-icon-bubble");
+      if (bubble) bubble.innerHTML = data["cart-icon-bubble"];
+    }
+
+    if (data["cart-drawer"]) {
+      const doc = new DOMParser().parseFromString(
+        data["cart-drawer"],
+        "text/html"
+      );
+      const fresh =
+        doc.querySelector("cart-drawer") ||
+        doc.getElementById("CartDrawer");
+
+      if (fresh) drawer.innerHTML = fresh.innerHTML;
+    }
+
+    drawer.classList.add("active");
+    drawer.setAttribute("open", "");
+    drawer.dispatchEvent(new Event("open", { bubbles: true }));
+
+    return;
+  }
+
+  // 🔹 No drawer → native submit (redirect)
+  productForm.requestSubmit();
+});
+
