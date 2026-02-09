@@ -2,6 +2,7 @@
   id="bdm-sticky-atc"
   class="bdm-sticky-atc"
   aria-hidden="true"
+  data-shop="{{ shop.permanent_domain }}"
 
   {% if block.settings.show_on_desktop %}data-enable-desktop{% endif %}
   {% if block.settings.show_on_mobile %}data-enable-mobile{% endif %}
@@ -63,6 +64,14 @@
     </div>
   </div>
 </div>
+
+{%- comment -%}
+  ✅ Guarantee the shop domain exists for tracking scripts,
+  even when Shopify.shop is undefined in some themes.
+{%- endcomment -%}
+<script>
+  window.__SHOP_DOMAIN__ = {{ shop.permanent_domain | json }};
+</script>
 
 {{ 'sticky-atc-bar.css' | asset_url | stylesheet_tag }}
 {{ 'sticky-atc-bar.js' | asset_url | script_tag }}
