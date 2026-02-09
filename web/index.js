@@ -38,7 +38,7 @@ app.use("/api/settings", settingsRouter);
 app.use("/api/track", trackRouter);
 
 // ✅ IMPORTANT: make /apps/bdm-sticky-atc/track work (matches frontend)
-app.use("/apps/bdm-sticky-atc", trackRouter);
+app.use("/apps/bdm-sticky-atc/track", trackRouter);
 
 // Keep your other routes
 app.use("/apps/bdm-sticky-atc", stickyAnalyticsRouter);
