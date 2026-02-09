@@ -1,53 +1,87 @@
 import express from "express";
 import prisma from "../prisma.js";
+import { randomUUID } from "crypto";
 
 const router = express.Router();
 
-/**
- * POST /apps/bdm-sticky-atc/track
- * Receives storefront analytics events and stores them in AnalyticsEvent.
- *
- * Expected payload (from your storefront script):
- * {
- *   event: "page_view" | "variant_change" | "add_to_cart" | "checkout_completed" | ...
- *   shop: "example.myshopify.com" (optional; we also accept header)
- *   variantId?: number|string
- *   sessionId?: string
- *   ts?: number
- *   ...anything else
- * }
- */
-router.post("/track", async (req, res) => {
+router.post("/track", express.json(), async (req, res) => {
   try {
-    // Prefer Shopify header, then body.shop
-    const shopFromHeader =
-      req.get("X-Shopify-Shop-Domain") ||
-      req.get("x-shopify-shop-domain");
+    const body = req.body || {};
 
-    const shop = (shopFromHeader || req.body?.shop || "").toString().trim();
+    // Allow shop from body OR header
+    const headerShop = req.get("X-Shopify-Shop-Domain");
+    const shop = body.shop || headerShop;
+    const event = body.event;
 
-    const event = (req.body?.event || "").toString().trim();
-    const payload = req.body || {};
-
-    // Don’t hard-fail if shop is missing (some themes/scripts won’t send it),
-    // but do require an event name.
-    if (!event) {
-      return res.status(200).json({ ok: false, error: "Missing event" });
+    if (!shop || !event) {
+      return res.status(400).json({ ok: false, error: "Missing shop/event" });
     }
 
+    // Standard payload is { shop, event, data: {...} }
+    // Support legacy formats by falling back gracefully.
+    const data = body.data ?? body.payload ?? {};
+    const {
+      productId,
+      variantId,
+      quantity,
+      sellingPlanId,
+      checkoutToken,
+      sessionId,
+      ts
+    } = data || {};
+
+    const timestamp = new Date(typeof ts === "number" ? ts : Date.now());
+
+    // 1) Generic analytics (dashboard safe)
     await prisma.analyticsEvent.create({
       data: {
-        shop: shop || "unknown",
+        shop,
         event,
-        payload, // Json field in Prisma schema
-      },
+        payload: data ?? {}
+      }
     });
 
-    return res.status(200).json({ ok: true });
+    // 2) Sticky events (dashboard counts)
+    if (String(event).includes("sticky")) {
+      await prisma.stickyEvent.create({
+        data: {
+          id: randomUUID(),
+          shop,
+          event,
+          productId: productId ? String(productId) : null,
+          variantId: variantId ? String(variantId) : null,
+          quantity: quantity != null ? String(quantity) : null,
+          price: null,
+          timestamp
+        }
+      });
+    }
+
+    // 3) Sticky ATC intent (optional attribution table)
+    if (
+      (event === "sticky_atc_click" || event === "sticky_atc_success") &&
+      variantId &&
+      sessionId
+    ) {
+      try {
+        await prisma.stickyAtcEvent.create({
+          data: {
+            shop,
+            productId: productId ? BigInt(String(productId)) : null,
+            variantId: BigInt(String(variantId)),
+            checkoutToken: checkoutToken || null,
+            sessionId
+          }
+        });
+      } catch (e) {
+        console.warn("Sticky ATC intent skipped:", e?.message || e);
+      }
+    }
+
+    return res.json({ ok: true });
   } catch (err) {
-    console.error("[BDM track] error", err);
-    // Keep returning 200 so storefront never breaks checkout/cart UX
-    return res.status(200).json({ ok: false });
+    console.error("Track error", err);
+    return res.status(500).json({ ok: false });
   }
 });
 
