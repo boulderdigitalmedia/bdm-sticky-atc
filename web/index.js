@@ -74,6 +74,17 @@ app.get("*", (req, res) => {
       "</head>",
       `<script>window.__SHOPIFY_API_KEY__ = ${JSON.stringify(apiKey)};</script></head>`
     );
+    
+    .replace(
+  "</head>",
+  `
+  <script>
+    window.__APP_ORIGIN__ = ${JSON.stringify(process.env.APP_URL)};
+  </script>
+  </head>
+  `
+);
+
 
   res.send(html);
 });
