@@ -19,12 +19,15 @@ const router = express.Router();
  */
 router.post("/track", async (req, res) => {
   try {
-    // Prefer Shopify header, then body.shop
+    // Prefer query param (storefront scripts), then Shopify header, then body.shop
+    const shopFromQuery = req.query?.shop;
     const shopFromHeader =
       req.get("X-Shopify-Shop-Domain") ||
       req.get("x-shopify-shop-domain");
 
-    const shop = (shopFromHeader || req.body?.shop || "").toString().trim();
+    const shop = (shopFromQuery || shopFromHeader || req.body?.shop || "")
+      .toString()
+      .trim();
 
     const event = (req.body?.event || "").toString().trim();
     const payload = req.body || {};
