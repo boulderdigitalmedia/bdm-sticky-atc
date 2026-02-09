@@ -68,22 +68,22 @@ app.get("*", (req, res) => {
     `);
   }
 
-  const html = fs
-    .readFileSync(indexPath, "utf8")
-    .replace(
-      "</head>",
-      `<script>window.__SHOPIFY_API_KEY__ = ${JSON.stringify(apiKey)};</script></head>`
-    );
-    
-    .replace(
-  "</head>",
-  `
-  <script>
-    window.__APP_ORIGIN__ = ${JSON.stringify(process.env.APP_URL)};
-  </script>
-  </head>
-  `
-);
+const html = fs
+  .readFileSync(indexPath, "utf8")
+  .replace(
+    "</head>",
+    `<script>window.__SHOPIFY_API_KEY__ = ${JSON.stringify(apiKey)};</script></head>`
+  )
+  .replace(
+    "</head>",
+    `
+    <script>
+      window.__APP_ORIGIN__ = ${JSON.stringify(process.env.APP_URL)};
+    </script>
+    </head>
+    `
+  );
+
 
 
   res.send(html);
