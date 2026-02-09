@@ -20,16 +20,16 @@ const router = express.Router();
 router.post("/track", async (req, res) => {
   try {
     // Prefer query param (storefront scripts), then Shopify header, then body.shop
-    const shopFromQuery = req.query?.shop;
+    const shopFromQuery = req.query && req.query.shop;
     const shopFromHeader =
       req.get("X-Shopify-Shop-Domain") ||
       req.get("x-shopify-shop-domain");
 
-    const shop = (shopFromQuery || shopFromHeader || req.body?.shop || "")
+    const shop = (shopFromQuery || shopFromHeader || (req.body && req.body.shop) || "")
       .toString()
       .trim();
 
-    const event = (req.body?.event || "").toString().trim();
+    const event = ((req.body && req.body.event) || "").toString().trim();
     const payload = req.body || {};
 
     // Don’t hard-fail if shop is missing (some themes/scripts won’t send it),
