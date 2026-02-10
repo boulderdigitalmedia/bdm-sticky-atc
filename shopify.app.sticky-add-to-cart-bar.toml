@@ -1,6 +1,7 @@
-name = "Sticky Add To Cart Bar"
-client_id = "274644b8e4ba970fe66b9a97dcbbb712"
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
+client_id = "274644b8e4ba970fe66b9a97dcbbb712"
+name = "Sticky Add To Cart Bar"
 application_url = "https://sticky-add-to-cart-bar-pro.onrender.com"
 embedded = true
 
@@ -8,13 +9,21 @@ embedded = true
 automatically_update_urls_on_dev = false
 dev_store_url = "bdm-sandbox.myshopify.com"
 
+[webhooks]
+api_version = "2024-01"
+
 [access_scopes]
-scopes = "read_products,read_orders"
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "read_orders,read_products"
+optional_scopes = [ ]
+use_legacy_install_flow = false
 
 [auth]
 redirect_urls = [
   "https://sticky-add-to-cart-bar-pro.onrender.com/auth/callback"
 ]
 
-[webhooks]
-api_version = "2024-01"
+[app_proxy]
+url = "https://sticky-add-to-cart-bar-pro.onrender.com"
+subpath = "bdm-sticky-atc"
+prefix = "apps"
