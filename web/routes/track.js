@@ -6,18 +6,22 @@ const router = express.Router();
 /**
  * POST /apps/bdm-sticky-atc/track
  * Receives storefront analytics events and stores them in AnalyticsEvent.
- *
- * Expected payload:
- * {
- *   event: "page_view" | "variant_change" | "add_to_cart" | "checkout_completed"
- *   shop?: "example.myshopify.com"
- *   variantId?: number | string
- *   sessionId?: string
- *   ts?: number
- *   ...any other data
- * }
  */
 router.post("/track", async (req, res) => {
+  // 🔎 DEBUG: confirm the route is being hit at all
+  console.log("[TRACK] HIT", {
+    path: req.originalUrl,
+    method: req.method,
+    query: req.query,
+    headers: {
+      "x-shopify-shop-domain": req.get("x-shopify-shop-domain"),
+      "content-type": req.get("content-type"),
+      origin: req.get("origin"),
+      referer: req.get("referer"),
+    },
+    body: req.body,
+  });
+
   try {
     // --- Resolve shop safely ---
     let shop = "";
@@ -41,15 +45,25 @@ router.post("/track", async (req, res) => {
         : "";
 
     if (!event) {
-      // Do not hard-fail storefront UX
+      console.warn("[TRACK] Missing event name", {
+        shop,
+        body: req.body,
+      });
+
       return res.status(200).json({
         ok: false,
         error: "Missing event",
       });
     }
 
-    // --- Persist event ---
-    await prisma.analyticsEvent.create({
+    // 🔎 DEBUG: before DB write
+    console.log("[TRACK] INSERTING EVENT", {
+      shop,
+      event,
+      payloadKeys: Object.keys(req.body || {}),
+    });
+
+    const record = await prisma.analyticsEvent.create({
       data: {
         shop,
         event,
@@ -57,11 +71,22 @@ router.post("/track", async (req, res) => {
       },
     });
 
+    // 🔎 DEBUG: DB success
+    console.log("[TRACK] INSERTED", {
+      id: record.id,
+      shop: record.shop,
+      event: record.event,
+      createdAt: record.createdAt,
+    });
+
     return res.status(200).json({ ok: true });
   } catch (err) {
-    console.error("[BDM track] error:", err);
+    // 🔴 DEBUG: DB or runtime error (currently invisible without this)
+    console.error("[TRACK] ERROR", {
+      message: err?.message,
+      stack: err?.stack,
+    });
 
-    // Always return 200 so storefront never breaks
     return res.status(200).json({
       ok: false,
       error: "Internal tracking error",
