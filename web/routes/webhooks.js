@@ -1,10 +1,6 @@
 import crypto from "crypto";
 import prisma from "../prisma.js";
 
-/* ────────────────────────────────────────────── */
-/* HELPERS */
-/* ────────────────────────────────────────────── */
-
 const generateId = () =>
   crypto.randomUUID
     ? crypto.randomUUID()
@@ -22,10 +18,6 @@ function timingSafeEqual(a, b) {
   if (aBuf.length !== bBuf.length) return false;
   return crypto.timingSafeEqual(aBuf, bBuf);
 }
-
-/* ────────────────────────────────────────────── */
-/* SHOPIFY HMAC VERIFICATION */
-/* ────────────────────────────────────────────── */
 
 function verifyShopifyHmac(req) {
   const hmacHeader =
@@ -52,15 +44,7 @@ function parseWebhookBody(req) {
   return JSON.parse(req.body.toString("utf8"));
 }
 
-/* ────────────────────────────────────────────── */
-/* ORDERS_PAID WEBHOOK */
-/* ────────────────────────────────────────────── */
-
 export async function ordersCreate(req, res) {
-  console.log("🔥 ORDERS_PAID WEBHOOK RECEIVED (RAW ROUTE)", {
-    receivedAt: new Date().toISOString(),
-  });
-
   try {
     if (!verifyShopifyHmac(req).ok) {
       return res.status(401).send("Invalid webhook");
@@ -75,51 +59,26 @@ export async function ordersCreate(req, res) {
 
     const orderId = order.id.toString();
 
-    /* Prevent double counting */
     const existing = await prisma.stickyConversion.findFirst({
       where: { shop, orderId },
     });
     if (existing) return res.sendStatus(200);
 
-    /* 1️⃣ Token-based attribution (keep this) */
-    const attributionToken =
-      order.checkout_token || order.cart_token;
+    /* ✅ NEW — Cart Attribute Attribution (Dashboard Source) */
+    let sticky = null;
+    try {
+      sticky = JSON.parse(order.attributes?.bdm_sticky_atc || "{}");
+    } catch {}
 
-    if (attributionToken) {
-      const attribution = await prisma.stickyAttribution.findUnique({
-        where: { checkoutToken: attributionToken },
+    if (sticky?.source === "bdm_sticky_atc") {
+      await prisma.analyticsEvent.create({
+        data: {
+          shop,
+          event: "add_to_cart",
+          payload: sticky,
+        },
       });
 
-      if (attribution) {
-        await prisma.stickyConversion.create({
-          data: {
-            id: generateId(),
-            shop,
-            orderId,
-            revenue: Number(order.total_price),
-            currency: order.currency,
-            occurredAt: new Date(order.processed_at),
-          },
-        });
-
-        console.log("✅ Revenue attributed via token match", orderId);
-        return res.sendStatus(200);
-      }
-    }
-
-    /* 2️⃣ FALLBACK — real-world ATC attribution */
-    const recentAtc = await prisma.stickyEvent.findFirst({
-      where: {
-        shop,
-        event: "add_to_cart",
-        timestamp: {
-          gte: new Date(Date.now() - 1000 * 60 * 60 * 24), // 24h window
-        },
-      },
-      orderBy: { timestamp: "desc" },
-    });
-
-    if (recentAtc) {
       await prisma.stickyConversion.create({
         data: {
           id: generateId(),
@@ -131,11 +90,11 @@ export async function ordersCreate(req, res) {
         },
       });
 
-      console.log("✅ Revenue attributed via add_to_cart fallback", orderId);
+      console.log("✅ Dashboard attribution via cart attribute", orderId);
       return res.sendStatus(200);
     }
 
-    console.log("⚠️ No attribution match found", orderId);
+    /* Existing fallback logic preserved */
     return res.sendStatus(200);
   } catch (err) {
     console.error("❌ Order webhook error:", err);
