@@ -2,6 +2,26 @@
   if (window.__BDM_STICKY_ATC_INIT__) return;
   window.__BDM_STICKY_ATC_INIT__ = true;
 
+  // =========================================
+  // STICKY ATC MARKER (ANALYTICS, NO PROXY)
+  // =========================================
+  function markStickyATC({ productId, variantId, quantity }) {
+    try {
+      const payload = {
+        source: "bdm_sticky_atc",
+        productId,
+        variantId,
+        quantity,
+        ts: Date.now()
+      };
+
+      sessionStorage.setItem(
+        "bdm_sticky_atc_event",
+        JSON.stringify(payload)
+      );
+    } catch {}
+  }
+
   document.addEventListener("DOMContentLoaded", () => {
     const bar = document.getElementById("bdm-sticky-atc");
     if (!bar) return;
@@ -136,7 +156,6 @@
 
     /* ================================
        SUBMIT-TIME QUANTITY INJECTION
-       (CRITICAL — DO NOT REMOVE)
     ================================= */
     productForm.addEventListener(
       "submit",
@@ -154,65 +173,102 @@
     );
 
     /* ================================
-   ADD TO CART (SMART MODE)
-================================= */
-atcBtn.addEventListener("click", async e => {
-  e.preventDefault();
-  if (atcBtn.disabled) return;
+       ADD TO CART (SMART MODE)
+    ================================= */
+    atcBtn.addEventListener("click", async e => {
+      e.preventDefault();
+      if (atcBtn.disabled) return;
 
-  const drawer =
-    document.querySelector("cart-drawer") ||
-    document.getElementById("CartDrawer");
+      // 🔹 ANALYTICS MARKER (SAFE)
+      markStickyATC({
+        productId: window.ShopifyAnalytics?.meta?.product?.id,
+        variantId: variantInput.value,
+        quantity: currentQty
+      });
 
-  // 🔹 If drawer exists → AJAX add (stay on page)
-  if (drawer) {
-    atcBtn.disabled = true;
+      const drawer =
+        document.querySelector("cart-drawer") ||
+        document.getElementById("CartDrawer");
 
-    const fd = new FormData();
-    fd.append("id", variantInput.value);
-    fd.append("quantity", currentQty);
+      // 🔹 Drawer → AJAX add
+      if (drawer) {
+        atcBtn.disabled = true;
 
-    const res = await fetch("/cart/add.js", {
-      method: "POST",
-      body: fd,
-      headers: { Accept: "application/json" }
+        const fd = new FormData();
+        fd.append("id", variantInput.value);
+        fd.append("quantity", currentQty);
+
+        const res = await fetch("/cart/add.js", {
+          method: "POST",
+          body: fd,
+          headers: { Accept: "application/json" }
+        });
+
+        atcBtn.disabled = false;
+        if (!res.ok) return;
+
+        // ✅ Persist marker into cart
+        try {
+          const marker = sessionStorage.getItem("bdm_sticky_atc_event");
+          if (marker) {
+            await fetch("/cart/update.js", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                note_attributes: {
+                  bdm_sticky_atc: marker
+                }
+              })
+            });
+          }
+        } catch {}
+
+        // Refresh drawer + icon
+        const sections = ["cart-drawer", "cart-icon-bubble"];
+        const sectionRes = await fetch(`/?sections=${sections.join(",")}`);
+        const data = await sectionRes.json();
+
+        if (data["cart-icon-bubble"]) {
+          const bubble = document.getElementById("cart-icon-bubble");
+          if (bubble) bubble.innerHTML = data["cart-icon-bubble"];
+        }
+
+        if (data["cart-drawer"]) {
+          const doc = new DOMParser().parseFromString(
+            data["cart-drawer"],
+            "text/html"
+          );
+          const fresh =
+            doc.querySelector("cart-drawer") ||
+            doc.getElementById("CartDrawer");
+
+          if (fresh) drawer.innerHTML = fresh.innerHTML;
+        }
+
+        drawer.classList.add("active");
+        drawer.setAttribute("open", "");
+        drawer.dispatchEvent(new Event("open", { bubbles: true }));
+
+        return;
+      }
+
+      // 🔹 No drawer → native submit
+      try {
+        const marker = sessionStorage.getItem("bdm_sticky_atc_event");
+        if (marker) {
+          fetch("/cart/update.js", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              note_attributes: {
+                bdm_sticky_atc: marker
+              }
+            })
+          });
+        }
+      } catch {}
+
+      productForm.requestSubmit();
     });
-
-    atcBtn.disabled = false;
-    if (!res.ok) return;
-
-    // Refresh drawer + icon
-    const sections = ["cart-drawer", "cart-icon-bubble"];
-    const sectionRes = await fetch(`/?sections=${sections.join(",")}`);
-    const data = await sectionRes.json();
-
-    if (data["cart-icon-bubble"]) {
-      const bubble = document.getElementById("cart-icon-bubble");
-      if (bubble) bubble.innerHTML = data["cart-icon-bubble"];
-    }
-
-    if (data["cart-drawer"]) {
-      const doc = new DOMParser().parseFromString(
-        data["cart-drawer"],
-        "text/html"
-      );
-      const fresh =
-        doc.querySelector("cart-drawer") ||
-        doc.getElementById("CartDrawer");
-
-      if (fresh) drawer.innerHTML = fresh.innerHTML;
-    }
-
-    drawer.classList.add("active");
-    drawer.setAttribute("open", "");
-    drawer.dispatchEvent(new Event("open", { bubbles: true }));
-
-    return;
-  }
-
-  // 🔹 No drawer → native submit (redirect)
-  productForm.requestSubmit();
-});
   });
 })();
-
