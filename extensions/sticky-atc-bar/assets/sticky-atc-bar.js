@@ -15,19 +15,7 @@
         ts: Date.now()
       };
 
-      sessionStorage.setItem(
-        "bdm_sticky_atc_event",
-        JSON.stringify(payload)
-      );
-
-      // ✅ NEW — local click counter (read by webhook)
-      const clicks = Number(
-        sessionStorage.getItem("bdm_sticky_atc_clicks") || 0
-      );
-      sessionStorage.setItem(
-        "bdm_sticky_atc_clicks",
-        String(clicks + 1)
-      );
+      sessionStorage.setItem("bdm_sticky_atc_event", JSON.stringify(payload));
     } catch {}
   }
 
@@ -188,6 +176,7 @@
       e.preventDefault();
       if (atcBtn.disabled) return;
 
+      // 🔹 marker for attribution
       markStickyATC({
         productId: window.ShopifyAnalytics?.meta?.product?.id,
         variantId: variantInput.value,
@@ -198,6 +187,7 @@
         document.querySelector("cart-drawer") ||
         document.getElementById("CartDrawer");
 
+      // 🔹 Drawer → AJAX add
       if (drawer) {
         atcBtn.disabled = true;
 
@@ -214,6 +204,7 @@
         atcBtn.disabled = false;
         if (!res.ok) return;
 
+        // ✅ Persist marker into cart attributes (survives checkout)
         try {
           const marker = sessionStorage.getItem("bdm_sticky_atc_event");
           if (marker) {
@@ -227,9 +218,36 @@
           }
         } catch {}
 
+        // ✅ KEEP: Refresh drawer + icon (your original logic)
+        const sections = ["cart-drawer", "cart-icon-bubble"];
+        const sectionRes = await fetch(`/?sections=${sections.join(",")}`);
+        const data = await sectionRes.json();
+
+        if (data["cart-icon-bubble"]) {
+          const bubble = document.getElementById("cart-icon-bubble");
+          if (bubble) bubble.innerHTML = data["cart-icon-bubble"];
+        }
+
+        if (data["cart-drawer"]) {
+          const doc = new DOMParser().parseFromString(
+            data["cart-drawer"],
+            "text/html"
+          );
+          const fresh =
+            doc.querySelector("cart-drawer") ||
+            doc.getElementById("CartDrawer");
+
+          if (fresh) drawer.innerHTML = fresh.innerHTML;
+        }
+
+        drawer.classList.add("active");
+        drawer.setAttribute("open", "");
+        drawer.dispatchEvent(new Event("open", { bubbles: true }));
+
         return;
       }
 
+      // 🔹 No drawer → native submit
       try {
         const marker = sessionStorage.getItem("bdm_sticky_atc_event");
         if (marker) {
