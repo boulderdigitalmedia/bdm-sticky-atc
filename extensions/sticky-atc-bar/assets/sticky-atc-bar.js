@@ -215,10 +215,10 @@
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                note_attributes: {
-                  bdm_sticky_atc: marker
-                }
-              })
+  attributes: {
+    bdm_sticky_atc: marker
+  }
+})
             });
           }
         } catch {}
@@ -260,10 +260,10 @@
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              note_attributes: {
-                bdm_sticky_atc: marker
-              }
-            })
+  attributes: {
+    bdm_sticky_atc: marker
+  }
+})
           });
         }
       } catch {}
