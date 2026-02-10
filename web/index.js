@@ -27,21 +27,36 @@ app.use(
     credentials: true
   })
 );
-app.options("*", cors());
+app.options("*", cors);
 
-app.post("/webhooks/orders/paid", express.raw({ type: "*/*" }), ordersCreate);
+/**
+ * 🔥 WEBHOOK — RAW BODY REQUIRED
+ * THIS IS THE ONLY PLACE orders/paid IS HANDLED
+ */
+app.post(
+  "/webhooks/orders/paid",
+  express.raw({ type: "*/*" }),
+  async (req, res) => {
+    console.log("🔥 orders/paid webhook HIT");
+    return ordersCreate(req, res);
+  }
+);
 
+/* JSON parsing AFTER webhook */
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
+/* API routes */
 app.use("/api/settings", settingsRouter);
 app.use("/api/track", trackRouter);
 app.use("/apps/bdm-sticky-atc/track", trackRouter);
 app.use("/apps/bdm-sticky-atc", stickyAnalyticsRouter);
 app.use("/attribution", attributionRouter);
 
+/* Shopify */
 initShopify(app);
 
+/* Frontend */
 app.use("/web", express.static(path.join(__dirname, "public")));
 app.use(express.static(path.join(__dirname, "frontend", "dist"), { index: false }));
 
@@ -69,25 +84,16 @@ app.get("*", (req, res) => {
     .replace(
       "</head>",
       `<script>window.__SHOPIFY_API_KEY__ = ${JSON.stringify(apiKey)};</script></head>`
-    )
-    .replace(
-      "</head>",
-      `
-      <script>
-        window.__APP_ORIGIN__ = ${JSON.stringify(process.env.APP_URL)};
-      </script>
-      </head>
-      `
     );
 
   res.send(html);
 });
 
-/* 🧪 DEBUG: view recent conversions directly */
+/* 🧪 DEBUG ENDPOINT */
 app.get("/__debug/conversions", async (req, res) => {
   const rows = await prisma.stickyConversion.findMany({
     orderBy: { occurredAt: "desc" },
-    take: 5,
+    take: 5
   });
   res.json(rows);
 });
