@@ -5,6 +5,7 @@ import bodyParser from "body-parser";
 import path from "path";
 import { fileURLToPath } from "url";
 
+import prisma from "./prisma.js";
 import { initShopify } from "./shopify.js";
 import settingsRouter from "./routes/settings.js";
 import trackRouter from "./routes/track.js";
@@ -33,14 +34,9 @@ app.post("/webhooks/orders/paid", express.raw({ type: "*/*" }), ordersCreate);
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// API routes
 app.use("/api/settings", settingsRouter);
 app.use("/api/track", trackRouter);
-
-// ✅ IMPORTANT: make /apps/bdm-sticky-atc/track work (matches frontend)
 app.use("/apps/bdm-sticky-atc/track", trackRouter);
-
-// Keep your other routes
 app.use("/apps/bdm-sticky-atc", stickyAnalyticsRouter);
 app.use("/attribution", attributionRouter);
 
@@ -68,25 +64,32 @@ app.get("*", (req, res) => {
     `);
   }
 
-const html = fs
-  .readFileSync(indexPath, "utf8")
-  .replace(
-    "</head>",
-    `<script>window.__SHOPIFY_API_KEY__ = ${JSON.stringify(apiKey)};</script></head>`
-  )
-  .replace(
-    "</head>",
-    `
-    <script>
-      window.__APP_ORIGIN__ = ${JSON.stringify(process.env.APP_URL)};
-    </script>
-    </head>
-    `
-  );
-
-
+  const html = fs
+    .readFileSync(indexPath, "utf8")
+    .replace(
+      "</head>",
+      `<script>window.__SHOPIFY_API_KEY__ = ${JSON.stringify(apiKey)};</script></head>`
+    )
+    .replace(
+      "</head>",
+      `
+      <script>
+        window.__APP_ORIGIN__ = ${JSON.stringify(process.env.APP_URL)};
+      </script>
+      </head>
+      `
+    );
 
   res.send(html);
+});
+
+/* 🧪 DEBUG: view recent conversions directly */
+app.get("/__debug/conversions", async (req, res) => {
+  const rows = await prisma.stickyConversion.findMany({
+    orderBy: { occurredAt: "desc" },
+    take: 5,
+  });
+  res.json(rows);
 });
 
 const PORT = process.env.PORT || 3000;
