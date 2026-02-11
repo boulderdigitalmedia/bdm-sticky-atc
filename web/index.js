@@ -49,7 +49,7 @@ app.use(bodyParser.urlencoded({ extended: true }));
 /* API routes */
 app.use("/api/settings", settingsRouter);
 app.use("/api/track", trackRouter);
-app.use("/apps/bdm-sticky-atc/track", trackRouter);
+app.use("/apps/bdm-sticky-atc", trackRouter);
 app.use("/apps/bdm-sticky-atc", stickyAnalyticsRouter);
 app.use("/attribution", attributionRouter);
 
