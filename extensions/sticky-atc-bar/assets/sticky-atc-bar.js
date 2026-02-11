@@ -15,7 +15,32 @@
         ts: Date.now()
       };
 
-      sessionStorage.setItem("bdm_sticky_atc_event", JSON.stringify(payload));
+      sessionStorage.setItem(
+        "bdm_sticky_atc_event",
+        JSON.stringify(payload)
+      );
+    } catch {}
+  }
+
+  // =========================================
+  // 🔥 STICKY VIEW LOGGER (SAFE)
+  // =========================================
+  function logStickyView() {
+    try {
+      if (document.body.dataset.__bdmStickyViewLogged) return;
+      document.body.dataset.__bdmStickyViewLogged = "1";
+
+      fetch("/apps/bdm-sticky-atc/track", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event: "page_view",
+          shop: window.__SHOP_DOMAIN__ || window.Shopify?.shop,
+          ts: Date.now(),
+          source: "bdm_sticky_atc"
+        }),
+        keepalive: true
+      });
     } catch {}
   }
 
@@ -60,7 +85,14 @@
       const visible = !showOnScroll || scrollY >= scrollOffset;
       bar.classList.toggle("is-visible", visible);
       bar.setAttribute("aria-hidden", String(!visible));
+
+      // 🔥 NEW — log sticky view only once
+      if (visible && !bar.dataset.__viewLogged) {
+        bar.dataset.__viewLogged = "1";
+        logStickyView();
+      }
     };
+
     updateScrollVisibility();
     addEventListener("scroll", updateScrollVisibility);
 
@@ -176,7 +208,6 @@
       e.preventDefault();
       if (atcBtn.disabled) return;
 
-      // 🔹 marker for attribution
       markStickyATC({
         productId: window.ShopifyAnalytics?.meta?.product?.id,
         variantId: variantInput.value,
@@ -187,7 +218,6 @@
         document.querySelector("cart-drawer") ||
         document.getElementById("CartDrawer");
 
-      // 🔹 Drawer → AJAX add
       if (drawer) {
         atcBtn.disabled = true;
 
@@ -204,7 +234,6 @@
         atcBtn.disabled = false;
         if (!res.ok) return;
 
-        // ✅ Persist marker into cart attributes (survives checkout)
         try {
           const marker = sessionStorage.getItem("bdm_sticky_atc_event");
           if (marker) {
@@ -218,7 +247,6 @@
           }
         } catch {}
 
-        // ✅ KEEP: Refresh drawer + icon (your original logic)
         const sections = ["cart-drawer", "cart-icon-bubble"];
         const sectionRes = await fetch(`/?sections=${sections.join(",")}`);
         const data = await sectionRes.json();
@@ -247,7 +275,6 @@
         return;
       }
 
-      // 🔹 No drawer → native submit
       try {
         const marker = sessionStorage.getItem("bdm_sticky_atc_event");
         if (marker) {
