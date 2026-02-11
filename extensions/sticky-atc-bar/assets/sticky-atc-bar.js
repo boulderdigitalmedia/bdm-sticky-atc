@@ -6,7 +6,7 @@
      DIRECT ANALYTICS ENDPOINT (NO APP PROXY)
   ===================================================== */
   const TRACK_ENDPOINT =
-    "https://sticky-add-to-cart-bar-pro.onrender.com/api/track";
+  "https://sticky-add-to-cart-bar-pro.onrender.com/api/track/track";
 
   function track(event, payload = {}) {
     try {
