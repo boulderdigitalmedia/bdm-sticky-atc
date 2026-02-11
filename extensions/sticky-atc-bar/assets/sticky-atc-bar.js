@@ -2,9 +2,35 @@
   if (window.__BDM_STICKY_ATC_INIT__) return;
   window.__BDM_STICKY_ATC_INIT__ = true;
 
-  // =========================================
-  // STICKY ATC MARKER (ANALYTICS, NO PROXY)
-  // =========================================
+  /* =====================================================
+     DIRECT ANALYTICS ENDPOINT (NO APP PROXY)
+  ===================================================== */
+  const TRACK_ENDPOINT =
+    "https://sticky-add-to-cart-bar-pro.onrender.com/api/track";
+
+  function track(event, payload = {}) {
+    try {
+      fetch(TRACK_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Shopify-Shop-Domain":
+            window.__SHOP_DOMAIN__ || window.Shopify?.shop
+        },
+        body: JSON.stringify({
+          event,
+          shop: window.__SHOP_DOMAIN__ || window.Shopify?.shop,
+          ts: Date.now(),
+          ...payload
+        }),
+        keepalive: true
+      });
+    } catch {}
+  }
+
+  /* =====================================================
+     STICKY ATC MARKER (UNCHANGED)
+  ===================================================== */
   function markStickyATC({ productId, variantId, quantity }) {
     try {
       const payload = {
@@ -22,24 +48,16 @@
     } catch {}
   }
 
-  // =========================================
-  // 🔥 STICKY VIEW LOGGER (SAFE)
-  // =========================================
+  /* =====================================================
+     STICKY VIEW LOGGER (UPDATED — DIRECT TRACK)
+  ===================================================== */
   function logStickyView() {
     try {
       if (document.body.dataset.__bdmStickyViewLogged) return;
       document.body.dataset.__bdmStickyViewLogged = "1";
 
-      fetch("/apps/bdm-sticky-atc/track", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          event: "page_view",
-          shop: window.__SHOP_DOMAIN__ || window.Shopify?.shop,
-          ts: Date.now(),
-          source: "bdm_sticky_atc"
-        }),
-        keepalive: true
+      track("page_view", {
+        source: "bdm_sticky_atc"
       });
     } catch {}
   }
@@ -86,7 +104,7 @@
       bar.classList.toggle("is-visible", visible);
       bar.setAttribute("aria-hidden", String(!visible));
 
-      // 🔥 NEW — log sticky view only once
+      // 🔥 VIEW EVENT
       if (visible && !bar.dataset.__viewLogged) {
         bar.dataset.__viewLogged = "1";
         logStickyView();
@@ -162,7 +180,7 @@
       });
 
     /* ================================
-       QTY — SINGLE SOURCE OF TRUTH
+       QTY
     ================================= */
     let currentQty = 1;
     if (qtyEl) qtyEl.value = currentQty;
@@ -202,7 +220,7 @@
     );
 
     /* ================================
-       ADD TO CART (SMART MODE)
+       ADD TO CART
     ================================= */
     atcBtn.addEventListener("click", async e => {
       e.preventDefault();
@@ -210,6 +228,13 @@
 
       markStickyATC({
         productId: window.ShopifyAnalytics?.meta?.product?.id,
+        variantId: variantInput.value,
+        quantity: currentQty
+      });
+
+      // 🔥 ATC EVENT
+      track("add_to_cart", {
+        source: "bdm_sticky_atc",
         variantId: variantInput.value,
         quantity: currentQty
       });
