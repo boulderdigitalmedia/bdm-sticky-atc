@@ -53,7 +53,7 @@ export function initShopify(app) {
    */
   (async () => {
     try {
-      const sessions = await prisma.session.findMany();
+      const sessions = await prisma.ShopifySession.findMany();
 
       if (!sessions.length) {
         console.log("⚠️ No sessions found yet — skipping auto webhook registration");
