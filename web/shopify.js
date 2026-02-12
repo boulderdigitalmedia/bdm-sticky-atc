@@ -37,8 +37,7 @@ export function initShopify(app) {
   });
 
   /**
-   * ✅ Register webhook definition
-   * Express handles the route itself.
+   * ✅ Declare webhook
    */
   shopify.webhooks.addHandlers({
     ORDERS_PAID: {
@@ -48,24 +47,26 @@ export function initShopify(app) {
   });
 
   /**
-   * 🔥 AUTO REGISTER WEBHOOKS USING SAVED OFFLINE SESSIONS
-   * This fixes the "no webhook logs" problem permanently.
+   * 🔥 AUTO REGISTER WEBHOOKS FROM SAVED OFFLINE SESSIONS
+   * This runs at server start.
    */
   (async () => {
     try {
-      const sessions = await prisma.ShopifySession.findMany();
+      const sessions = await prisma.session.findMany({
+        where: { isOnline: false }
+      });
 
       if (!sessions.length) {
-        console.log("⚠️ No sessions found yet — skipping auto webhook registration");
+        console.log("⚠️ No offline sessions found — skipping auto webhook registration");
         return;
       }
 
-      for (const session of sessions) {
+      for (const s of sessions) {
         try {
-          const result = await shopify.webhooks.register({ session });
+          const result = await shopify.webhooks.register({ session: s });
           console.log("🔥 AUTO WEBHOOK REGISTER RESULT:", result);
         } catch (err) {
-          console.error("❌ Failed to register webhook for session", session.shop, err);
+          console.error("❌ Failed to register webhook for", s.shop, err);
         }
       }
     } catch (err) {
@@ -102,18 +103,41 @@ export function initShopify(app) {
         throw new Error("Missing access token");
       }
 
-      // 🔥 Register webhook on install/update
-      const result = await shopify.webhooks.register({ session });
+      /**
+       * ✅ LOAD OFFLINE SESSION FROM STORAGE
+       */
+      const offlineSessionId = shopify.session.getOfflineId(session.shop);
+
+      const offlineSession =
+        await shopify.config.sessionStorage.loadSession(
+          offlineSessionId
+        );
+
+      if (!offlineSession?.accessToken) {
+        console.error("❌ Offline session missing");
+        return res.status(500).send("Offline session missing");
+      }
+
+      console.log("🔑 Offline session loaded:", offlineSession.shop);
+
+      /**
+       * 🔥 REGISTER WEBHOOK USING OFFLINE SESSION
+       */
+      const result = await shopify.webhooks.register({
+        session: offlineSession
+      });
+
       console.log("✅ Webhook registration result:", result);
 
       const host = req.query.host;
+
       if (!host) {
         return res.redirect(
-          `https://${session.shop}/admin/apps/${apiKey}`
+          `https://${offlineSession.shop}/admin/apps/${apiKey}`
         );
       }
 
-      return res.redirect(`/?shop=${session.shop}&host=${host}`);
+      return res.redirect(`/?shop=${offlineSession.shop}&host=${host}`);
     } catch (err) {
       console.error("OAuth callback failed", err);
       return res.status(500).send("Auth failed");
