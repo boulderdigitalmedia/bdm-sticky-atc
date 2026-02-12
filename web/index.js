@@ -31,7 +31,6 @@ app.options("*", cors);
 
 /**
  * 🔥 WEBHOOK — RAW BODY REQUIRED
- * THIS IS THE ONLY PLACE orders/paid IS HANDLED
  */
 app.post(
   "/webhooks/orders/paid",
@@ -53,20 +52,40 @@ app.use("/apps/bdm-sticky-atc", trackRouter);
 app.use("/apps/bdm-sticky-atc", stickyAnalyticsRouter);
 app.use("/attribution", attributionRouter);
 
-/* Shopify */
+/* Shopify init */
 initShopify(app);
 
 /* Frontend */
 app.use("/web", express.static(path.join(__dirname, "public")));
 app.use(express.static(path.join(__dirname, "frontend", "dist"), { index: false }));
 
-app.get("*", (req, res) => {
+/**
+ * ⭐ AUTH GUARD + EMBEDDED APP LOADER
+ */
+app.get("*", async (req, res) => {
   const indexPath = path.join(__dirname, "frontend", "dist", "index.html");
   const apiKey = process.env.SHOPIFY_API_KEY || "";
 
   const shop = req.query.shop;
   const host = req.query.host;
 
+  // 🧠 FORCE OAUTH IF SHOP EXISTS BUT NO SESSION
+  if (shop) {
+    try {
+      const existingSession = await prisma.session.findFirst({
+        where: { shop }
+      });
+
+      if (!existingSession) {
+        console.log("🔑 No session found — forcing OAuth", shop);
+        return res.redirect(`/auth?shop=${shop}`);
+      }
+    } catch (err) {
+      console.error("Session check failed", err);
+    }
+  }
+
+  // Prevent direct access to Render URL
   if (!shop && !host) {
     return res.status(200).send(`
       <html>
