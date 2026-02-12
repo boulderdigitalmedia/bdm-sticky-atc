@@ -19,6 +19,9 @@ const __dirname = path.dirname(__filename);
 const app = express();
 app.set("trust proxy", 1);
 
+/* =========================================================
+   CORS
+========================================================= */
 app.use(
   cors({
     origin: true,
@@ -27,11 +30,11 @@ app.use(
     credentials: true
   })
 );
-app.options("*", cors);
+app.options("*", cors());
 
-/**
- * 🔥 WEBHOOK — RAW BODY REQUIRED
- */
+/* =========================================================
+   🔥 WEBHOOK — MUST BE RAW BODY
+========================================================= */
 app.post(
   "/webhooks/orders/paid",
   express.raw({ type: "*/*" }),
@@ -41,51 +44,70 @@ app.post(
   }
 );
 
-/* JSON parsing AFTER webhook */
+/* =========================================================
+   JSON parsing AFTER webhook
+========================================================= */
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-/* API routes */
+/* =========================================================
+   API ROUTES
+========================================================= */
 app.use("/api/settings", settingsRouter);
 app.use("/api/track", trackRouter);
-app.use("/apps/bdm-sticky-atc", trackRouter);
+
+/**
+ * ✅ IMPORTANT
+ * This is the correct route your JS uses:
+ *   fetch("/apps/bdm-sticky-atc/track")
+ */
+app.use("/apps/bdm-sticky-atc/track", trackRouter);
+
 app.use("/apps/bdm-sticky-atc", stickyAnalyticsRouter);
 app.use("/attribution", attributionRouter);
 
-/* Shopify init */
+/* =========================================================
+   SHOPIFY INIT (AUTH + WEBHOOK REGISTRATION)
+========================================================= */
 initShopify(app);
 
-/* Frontend */
+/* =========================================================
+   FRONTEND
+========================================================= */
 app.use("/web", express.static(path.join(__dirname, "public")));
-app.use(express.static(path.join(__dirname, "frontend", "dist"), { index: false }));
+app.use(
+  express.static(path.join(__dirname, "frontend", "dist"), {
+    index: false
+  })
+);
 
-/**
- * ⭐ AUTH GUARD + EMBEDDED APP LOADER
- */
+/* =========================================================
+   ⭐ EMBEDDED APP LOADER
+   (NO PRISMA SESSION CHECK — SHOPIFY HANDLES AUTH)
+========================================================= */
 app.get("*", async (req, res) => {
-  const indexPath = path.join(__dirname, "frontend", "dist", "index.html");
-  const apiKey = process.env.SHOPIFY_API_KEY || "";
+  const indexPath = path.join(
+    __dirname,
+    "frontend",
+    "dist",
+    "index.html"
+  );
 
+  const apiKey = process.env.SHOPIFY_API_KEY || "";
   const shop = req.query.shop;
   const host = req.query.host;
 
-  // 🧠 FORCE OAUTH IF SHOP EXISTS BUT NO SESSION
-  if (shop) {
-    try {
-      const existingSession = await prisma.session.findFirst({
-        where: { shop }
-      });
-
-      if (!existingSession) {
-        console.log("🔑 No session found — forcing OAuth", shop);
-        return res.redirect(`/auth?shop=${shop}`);
-      }
-    } catch (err) {
-      console.error("Session check failed", err);
-    }
+  /**
+   * ✅ FORCE OAUTH SAFELY
+   * If shop param exists but embedded host missing,
+   * redirect to /auth.
+   */
+  if (shop && !host) {
+    console.log("🔑 Forcing OAuth", shop);
+    return res.redirect(`/auth?shop=${shop}`);
   }
 
-  // Prevent direct access to Render URL
+  // Prevent direct Render URL access
   if (!shop && !host) {
     return res.status(200).send(`
       <html>
@@ -102,13 +124,17 @@ app.get("*", async (req, res) => {
     .readFileSync(indexPath, "utf8")
     .replace(
       "</head>",
-      `<script>window.__SHOPIFY_API_KEY__ = ${JSON.stringify(apiKey)};</script></head>`
+      `<script>window.__SHOPIFY_API_KEY__ = ${JSON.stringify(
+        apiKey
+      )};</script></head>`
     );
 
   res.send(html);
 });
 
-/* 🧪 DEBUG ENDPOINT */
+/* =========================================================
+   🧪 DEBUG ENDPOINT
+========================================================= */
 app.get("/__debug/conversions", async (req, res) => {
   const rows = await prisma.stickyConversion.findMany({
     orderBy: { occurredAt: "desc" },
@@ -117,6 +143,9 @@ app.get("/__debug/conversions", async (req, res) => {
   res.json(rows);
 });
 
+/* =========================================================
+   START SERVER
+========================================================= */
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`✅ App running on port ${PORT}`);
