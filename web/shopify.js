@@ -6,6 +6,7 @@ import {
 } from "@shopify/shopify-api";
 import { restResources } from "@shopify/shopify-api/rest/admin/2024-01";
 import { prismaSessionStorage } from "./shopifySessionStoragePrisma.js";
+import prisma from "./prisma.js";
 
 /* ENV HELPERS */
 function requiredEnv(name) {
@@ -36,9 +37,8 @@ export function initShopify(app) {
   });
 
   /**
-   * ✅ Register webhook
-   * ❌ DO NOT provide a callback here
-   * Express owns the route
+   * ✅ Register webhook definition
+   * Express handles the route itself.
    */
   shopify.webhooks.addHandlers({
     ORDERS_PAID: {
@@ -46,6 +46,32 @@ export function initShopify(app) {
       callbackUrl: "/webhooks/orders/paid"
     }
   });
+
+  /**
+   * 🔥 AUTO REGISTER WEBHOOKS USING SAVED OFFLINE SESSIONS
+   * This fixes the "no webhook logs" problem permanently.
+   */
+  (async () => {
+    try {
+      const sessions = await prisma.session.findMany();
+
+      if (!sessions.length) {
+        console.log("⚠️ No sessions found yet — skipping auto webhook registration");
+        return;
+      }
+
+      for (const session of sessions) {
+        try {
+          const result = await shopify.webhooks.register({ session });
+          console.log("🔥 AUTO WEBHOOK REGISTER RESULT:", result);
+        } catch (err) {
+          console.error("❌ Failed to register webhook for session", session.shop, err);
+        }
+      }
+    } catch (err) {
+      console.error("❌ Auto webhook registration failed:", err);
+    }
+  })();
 
   /* OAuth start */
   app.get("/auth", async (req, res) => {
@@ -76,7 +102,7 @@ export function initShopify(app) {
         throw new Error("Missing access token");
       }
 
-      // 🔥 THIS IS WHAT REGISTERS THE WEBHOOK
+      // 🔥 Register webhook on install/update
       const result = await shopify.webhooks.register({ session });
       console.log("✅ Webhook registration result:", result);
 
