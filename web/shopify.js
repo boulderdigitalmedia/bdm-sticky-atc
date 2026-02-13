@@ -37,9 +37,6 @@ export function initShopify(app) {
     restResources,
     sessionStorage: prismaSessionStorage(),
     // 🔥 IMPORTANT: remove custom cookie override to avoid OAuth cookie mismatch
-    future: {
-      v3_auth: true,
-    },
   });
 
   shopify.webhooks.addHandlers({

@@ -96,7 +96,9 @@ app.get("*", async (req, res) => {
 
       if (!session || !session.accessToken) {
         console.log("🔑 No offline session — sending to Shopify Admin app entry", sanitizedShop);
-        return res.redirect(`https://${sanitizedShop}/admin/apps/${apiKey}`);
+        return res.redirect(
+  `${appBaseUrl}/auth?shop=${encodeURIComponent(sanitizedShop)}`
+);
       }
     } catch (err) {
       console.error("❌ Session check failed, sending to Shopify Admin app entry:", err);
