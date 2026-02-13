@@ -64,10 +64,10 @@ app.get("*", async (req, res) => {
   const indexPath = path.join(__dirname, "frontend", "dist", "index.html");
 
   const apiKey = process.env.SHOPIFY_API_KEY || "";
-  const appBaseUrl = (process.env.SHOPIFY_APP_URL || "").replace(/\/+$/, "");
   const shop = (req.query.shop || "").toString();
   const host = (req.query.host || "").toString();
 
+  // Prevent direct Render URL access (no Shopify params)
   if (!shop && !host) {
     return res.status(200).send(`
       <html>
@@ -82,36 +82,34 @@ app.get("*", async (req, res) => {
 
   /**
    * 🔐 SESSION-BASED AUTH CHECK
-   * If offline session missing → redirect server-side to /auth
+   * If offline session missing → redirect to Shopify Admin app entrypoint.
+   * This forces auth to happen in the correct top-level context (prevents CookieNotFound).
    */
   if (shop) {
     try {
       const sanitizedShop = shopify.utils.sanitizeShop(shop);
+      if (!sanitizedShop) return res.status(400).send("Invalid shop");
+
       const offlineId = shopify.session.getOfflineId(sanitizedShop);
       const session =
         await shopify.config.sessionStorage.loadSession(offlineId);
 
       if (!session || !session.accessToken) {
-        console.log("🔑 No offline session — starting OAuth", sanitizedShop);
-        return res.redirect(
-          `${appBaseUrl}/auth?shop=${encodeURIComponent(sanitizedShop)}`
-        );
+        console.log("🔑 No offline session — sending to Shopify Admin app entry", sanitizedShop);
+        return res.redirect(`https://${sanitizedShop}/admin/apps/${apiKey}`);
       }
     } catch (err) {
-      console.error("❌ Session check failed, redirecting to OAuth:", err);
-      return res.redirect(
-        `${appBaseUrl}/auth?shop=${encodeURIComponent(shop)}`
-      );
+      console.error("❌ Session check failed, sending to Shopify Admin app entry:", err);
+      return res.redirect(`https://${shop}/admin/apps/${apiKey}`);
     }
   }
 
+  // Serve embedded frontend
   const html = fs
     .readFileSync(indexPath, "utf8")
     .replace(
       "</head>",
-      `<script>window.__SHOPIFY_API_KEY__ = ${JSON.stringify(
-        apiKey
-      )};</script></head>`
+      `<script>window.__SHOPIFY_API_KEY__ = ${JSON.stringify(apiKey)};</script></head>`
     );
 
   res.send(html);

@@ -36,13 +36,10 @@ export function initShopify(app) {
     isEmbeddedApp: true,
     restResources,
     sessionStorage: prismaSessionStorage(),
-    cookies: {
-      sameSite: "none",
-      secure: true,
-    },
+    // 🔥 IMPORTANT: remove custom cookie override to avoid OAuth cookie mismatch
     future: {
-  v3_auth: true
-},
+      v3_auth: true,
+    },
   });
 
   shopify.webhooks.addHandlers({
@@ -52,9 +49,7 @@ export function initShopify(app) {
     },
   });
 
-  /**
-   * AUTO REGISTER WEBHOOKS
-   */
+  // Auto register webhooks (best-effort)
   (async () => {
     try {
       const sessions = await prisma.session.findMany({
@@ -71,7 +66,6 @@ export function initShopify(app) {
 
   /**
    * 🔐 AUTH START
-   * NO iframe JS escape — SERVER REDIRECT ONLY
    */
   app.get("/auth", async (req, res) => {
     try {
@@ -107,6 +101,10 @@ export function initShopify(app) {
       const offlineSessionId = shopify.session.getOfflineId(session.shop);
       const offlineSession =
         await shopify.config.sessionStorage.loadSession(offlineSessionId);
+
+      if (!offlineSession?.accessToken) {
+        return res.status(500).send("Offline session missing");
+      }
 
       await shopify.webhooks.register({ session: offlineSession });
 
