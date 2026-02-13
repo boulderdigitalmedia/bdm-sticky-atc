@@ -83,7 +83,6 @@ app.use(
 
 /* =========================================================
    ⭐ EMBEDDED APP LOADER
-   (NO PRISMA SESSION CHECK — SHOPIFY HANDLES AUTH)
 ========================================================= */
 app.get("*", async (req, res) => {
   const indexPath = path.join(
@@ -98,13 +97,21 @@ app.get("*", async (req, res) => {
   const host = req.query.host;
 
   /**
-   * ✅ FORCE OAUTH SAFELY
-   * If shop param exists but embedded host missing,
-   * redirect to /auth.
+   * ✅ FIXED:
+   * Force OAuth OUTSIDE iframe (prevents missing OAuth cookie)
    */
   if (shop && !host) {
-    console.log("🔑 Forcing OAuth", shop);
-    return res.redirect(`/auth?shop=${shop}`);
+    console.log("🔑 Forcing OAuth (top-level)", shop);
+
+    return res.send(`
+      <script>
+        if (window.top === window.self) {
+          window.location.href = "/auth?shop=${shop}";
+        } else {
+          window.top.location.href = "/auth?shop=${shop}";
+        }
+      </script>
+    `);
   }
 
   // Prevent direct Render URL access
