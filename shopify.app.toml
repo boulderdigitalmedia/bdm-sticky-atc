@@ -1,6 +1,6 @@
 name = "BDM Sticky ATC Bar"
 client_id = "YOUR_API_KEY"
-application_url = "https://YOUR-RENDER-URL.onrender.com"
+application_url = "https://YOUR-RENDER-URL.onrender.com/auth"
 embedded = true
 
 [access_scopes]
