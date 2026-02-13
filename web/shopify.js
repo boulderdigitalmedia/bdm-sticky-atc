@@ -19,21 +19,32 @@ export function initShopify(app) {
   const apiKey = requiredEnv("SHOPIFY_API_KEY");
   const apiSecretKey = requiredEnv("SHOPIFY_API_SECRET");
   const appUrl = new URL(requiredEnv("SHOPIFY_APP_URL"));
+
   const scopes = requiredEnv("SCOPES")
     .split(",")
     .map(s => s.trim())
     .filter(Boolean);
 
+  /**
+   * ✅ SHOPIFY INIT
+   * IMPORTANT:
+   * - Force https (Render proxy fix)
+   * - SameSite=None cookies for embedded apps
+   */
   const shopify = shopifyApi({
     apiKey,
     apiSecretKey,
     scopes,
     hostName: appUrl.host,
-    hostScheme: appUrl.protocol.replace(":", ""),
+    hostScheme: "https", // 🔥 DO NOT derive from env on Render
     apiVersion: LATEST_API_VERSION,
     isEmbeddedApp: true,
     restResources,
-    sessionStorage: prismaSessionStorage()
+    sessionStorage: prismaSessionStorage(),
+    cookies: {
+      sameSite: "none",
+      secure: true
+    }
   });
 
   /**
@@ -48,7 +59,6 @@ export function initShopify(app) {
 
   /**
    * 🔥 AUTO REGISTER WEBHOOKS FROM SAVED OFFLINE SESSIONS
-   * This runs at server start.
    */
   (async () => {
     try {
@@ -74,24 +84,37 @@ export function initShopify(app) {
     }
   })();
 
-  /* OAuth start */
+  /**
+   * =====================================================
+   * 🔐 AUTH START
+   * =====================================================
+   */
   app.get("/auth", async (req, res) => {
-    const shop = req.query.shop;
-    if (!shop) return res.status(400).send("Missing shop");
+    try {
+      const shop = req.query.shop;
+      if (!shop) return res.status(400).send("Missing shop");
 
-    const sanitizedShop = shopify.utils.sanitizeShop(shop.toString());
-    if (!sanitizedShop) return res.status(400).send("Invalid shop");
+      const sanitizedShop = shopify.utils.sanitizeShop(shop.toString());
+      if (!sanitizedShop) return res.status(400).send("Invalid shop");
 
-    await shopify.auth.begin({
-      shop: sanitizedShop,
-      callbackPath: "/auth/callback",
-      isOnline: false,
-      rawRequest: req,
-      rawResponse: res
-    });
+      await shopify.auth.begin({
+        shop: sanitizedShop,
+        callbackPath: "/auth/callback",
+        isOnline: false,
+        rawRequest: req,
+        rawResponse: res
+      });
+    } catch (err) {
+      console.error("❌ OAuth begin failed:", err);
+      res.status(500).send("Auth start failed");
+    }
   });
 
-  /* OAuth callback */
+  /**
+   * =====================================================
+   * 🔐 AUTH CALLBACK
+   * =====================================================
+   */
   app.get("/auth/callback", async (req, res) => {
     try {
       const { session } = await shopify.auth.callback({
@@ -104,7 +127,7 @@ export function initShopify(app) {
       }
 
       /**
-       * ✅ LOAD OFFLINE SESSION FROM STORAGE
+       * ✅ LOAD OFFLINE SESSION
        */
       const offlineSessionId = shopify.session.getOfflineId(session.shop);
 
@@ -121,7 +144,7 @@ export function initShopify(app) {
       console.log("🔑 Offline session loaded:", offlineSession.shop);
 
       /**
-       * 🔥 REGISTER WEBHOOK USING OFFLINE SESSION
+       * 🔥 REGISTER WEBHOOK
        */
       const result = await shopify.webhooks.register({
         session: offlineSession
@@ -129,17 +152,20 @@ export function initShopify(app) {
 
       console.log("✅ Webhook registration result:", result);
 
+      /**
+       * =====================================================
+       * ✅ EMBEDDED REDIRECT (CORRECT WAY)
+       * =====================================================
+       */
+
       const host = req.query.host;
+      const redirectUrl = `/?shop=${offlineSession.shop}${
+        host ? `&host=${host}` : ""
+      }`;
 
-      if (!host) {
-        return res.redirect(
-          `https://${offlineSession.shop}/admin/apps/${apiKey}`
-        );
-      }
-
-      return res.redirect(`/?shop=${offlineSession.shop}&host=${host}`);
+      return res.redirect(redirectUrl);
     } catch (err) {
-      console.error("OAuth callback failed", err);
+      console.error("❌ OAuth callback failed", err);
       return res.status(500).send("Auth failed");
     }
   });
