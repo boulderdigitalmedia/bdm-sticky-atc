@@ -1,6 +1,6 @@
 name = "BDM Sticky ATC Bar"
 client_id = "YOUR_API_KEY"
-application_url = "https://YOUR-RENDER-URL.onrender.com/auth"
+application_url = "https://sticky-add-to-cart-bar-pro.onrender.com.onrender.com/auth"
 embedded = true
 
 [access_scopes]
@@ -8,7 +8,7 @@ scopes = "read_products,read_orders"
 
 [auth]
 redirect_urls = [
-  "https://YOUR-RENDER-URL.onrender.com/auth/callback"
+  "https://sticky-add-to-cart-bar-pro.onrender.com.onrender.com/auth/callback"
 ]
 
 [[webhooks.subscriptions]]
