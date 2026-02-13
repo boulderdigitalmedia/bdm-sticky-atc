@@ -56,13 +56,7 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use("/api/settings", settingsRouter);
 app.use("/api/track", trackRouter);
 
-/**
- * ✅ IMPORTANT
- * This is the correct route your JS uses:
- *   fetch("/apps/bdm-sticky-atc/track")
- */
 app.use("/apps/bdm-sticky-atc/track", trackRouter);
-
 app.use("/apps/bdm-sticky-atc", stickyAnalyticsRouter);
 app.use("/attribution", attributionRouter);
 
@@ -97,18 +91,19 @@ app.get("*", async (req, res) => {
   const host = req.query.host;
 
   /**
-   * ✅ FIXED:
-   * Force OAuth OUTSIDE iframe (prevents missing OAuth cookie)
+   * 🔥 FIXED INSTALL FLOW
+   * Shopify install sends shop + host.
+   * We trigger OAuth if embedded param missing.
    */
-  if (shop && !host) {
-    console.log("🔑 Forcing OAuth (top-level)", shop);
+  if (shop && !req.query.embedded) {
+    console.log("🔑 Starting OAuth (top-level)", shop);
 
     return res.send(`
       <script>
         if (window.top === window.self) {
-          window.location.href = "/auth?shop=${shop}";
+          window.location.href = "/auth?shop=${shop}&embedded=1";
         } else {
-          window.top.location.href = "/auth?shop=${shop}";
+          window.top.location.href = "/auth?shop=${shop}&embedded=1";
         }
       </script>
     `);
