@@ -63,7 +63,7 @@ app.use("/attribution", attributionRouter);
 /* =========================================================
    SHOPIFY INIT (AUTH + WEBHOOK REGISTRATION)
 ========================================================= */
-initShopify(app);
+const shopify = initShopify(app);
 
 /* =========================================================
    FRONTEND
@@ -79,43 +79,15 @@ app.use(
    ⭐ EMBEDDED APP LOADER
 ========================================================= */
 app.get("*", async (req, res) => {
-  const indexPath = path.join(
-    __dirname,
-    "frontend",
-    "dist",
-    "index.html"
-  );
+  const indexPath = path.join(__dirname, "frontend", "dist", "index.html");
 
   const apiKey = process.env.SHOPIFY_API_KEY || "";
-  const shop = req.query.shop;
-  const host = req.query.host;
+  const shop = (req.query.shop || "").toString();
+  const host = (req.query.host || "").toString();
 
   /**
-   * 🔥 FIXED INSTALL FLOW
-   * Shopify install sends shop + host.
-   * We trigger OAuth if embedded param missing.
+   * Prevent direct Render URL access (no Shopify params)
    */
-  /**
- * 🔐 INSTALL + AUTH TRIGGER
- * If Shopify loads app with ?shop= param,
- * always begin OAuth from top window.
- */
-if (shop && req.query.embedded !== "1") {
-  console.log("🔑 Starting OAuth (top-level)", shop);
-
-  return res.send(`
-    <script>
-      if (window.top === window.self) {
-        window.location.href = "/auth?shop=${shop}";
-      } else {
-        window.top.location.href = "/auth?shop=${shop}";
-      }
-    </script>
-  `);
-}
-
-
-  // Prevent direct Render URL access
   if (!shop && !host) {
     return res.status(200).send(`
       <html>
@@ -128,13 +100,62 @@ if (shop && req.query.embedded !== "1") {
     `);
   }
 
+  /**
+   * ✅ STABLE AUTH TRIGGER:
+   * If shop is present but we don't have an offline session yet,
+   * start OAuth (top-level escape so cookies work).
+   *
+   * This avoids all the fragile host/embedded guessing.
+   */
+  if (shop) {
+    try {
+      const sanitizedShop = shopify.utils.sanitizeShop(shop);
+      if (!sanitizedShop) {
+        return res.status(400).send("Invalid shop");
+      }
+
+      const offlineId = shopify.session.getOfflineId(sanitizedShop);
+      const session = await shopify.config.sessionStorage.loadSession(offlineId);
+
+      if (!session || !session.accessToken) {
+        console.log("🔑 No offline session — starting OAuth (top-level)", sanitizedShop);
+
+        return res.send(`
+          <script>
+            var url = "/auth?shop=${sanitizedShop}";
+            if (window.top === window.self) {
+              window.location.href = url;
+            } else {
+              window.top.location.href = url;
+            }
+          </script>
+        `);
+      }
+    } catch (err) {
+      console.error("❌ Session check failed, starting OAuth anyway:", err);
+
+      // Fail-safe: if we can't read session, try auth rather than white-screening.
+      return res.send(`
+        <script>
+          var url = "/auth?shop=${shop}";
+          if (window.top === window.self) {
+            window.location.href = url;
+          } else {
+            window.top.location.href = url;
+          }
+        </script>
+      `);
+    }
+  }
+
+  /**
+   * ✅ Serve embedded frontend
+   */
   const html = fs
     .readFileSync(indexPath, "utf8")
     .replace(
       "</head>",
-      `<script>window.__SHOPIFY_API_KEY__ = ${JSON.stringify(
-        apiKey
-      )};</script></head>`
+      `<script>window.__SHOPIFY_API_KEY__ = ${JSON.stringify(apiKey)};</script></head>`
     );
 
   res.send(html);
