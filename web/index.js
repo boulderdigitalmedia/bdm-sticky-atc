@@ -65,6 +65,43 @@ app.use("/attribution", attributionRouter);
 const shopify = initShopify(app);
 
 /* =========================================================
+   ⭐ AUTH CHECK ROUTE (OFFICIAL EMBEDDED FLOW)
+========================================================= */
+app.get("/api/auth-check", async (req, res) => {
+  try {
+    const shop = req.query.shop;
+    if (!shop) return res.status(200).send({ ok: true });
+
+    const sanitizedShop = shopify.utils.sanitizeShop(shop);
+    const offlineId = shopify.session.getOfflineId(sanitizedShop);
+
+    const session =
+      await shopify.config.sessionStorage.loadSession(offlineId);
+
+    if (!session || !session.accessToken) {
+      console.log("🔑 auth-check → triggering reauthorize", sanitizedShop);
+
+      res.setHeader(
+        "X-Shopify-API-Request-Failure-Reauthorize",
+        "1"
+      );
+
+      res.setHeader(
+        "X-Shopify-API-Request-Failure-Reauthorize-Url",
+        `/auth?shop=${encodeURIComponent(sanitizedShop)}`
+      );
+
+      return res.status(401).send("Reauthorize");
+    }
+
+    return res.status(200).send({ ok: true });
+  } catch (err) {
+    console.error("auth-check failed", err);
+    return res.status(200).send({ ok: true });
+  }
+});
+
+/* =========================================================
    STATIC
 ========================================================= */
 app.use("/web", express.static(path.join(__dirname, "public")));
@@ -75,7 +112,7 @@ app.use(
 );
 
 /* =========================================================
-   ⭐ EMBEDDED APP LOADER (SHOPIFY-SAFE AUTH)
+   ⭐ EMBEDDED APP LOADER (SERVES FRONTEND ONLY)
 ========================================================= */
 app.get("*", async (req, res) => {
   const indexPath = path.join(__dirname, "frontend", "dist", "index.html");
@@ -97,57 +134,6 @@ app.get("*", async (req, res) => {
     `);
   }
 
-  /**
-   * 🔐 SESSION CHECK
-   * If no offline session → trigger Shopify reauthorize flow
-   */
-  if (shop) {
-    try {
-      const sanitizedShop = shopify.utils.sanitizeShop(shop);
-      if (!sanitizedShop) {
-        return res.status(400).send("Invalid shop");
-      }
-
-      const offlineId = shopify.session.getOfflineId(sanitizedShop);
-      const session =
-        await shopify.config.sessionStorage.loadSession(offlineId);
-
-      if (!session || !session.accessToken) {
-        console.log("🔑 No offline session — triggering reauthorize", sanitizedShop);
-
-        // ⭐ OFFICIAL SHOPIFY REAUTHORIZE FLOW
-        res.setHeader(
-          "X-Shopify-API-Request-Failure-Reauthorize",
-          "1"
-        );
-
-        res.setHeader(
-          "X-Shopify-API-Request-Failure-Reauthorize-Url",
-          `/auth?shop=${encodeURIComponent(sanitizedShop)}`
-        );
-
-        return res.status(401).send("Reauthorization required");
-      }
-    } catch (err) {
-      console.error("❌ Session check failed, triggering reauthorize:", err);
-
-      res.setHeader(
-        "X-Shopify-API-Request-Failure-Reauthorize",
-        "1"
-      );
-
-      res.setHeader(
-        "X-Shopify-API-Request-Failure-Reauthorize-Url",
-        `/auth?shop=${encodeURIComponent(shop)}`
-      );
-
-      return res.status(401).send("Reauthorization required");
-    }
-  }
-
-  /* =========================================================
-     SERVE FRONTEND
-  ========================================================= */
   const html = fs
     .readFileSync(indexPath, "utf8")
     .replace(
