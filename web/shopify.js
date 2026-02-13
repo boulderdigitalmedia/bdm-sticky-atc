@@ -40,6 +40,9 @@ export function initShopify(app) {
       sameSite: "none",
       secure: true,
     },
+    future: {
+  v3_auth: true
+},
   });
 
   shopify.webhooks.addHandlers({
