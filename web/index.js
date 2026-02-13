@@ -100,7 +100,7 @@ app.get("*", async (req, res) => {
  * If Shopify loads app with ?shop= param,
  * always begin OAuth from top window.
  */
-if (shop) {
+if (shop && req.query.embedded !== "1") {
   console.log("🔑 Starting OAuth (top-level)", shop);
 
   return res.send(`
