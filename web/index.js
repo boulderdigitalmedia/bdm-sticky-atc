@@ -75,7 +75,7 @@ app.use(
 );
 
 /* =========================================================
-   ⭐ EMBEDDED APP LOADER (FINAL STABLE VERSION)
+   ⭐ EMBEDDED APP LOADER (SHOPIFY-SAFE AUTH)
 ========================================================= */
 app.get("*", async (req, res) => {
   const indexPath = path.join(__dirname, "frontend", "dist", "index.html");
@@ -99,7 +99,7 @@ app.get("*", async (req, res) => {
 
   /**
    * 🔐 SESSION CHECK
-   * If no offline session → start OAuth
+   * If no offline session → trigger Shopify reauthorize flow
    */
   if (shop) {
     try {
@@ -113,15 +113,35 @@ app.get("*", async (req, res) => {
         await shopify.config.sessionStorage.loadSession(offlineId);
 
       if (!session || !session.accessToken) {
-        console.log("🔑 No offline session — starting OAuth", sanitizedShop);
+        console.log("🔑 No offline session — triggering reauthorize", sanitizedShop);
 
-        // ✅ CORRECT REDIRECT — ALWAYS TO /auth
-        return res.redirect(`/auth?shop=${encodeURIComponent(sanitizedShop)}`);
+        // ⭐ OFFICIAL SHOPIFY REAUTHORIZE FLOW
+        res.setHeader(
+          "X-Shopify-API-Request-Failure-Reauthorize",
+          "1"
+        );
+
+        res.setHeader(
+          "X-Shopify-API-Request-Failure-Reauthorize-Url",
+          `/auth?shop=${encodeURIComponent(sanitizedShop)}`
+        );
+
+        return res.status(401).send("Reauthorization required");
       }
     } catch (err) {
-      console.error("❌ Session check failed, redirecting to OAuth:", err);
+      console.error("❌ Session check failed, triggering reauthorize:", err);
 
-      return res.redirect(`/auth?shop=${encodeURIComponent(shop)}`);
+      res.setHeader(
+        "X-Shopify-API-Request-Failure-Reauthorize",
+        "1"
+      );
+
+      res.setHeader(
+        "X-Shopify-API-Request-Failure-Reauthorize-Url",
+        `/auth?shop=${encodeURIComponent(shop)}`
+      );
+
+      return res.status(401).send("Reauthorization required");
     }
   }
 
