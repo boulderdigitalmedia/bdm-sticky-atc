@@ -19,6 +19,9 @@ const __dirname = path.dirname(__filename);
 const app = express();
 app.set("trust proxy", true);
 
+/* =========================================================
+   CORS
+========================================================= */
 app.use(
   cors({
     origin: true,
@@ -29,6 +32,9 @@ app.use(
 );
 app.options("*", cors());
 
+/* =========================================================
+   WEBHOOK — RAW BODY
+========================================================= */
 app.post(
   "/webhooks/orders/paid",
   express.raw({ type: "*/*" }),
@@ -38,17 +44,29 @@ app.post(
   }
 );
 
+/* =========================================================
+   BODY PARSING
+========================================================= */
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
+/* =========================================================
+   ROUTES
+========================================================= */
 app.use("/api/settings", settingsRouter);
 app.use("/api/track", trackRouter);
 app.use("/apps/bdm-sticky-atc/track", trackRouter);
 app.use("/apps/bdm-sticky-atc", stickyAnalyticsRouter);
 app.use("/attribution", attributionRouter);
 
+/* =========================================================
+   SHOPIFY INIT
+========================================================= */
 const shopify = initShopify(app);
 
+/* =========================================================
+   STATIC
+========================================================= */
 app.use("/web", express.static(path.join(__dirname, "public")));
 app.use(
   express.static(path.join(__dirname, "frontend", "dist"), {
@@ -56,10 +74,9 @@ app.use(
   })
 );
 
-/**
- * ⭐ EMBEDDED APP LOADER
- * SERVER REDIRECT ONLY — NO IFRAME JS
- */
+/* =========================================================
+   ⭐ EMBEDDED APP LOADER (FINAL STABLE VERSION)
+========================================================= */
 app.get("*", async (req, res) => {
   const indexPath = path.join(__dirname, "frontend", "dist", "index.html");
 
@@ -67,7 +84,7 @@ app.get("*", async (req, res) => {
   const shop = (req.query.shop || "").toString();
   const host = (req.query.host || "").toString();
 
-  // Prevent direct Render URL access (no Shopify params)
+  // Prevent direct Render URL access
   if (!shop && !host) {
     return res.status(200).send(`
       <html>
@@ -81,42 +98,51 @@ app.get("*", async (req, res) => {
   }
 
   /**
-   * 🔐 SESSION-BASED AUTH CHECK
-   * If offline session missing → redirect to Shopify Admin app entrypoint.
-   * This forces auth to happen in the correct top-level context (prevents CookieNotFound).
+   * 🔐 SESSION CHECK
+   * If no offline session → start OAuth
    */
   if (shop) {
     try {
       const sanitizedShop = shopify.utils.sanitizeShop(shop);
-      if (!sanitizedShop) return res.status(400).send("Invalid shop");
+      if (!sanitizedShop) {
+        return res.status(400).send("Invalid shop");
+      }
 
       const offlineId = shopify.session.getOfflineId(sanitizedShop);
       const session =
         await shopify.config.sessionStorage.loadSession(offlineId);
 
       if (!session || !session.accessToken) {
-        console.log("🔑 No offline session — sending to Shopify Admin app entry", sanitizedShop);
-        return res.redirect(
-  `${appBaseUrl}/auth?shop=${encodeURIComponent(sanitizedShop)}`
-);
+        console.log("🔑 No offline session — starting OAuth", sanitizedShop);
+
+        // ✅ CORRECT REDIRECT — ALWAYS TO /auth
+        return res.redirect(`/auth?shop=${encodeURIComponent(sanitizedShop)}`);
       }
     } catch (err) {
-      console.error("❌ Session check failed, sending to Shopify Admin app entry:", err);
-      return res.redirect(`https://${shop}/admin/apps/${apiKey}`);
+      console.error("❌ Session check failed, redirecting to OAuth:", err);
+
+      return res.redirect(`/auth?shop=${encodeURIComponent(shop)}`);
     }
   }
 
-  // Serve embedded frontend
+  /* =========================================================
+     SERVE FRONTEND
+  ========================================================= */
   const html = fs
     .readFileSync(indexPath, "utf8")
     .replace(
       "</head>",
-      `<script>window.__SHOPIFY_API_KEY__ = ${JSON.stringify(apiKey)};</script></head>`
+      `<script>window.__SHOPIFY_API_KEY__ = ${JSON.stringify(
+        apiKey
+      )};</script></head>`
     );
 
   res.send(html);
 });
 
+/* =========================================================
+   DEBUG
+========================================================= */
 app.get("/__debug/conversions", async (req, res) => {
   const rows = await prisma.stickyConversion.findMany({
     orderBy: { occurredAt: "desc" },
@@ -125,6 +151,9 @@ app.get("/__debug/conversions", async (req, res) => {
   res.json(rows);
 });
 
+/* =========================================================
+   START SERVER
+========================================================= */
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`✅ App running on port ${PORT}`);
