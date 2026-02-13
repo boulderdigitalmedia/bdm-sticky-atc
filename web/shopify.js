@@ -26,17 +26,16 @@ export function initShopify(app) {
     .filter(Boolean);
 
   /**
-   * ✅ SHOPIFY INIT
-   * IMPORTANT:
-   * - Force https (Render proxy fix)
-   * - SameSite=None cookies for embedded apps
+   * =====================================================
+   * SHOPIFY INIT
+   * =====================================================
    */
   const shopify = shopifyApi({
     apiKey,
     apiSecretKey,
     scopes,
     hostName: appUrl.host,
-    hostScheme: "https", // 🔥 DO NOT derive from env on Render
+    hostScheme: "https", // 🔥 Render proxy fix
     apiVersion: LATEST_API_VERSION,
     isEmbeddedApp: true,
     restResources,
@@ -48,7 +47,9 @@ export function initShopify(app) {
   });
 
   /**
-   * ✅ Declare webhook
+   * =====================================================
+   * WEBHOOK DECLARATION
+   * =====================================================
    */
   shopify.webhooks.addHandlers({
     ORDERS_PAID: {
@@ -58,7 +59,9 @@ export function initShopify(app) {
   });
 
   /**
-   * 🔥 AUTO REGISTER WEBHOOKS FROM SAVED OFFLINE SESSIONS
+   * =====================================================
+   * AUTO REGISTER WEBHOOKS FROM OFFLINE SESSIONS
+   * =====================================================
    */
   (async () => {
     try {
@@ -86,13 +89,35 @@ export function initShopify(app) {
 
   /**
    * =====================================================
-   * 🔐 AUTH START
+   * 🔐 AUTH START (FIXED FOR EMBEDDED APPS)
    * =====================================================
    */
   app.get("/auth", async (req, res) => {
     try {
       const shop = req.query.shop;
+      const host = req.query.host;
+
       if (!shop) return res.status(400).send("Missing shop");
+
+      /**
+       * 🔥 CRITICAL FIX
+       * Escape iframe BEFORE OAuth so cookies work
+       */
+      if (!req.query.embedded) {
+        const redirectUrl = `/auth?shop=${shop}${
+          host ? `&host=${host}` : ""
+        }&embedded=1`;
+
+        return res.send(`
+          <script>
+            if (window.top === window.self) {
+              window.location.href = "${redirectUrl}";
+            } else {
+              window.top.location.href = "${redirectUrl}";
+            }
+          </script>
+        `);
+      }
 
       const sanitizedShop = shopify.utils.sanitizeShop(shop.toString());
       if (!sanitizedShop) return res.status(400).send("Invalid shop");
@@ -127,7 +152,7 @@ export function initShopify(app) {
       }
 
       /**
-       * ✅ LOAD OFFLINE SESSION
+       * LOAD OFFLINE SESSION
        */
       const offlineSessionId = shopify.session.getOfflineId(session.shop);
 
@@ -144,7 +169,7 @@ export function initShopify(app) {
       console.log("🔑 Offline session loaded:", offlineSession.shop);
 
       /**
-       * 🔥 REGISTER WEBHOOK
+       * REGISTER WEBHOOK
        */
       const result = await shopify.webhooks.register({
         session: offlineSession
@@ -154,11 +179,11 @@ export function initShopify(app) {
 
       /**
        * =====================================================
-       * ✅ EMBEDDED REDIRECT (CORRECT WAY)
+       * EMBEDDED REDIRECT BACK INTO ADMIN
        * =====================================================
        */
-
       const host = req.query.host;
+
       const redirectUrl = `/?shop=${offlineSession.shop}${
         host ? `&host=${host}` : ""
       }`;
