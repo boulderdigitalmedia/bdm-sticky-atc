@@ -95,19 +95,25 @@ app.get("*", async (req, res) => {
    * Shopify install sends shop + host.
    * We trigger OAuth if embedded param missing.
    */
-  if (shop && !req.query.embedded) {
-    console.log("🔑 Starting OAuth (top-level)", shop);
+  /**
+ * 🔐 INSTALL + AUTH TRIGGER
+ * If Shopify loads app with ?shop= param,
+ * always begin OAuth from top window.
+ */
+if (shop) {
+  console.log("🔑 Starting OAuth (top-level)", shop);
 
-    return res.send(`
-      <script>
-        if (window.top === window.self) {
-          window.location.href = "/auth?shop=${shop}&embedded=1";
-        } else {
-          window.top.location.href = "/auth?shop=${shop}&embedded=1";
-        }
-      </script>
-    `);
-  }
+  return res.send(`
+    <script>
+      if (window.top === window.self) {
+        window.location.href = "/auth?shop=${shop}";
+      } else {
+        window.top.location.href = "/auth?shop=${shop}";
+      }
+    </script>
+  `);
+}
+
 
   // Prevent direct Render URL access
   if (!shop && !host) {
