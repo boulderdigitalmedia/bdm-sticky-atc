@@ -60,46 +60,9 @@ app.use("/apps/bdm-sticky-atc", stickyAnalyticsRouter);
 app.use("/attribution", attributionRouter);
 
 /* =========================================================
-   SHOPIFY INIT
+   SHOPIFY INIT (THIS HANDLES OAUTH)
 ========================================================= */
-const shopify = initShopify(app);
-
-/* =========================================================
-   ⭐ AUTH CHECK ROUTE (OFFICIAL EMBEDDED FLOW)
-========================================================= */
-app.get("/api/auth-check", async (req, res) => {
-  try {
-    const shop = req.query.shop;
-    if (!shop) return res.status(200).send({ ok: true });
-
-    const sanitizedShop = shopify.utils.sanitizeShop(shop);
-    const offlineId = shopify.session.getOfflineId(sanitizedShop);
-
-    const session =
-      await shopify.config.sessionStorage.loadSession(offlineId);
-
-    if (!session || !session.accessToken) {
-      console.log("🔑 auth-check → triggering reauthorize", sanitizedShop);
-
-      res.setHeader(
-        "X-Shopify-API-Request-Failure-Reauthorize",
-        "1"
-      );
-
-      res.setHeader(
-        "X-Shopify-API-Request-Failure-Reauthorize-Url",
-        `/auth?shop=${encodeURIComponent(sanitizedShop)}`
-      );
-
-      return res.status(401).send("Reauthorize");
-    }
-
-    return res.status(200).send({ ok: true });
-  } catch (err) {
-    console.error("auth-check failed", err);
-    return res.status(200).send({ ok: true });
-  }
-});
+initShopify(app);
 
 /* =========================================================
    STATIC
@@ -112,16 +75,16 @@ app.use(
 );
 
 /* =========================================================
-   ⭐ EMBEDDED APP LOADER (SERVES FRONTEND ONLY)
+   ⭐ EMBEDDED APP LOADER — NO AUTH LOGIC
 ========================================================= */
 app.get("*", async (req, res) => {
   const indexPath = path.join(__dirname, "frontend", "dist", "index.html");
 
   const apiKey = process.env.SHOPIFY_API_KEY || "";
-  const shop = (req.query.shop || "").toString();
-  const host = (req.query.host || "").toString();
+  const shop = req.query.shop;
+  const host = req.query.host;
 
-  // Prevent direct Render URL access
+  // Prevent direct access
   if (!shop && !host) {
     return res.status(200).send(`
       <html>
