@@ -2,7 +2,7 @@ import "@shopify/shopify-api/adapters/node";
 import {
   shopifyApi,
   LATEST_API_VERSION,
-  DeliveryMethod
+  DeliveryMethod,
 } from "@shopify/shopify-api";
 import { restResources } from "@shopify/shopify-api/rest/admin/2024-01";
 import { prismaSessionStorage } from "./shopifySessionStoragePrisma.js";
@@ -18,11 +18,12 @@ function requiredEnv(name) {
 export function initShopify(app) {
   const apiKey = requiredEnv("SHOPIFY_API_KEY");
   const apiSecretKey = requiredEnv("SHOPIFY_API_SECRET");
-  const appUrl = new URL(requiredEnv("SHOPIFY_APP_URL"));
+  const appBaseUrl = requiredEnv("SHOPIFY_APP_URL").replace(/\/+$/, ""); // no trailing slash
+  const appUrl = new URL(appBaseUrl);
 
   const scopes = requiredEnv("SCOPES")
     .split(",")
-    .map(s => s.trim())
+    .map((s) => s.trim())
     .filter(Boolean);
 
   /**
@@ -35,15 +36,15 @@ export function initShopify(app) {
     apiSecretKey,
     scopes,
     hostName: appUrl.host,
-    hostScheme: "https", // 🔥 Render proxy fix
+    hostScheme: "https", // Render proxy-safe
     apiVersion: LATEST_API_VERSION,
     isEmbeddedApp: true,
     restResources,
     sessionStorage: prismaSessionStorage(),
     cookies: {
       sameSite: "none",
-      secure: true
-    }
+      secure: true,
+    },
   });
 
   /**
@@ -54,8 +55,8 @@ export function initShopify(app) {
   shopify.webhooks.addHandlers({
     ORDERS_PAID: {
       deliveryMethod: DeliveryMethod.Http,
-      callbackUrl: "/webhooks/orders/paid"
-    }
+      callbackUrl: "/webhooks/orders/paid",
+    },
   });
 
   /**
@@ -66,11 +67,13 @@ export function initShopify(app) {
   (async () => {
     try {
       const sessions = await prisma.session.findMany({
-        where: { isOnline: false }
+        where: { isOnline: false },
       });
 
       if (!sessions.length) {
-        console.log("⚠️ No offline sessions found — skipping auto webhook registration");
+        console.log(
+          "⚠️ No offline sessions found — skipping auto webhook registration"
+        );
         return;
       }
 
@@ -89,7 +92,7 @@ export function initShopify(app) {
 
   /**
    * =====================================================
-   * 🔐 AUTH START (FIXED FOR EMBEDDED APPS)
+   * 🔐 AUTH START
    * =====================================================
    */
   app.get("/auth", async (req, res) => {
@@ -99,14 +102,19 @@ export function initShopify(app) {
 
       if (!shop) return res.status(400).send("Missing shop");
 
+      // Normalize embedded flag: we set embedded=1 ourselves
+      const embedded = req.query.embedded === "1";
+
       /**
-       * 🔥 CRITICAL FIX
-       * Escape iframe BEFORE OAuth so cookies work
+       * 🔥 CRITICAL
+       * Escape iframe BEFORE OAuth so cookies survive.
+       * Use ABSOLUTE URL so Shopify/App Bridge can't swallow relative redirects.
        */
-      if (!req.query.embedded) {
-        const redirectUrl = `/auth?shop=${shop}${
-          host ? `&host=${host}` : ""
-        }&embedded=1`;
+      if (!embedded) {
+        const redirectUrl =
+          `${appBaseUrl}/auth?shop=${encodeURIComponent(shop)}` +
+          (host ? `&host=${encodeURIComponent(host)}` : "") +
+          `&embedded=1`;
 
         return res.send(`
           <script>
@@ -127,7 +135,7 @@ export function initShopify(app) {
         callbackPath: "/auth/callback",
         isOnline: false,
         rawRequest: req,
-        rawResponse: res
+        rawResponse: res,
       });
     } catch (err) {
       console.error("❌ OAuth begin failed:", err);
@@ -144,7 +152,7 @@ export function initShopify(app) {
     try {
       const { session } = await shopify.auth.callback({
         rawRequest: req,
-        rawResponse: res
+        rawResponse: res,
       });
 
       if (!session?.accessToken) {
@@ -155,11 +163,9 @@ export function initShopify(app) {
        * LOAD OFFLINE SESSION
        */
       const offlineSessionId = shopify.session.getOfflineId(session.shop);
-
-      const offlineSession =
-        await shopify.config.sessionStorage.loadSession(
-          offlineSessionId
-        );
+      const offlineSession = await shopify.config.sessionStorage.loadSession(
+        offlineSessionId
+      );
 
       if (!offlineSession?.accessToken) {
         console.error("❌ Offline session missing");
@@ -172,21 +178,19 @@ export function initShopify(app) {
        * REGISTER WEBHOOK
        */
       const result = await shopify.webhooks.register({
-        session: offlineSession
+        session: offlineSession,
       });
 
       console.log("✅ Webhook registration result:", result);
 
       /**
-       * =====================================================
-       * EMBEDDED REDIRECT BACK INTO ADMIN
-       * =====================================================
+       * ✅ Redirect back to your embedded app entrypoint
+       * Preserve host if present so App Bridge can mount correctly.
        */
       const host = req.query.host;
-
-      const redirectUrl = `/?shop=${offlineSession.shop}${
-        host ? `&host=${host}` : ""
-      }`;
+      const redirectUrl =
+        `${appBaseUrl}/?shop=${encodeURIComponent(offlineSession.shop)}` +
+        (host ? `&host=${encodeURIComponent(host)}` : "");
 
       return res.redirect(redirectUrl);
     } catch (err) {
