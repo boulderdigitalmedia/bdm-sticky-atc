@@ -65,29 +65,52 @@ export function initShopify(app) {
     } catch {}
   })();
 
-  /* =====================================================
-     🔐 AUTH START
-  ===================================================== */
   app.get("/auth", async (req, res) => {
-    try {
-      const shop = req.query.shop;
-      if (!shop) return res.status(400).send("Missing shop");
+  try {
+    const shop = req.query.shop;
+    if (!shop) return res.status(400).send("Missing shop");
 
-      const sanitizedShop = shopify.utils.sanitizeShop(shop.toString());
-      if (!sanitizedShop) return res.status(400).send("Invalid shop");
+    const sanitizedShop = shopify.utils.sanitizeShop(shop.toString());
+    if (!sanitizedShop) return res.status(400).send("Invalid shop");
 
-      await shopify.auth.begin({
-        shop: sanitizedShop,
-        callbackPath: "/auth/callback",
-        isOnline: false,
-        rawRequest: req,
-        rawResponse: res,
-      });
-    } catch (err) {
-      console.error("❌ OAuth begin failed:", err);
-      res.status(500).send("Auth start failed");
+    /**
+     * ⭐ CRITICAL EMBEDDED APP FIX
+     * Escape iframe BEFORE starting OAuth
+     */
+    if (!req.query.embedded) {
+      const redirectUrl = `/auth?shop=${encodeURIComponent(
+        sanitizedShop
+      )}&embedded=1`;
+
+      return res.send(`
+        <html>
+          <body>
+            <script>
+              if (window.top === window.self) {
+                window.location.href = "${redirectUrl}";
+              } else {
+                window.top.location.href = "${redirectUrl}";
+              }
+            </script>
+          </body>
+        </html>
+      `);
     }
-  });
+
+    // ⭐ NOW SAFE TO START OAUTH
+    await shopify.auth.begin({
+      shop: sanitizedShop,
+      callbackPath: "/auth/callback",
+      isOnline: false,
+      rawRequest: req,
+      rawResponse: res,
+    });
+  } catch (err) {
+    console.error("❌ OAuth begin failed:", err);
+    res.status(500).send("Auth start failed");
+  }
+});
+
 
   /* =====================================================
      🔐 AUTH CALLBACK — EMBEDDED SAFE
