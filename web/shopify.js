@@ -51,21 +51,6 @@ export function initShopify(app) {
     },
   });
 
-  (async () => {
-    try {
-      const sessions = await prisma.session.findMany({
-        where: { isOnline: false },
-        take: 200,
-      });
-
-      for (const s of sessions) {
-        try {
-          await shopify.webhooks.register({ session: s });
-        } catch {}
-      }
-    } catch {}
-  })();
-
   app.get("/auth", async (req, res) => {
     try {
       const shopParam = req.query.shop;
