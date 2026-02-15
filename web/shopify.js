@@ -65,7 +65,7 @@ export function initShopify(app) {
     } catch {}
   })();
 
-  aapp.get("/auth", async (req, res) => {
+  app.get("/auth", async (req, res) => {
   try {
     const shop = req.query.shop;
     if (!shop) return res.status(400).send("Missing shop");
