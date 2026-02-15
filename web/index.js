@@ -1,12 +1,12 @@
 import express from "express";
 import cors from "cors";
 import fs from "fs";
-import bodyParser from "body-parser";
 import path from "path";
 import { fileURLToPath } from "url";
 
 import prisma from "./prisma.js";
-import { initShopify } from "./shopify.js";
+import { initShopify, shopify } from "./shopify.js";
+
 import settingsRouter from "./routes/settings.js";
 import trackRouter from "./routes/track.js";
 import stickyAnalyticsRouter from "./routes/stickyAnalytics.js";
@@ -33,7 +33,7 @@ app.use(
 app.options("*", cors());
 
 /* =========================================================
-   WEBHOOK — RAW BODY
+   WEBHOOK — RAW BODY (MUST COME BEFORE JSON PARSER)
 ========================================================= */
 app.post(
   "/webhooks/orders/paid",
@@ -47,8 +47,8 @@ app.post(
 /* =========================================================
    BODY PARSING
 ========================================================= */
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 /* =========================================================
    ROUTES
@@ -60,12 +60,12 @@ app.use("/apps/bdm-sticky-atc", stickyAnalyticsRouter);
 app.use("/attribution", attributionRouter);
 
 /* =========================================================
-   SHOPIFY INIT
+   SHOPIFY INIT (OAuth + Session Middleware)
 ========================================================= */
 initShopify(app);
 
 /* =========================================================
-   STATIC
+   STATIC FILES
 ========================================================= */
 app.use("/web", express.static(path.join(__dirname, "public")));
 app.use(
@@ -75,7 +75,7 @@ app.use(
 );
 
 /* =========================================================
-   DEBUG
+   DEBUG ROUTE
 ========================================================= */
 app.get("/__debug/conversions", async (req, res) => {
   const rows = await prisma.stickyConversion.findMany({
@@ -86,33 +86,31 @@ app.get("/__debug/conversions", async (req, res) => {
 });
 
 /* =========================================================
-   ⭐ EMBEDDED APP LOADER (WORKING VERSION — OAUTH TRIGGER)
+   ⭐ MODERN EMBEDDED APP LOADER
+   (Official Shopify Pattern — No Manual OAuth Redirects)
 ========================================================= */
-app.get(/.*/, async (req, res) => {
+app.get("/*", async (req, res, next) => {
   const p = req.path || "";
 
-  // Never let SPA intercept server routes
+  // Never let SPA intercept backend routes
   if (
     p.startsWith("/auth") ||
     p.startsWith("/webhooks") ||
     p.startsWith("/api") ||
     p.startsWith("/__debug")
   ) {
-    return res.status(404).send("Not found");
+    return next();
   }
 
-  const indexPath = path.join(__dirname, "frontend", "dist", "index.html");
-
-  const apiKey = process.env.SHOPIFY_API_KEY || "";
   const shop = req.query.shop;
   const host = req.query.host;
 
   // Prevent direct Render URL access
-  if (!shop && !host) {
+  if (!shop || !host) {
     return res.status(200).send(`
       <html>
         <head><title>Sticky Add To Cart Bar</title></head>
-        <body style="font-family: sans-serif; padding: 24px;">
+        <body style="font-family:sans-serif;padding:24px;">
           <h2>Sticky Add To Cart Bar</h2>
           <p>This app must be opened from inside Shopify Admin.</p>
         </body>
@@ -121,46 +119,29 @@ app.get(/.*/, async (req, res) => {
   }
 
   /**
-   * 🔑 WORKING OAUTH TRIGGER
-   * If Shopify loads the app and shop exists,
-   * escape iframe and start OAuth.
+   * ✅ Shopify handles OAuth automatically here
    */
-  import { shopify } from "./shopify.js"; // <-- IMPORTANT
+  return shopify.auth.ensureInstalledOnShop()(req, res, async () => {
+    const indexPath = path.join(
+      __dirname,
+      "frontend",
+      "dist",
+      "index.html"
+    );
 
-...
+    const apiKey = process.env.SHOPIFY_API_KEY || "";
 
-if (shop) {
-  const sessionId = shopify.session.getOfflineId(shop);
-  const session = await shopify.config.sessionStorage.loadSession(sessionId);
+    const html = fs
+      .readFileSync(indexPath, "utf8")
+      .replace(
+        "</head>",
+        `<script>window.__SHOPIFY_API_KEY__ = ${JSON.stringify(
+          apiKey
+        )};</script></head>`
+      );
 
-  if (!session) {
-    console.log("🔑 No session — starting OAuth", shop);
-
-    return res.send(`
-      <html>
-        <body>
-          <script>
-            if (window.top === window.self) {
-              window.location.href="/auth?shop=${shop}";
-            } else {
-              window.top.location.href="/auth?shop=${shop}";
-            }
-          </script>
-        </body>
-      </html>
-    `);
-  }
-}
-
-  const html = fs
-    .readFileSync(indexPath, "utf8")
-    .replace(
-  "</head>",
-  `<script>window.__SHOPIFY_API_KEY__ = ${JSON.stringify(
-    apiKey
-  )};</script></head>`
-);
-  res.send(html);
+    res.send(html);
+  });
 });
 
 /* =========================================================

@@ -8,13 +8,23 @@ import { restResources } from "@shopify/shopify-api/rest/admin/2024-01";
 import { prismaSessionStorage } from "./shopifySessionStoragePrisma.js";
 import prisma from "./prisma.js";
 
-/* ENV HELPERS */
+/* =====================================================
+   ENV HELPERS
+===================================================== */
 function requiredEnv(name) {
   const v = process.env[name];
   if (!v) throw new Error(`Missing required env var: ${name}`);
   return v;
 }
 
+/* =====================================================
+   ⭐ EXPORT SHOPIFY INSTANCE (IMPORTANT)
+===================================================== */
+export let shopify;
+
+/* =====================================================
+   INIT SHOPIFY
+===================================================== */
 export function initShopify(app) {
   const apiKey = requiredEnv("SHOPIFY_API_KEY");
   const apiSecretKey = requiredEnv("SHOPIFY_API_SECRET");
@@ -26,7 +36,7 @@ export function initShopify(app) {
     .map((s) => s.trim())
     .filter(Boolean);
 
-  const shopify = shopifyApi({
+  shopify = shopifyApi({
     apiKey,
     apiSecretKey,
     scopes,
@@ -49,7 +59,7 @@ export function initShopify(app) {
   });
 
   /* =====================================================
-     AUTO REGISTER WEBHOOKS
+     AUTO REGISTER WEBHOOKS FOR EXISTING SHOPS
   ===================================================== */
   (async () => {
     try {
@@ -65,55 +75,31 @@ export function initShopify(app) {
     } catch {}
   })();
 
-  app.get("/auth", async (req, res) => {
-  try {
-    const shop = req.query.shop;
-    if (!shop) return res.status(400).send("Missing shop");
-
-    const sanitizedShop = shopify.utils.sanitizeShop(shop.toString());
-    if (!sanitizedShop) return res.status(400).send("Invalid shop");
-
-    /**
-     * ⭐ CRITICAL EMBEDDED APP FIX
-     * Escape iframe BEFORE starting OAuth
-     */
-    if (!req.query.embedded) {
-      const redirectUrl = `/auth?shop=${encodeURIComponent(
-        sanitizedShop
-      )}&embedded=1`;
-
-      return res.send(`
-        <html>
-          <body>
-            <script>
-              if (window.top === window.self) {
-                window.location.href = "${redirectUrl}";
-              } else {
-                window.top.location.href = "${redirectUrl}";
-              }
-            </script>
-          </body>
-        </html>
-      `);
-    }
-
-    // ⭐ NOW SAFE TO START OAUTH
-    await shopify.auth.begin({
-      shop: sanitizedShop,
-      callbackPath: "/auth/callback",
-      isOnline: false,
-      rawRequest: req,
-      rawResponse: res,
-    });
-  } catch (err) {
-    console.error("❌ OAuth begin failed:", err);
-    res.status(500).send("Auth start failed");
-  }
-});
-
   /* =====================================================
-     🔐 AUTH CALLBACK — EMBEDDED SAFE
+     🔐 AUTH ROUTES (MODERN EMBEDDED SAFE)
   ===================================================== */
+
+  app.get("/auth", async (req, res) => {
+    try {
+      const shop = req.query.shop;
+      if (!shop) return res.status(400).send("Missing shop");
+
+      const sanitizedShop = shopify.utils.sanitizeShop(shop.toString());
+      if (!sanitizedShop) return res.status(400).send("Invalid shop");
+
+      await shopify.auth.begin({
+        shop: sanitizedShop,
+        callbackPath: "/auth/callback",
+        isOnline: false,
+        rawRequest: req,
+        rawResponse: res,
+      });
+    } catch (err) {
+      console.error("❌ OAuth begin failed:", err);
+      res.status(500).send("Auth start failed");
+    }
+  });
+
   app.get("/auth/callback", async (req, res) => {
     try {
       const { session } = await shopify.auth.callback({
@@ -127,7 +113,7 @@ export function initShopify(app) {
 
       console.log("🔑 OAuth session received:", session.shop);
 
-      // ⭐ register webhook using callback session
+      // Register webhook immediately
       await shopify.webhooks.register({ session });
 
       const host = req.query.host;
@@ -136,24 +122,8 @@ export function initShopify(app) {
         `/?shop=${encodeURIComponent(session.shop)}` +
         (host ? `&host=${encodeURIComponent(host)}` : "");
 
-      /**
-       * ⭐ CRITICAL EMBEDDED APP FIX
-       * Do NOT res.redirect()
-       * Must escape iframe via App Bridge redirect
-       */
-      return res.send(`
-        <html>
-          <body>
-            <script>
-              if (window.top === window.self) {
-                window.location.href = "${redirectUrl}";
-              } else {
-                window.top.location.href = "${redirectUrl}";
-              }
-            </script>
-          </body>
-        </html>
-      `);
+      // ⭐ NORMAL REDIRECT — NO iframe escape
+      res.redirect(redirectUrl);
     } catch (err) {
       console.error("❌ OAuth callback failed", err);
       return res.status(500).send("Auth failed");
