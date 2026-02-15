@@ -49,7 +49,7 @@ export function initShopify(app) {
   });
 
   /* =====================================================
-     AUTO REGISTER WEBHOOKS (BEST EFFORT)
+     AUTO REGISTER WEBHOOKS
   ===================================================== */
   (async () => {
     try {
@@ -90,7 +90,7 @@ export function initShopify(app) {
   });
 
   /* =====================================================
-     🔐 AUTH CALLBACK — FIXED VERSION
+     🔐 AUTH CALLBACK — EMBEDDED SAFE
   ===================================================== */
   app.get("/auth/callback", async (req, res) => {
     try {
@@ -105,20 +105,33 @@ export function initShopify(app) {
 
       console.log("🔑 OAuth session received:", session.shop);
 
-      /**
-       * ⭐ IMPORTANT FIX
-       * Use session returned by callback directly.
-       * DO NOT reload from Prisma here.
-       */
+      // ⭐ register webhook using callback session
       await shopify.webhooks.register({ session });
 
       const host = req.query.host;
 
       const redirectUrl =
-        `${appBaseUrl}/?shop=${encodeURIComponent(session.shop)}` +
+        `/?shop=${encodeURIComponent(session.shop)}` +
         (host ? `&host=${encodeURIComponent(host)}` : "");
 
-      return res.redirect(redirectUrl);
+      /**
+       * ⭐ CRITICAL EMBEDDED APP FIX
+       * Do NOT res.redirect()
+       * Must escape iframe via App Bridge redirect
+       */
+      return res.send(`
+        <html>
+          <body>
+            <script>
+              if (window.top === window.self) {
+                window.location.href = "${redirectUrl}";
+              } else {
+                window.top.location.href = "${redirectUrl}";
+              }
+            </script>
+          </body>
+        </html>
+      `);
     } catch (err) {
       console.error("❌ OAuth callback failed", err);
       return res.status(500).send("Auth failed");
