@@ -45,7 +45,7 @@ app.post(
 );
 
 /* =========================================================
-   BODY PARSING (AFTER WEBHOOK RAW)
+   BODY PARSING
 ========================================================= */
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -60,10 +60,9 @@ app.use("/apps/bdm-sticky-atc", stickyAnalyticsRouter);
 app.use("/attribution", attributionRouter);
 
 /* =========================================================
-   SHOPIFY INIT (REGISTERS /auth + /auth/callback)
-   IMPORTANT: This must be BEFORE the catch-all loader
+   SHOPIFY INIT
 ========================================================= */
-initShopify(app);
+const shopify = initShopify(app);
 
 /* =========================================================
    STATIC
@@ -87,12 +86,12 @@ app.get("/__debug/conversions", async (req, res) => {
 });
 
 /* =========================================================
-   ⭐ EMBEDDED APP LOADER — NO AUTH LOGIC
-   Put LAST so it can't intercept /auth or other routes.
+   ⭐ EMBEDDED APP LOADER (FINAL WORKING VERSION)
 ========================================================= */
 app.get(/.*/, async (req, res) => {
-  // Hard guard: never serve the SPA for these server routes
   const p = req.path || "";
+
+  // Never let SPA intercept auth or API routes
   if (
     p.startsWith("/auth") ||
     p.startsWith("/webhooks") ||
@@ -106,25 +105,39 @@ app.get(/.*/, async (req, res) => {
 
   const apiKey = process.env.SHOPIFY_API_KEY || "";
   const shop = req.query.shop;
-  const host = req.query.host;
 
+  /**
+   * 🔐 SESSION CHECK
+   * IMPORTANT:
+   * Must escape iframe BEFORE starting OAuth
+   */
   if (shop) {
-  try {
-    const sanitizedShop = shopify.utils.sanitizeShop(shop);
-    const offlineId = shopify.session.getOfflineId(sanitizedShop);
+    try {
+      const sanitizedShop = shopify.utils.sanitizeShop(shop.toString());
+      const offlineId = shopify.session.getOfflineId(sanitizedShop);
 
-    const session =
-      await shopify.config.sessionStorage.loadSession(offlineId);
+      const session =
+        await shopify.config.sessionStorage.loadSession(offlineId);
 
-    if (!session || !session.accessToken) {
-      console.log("🔑 No session — starting OAuth", sanitizedShop);
-      return res.redirect(`/auth?shop=${encodeURIComponent(sanitizedShop)}`);
+      if (!session || !session.accessToken) {
+        console.log("🔑 No session — starting OAuth", sanitizedShop);
+
+        return res.send(`
+          <script>
+            window.top.location.href="/auth?shop=${sanitizedShop}";
+          </script>
+        `);
+      }
+    } catch (err) {
+      console.error("Session check failed, forcing OAuth:", err);
+
+      return res.send(`
+        <script>
+          window.top.location.href="/auth?shop=${shop}";
+        </script>
+      `);
     }
-  } catch (err) {
-    console.error("Session check failed, forcing OAuth:", err);
-    return res.redirect(`/auth?shop=${encodeURIComponent(shop)}`);
   }
-}
 
   const html = fs
     .readFileSync(indexPath, "utf8")
