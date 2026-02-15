@@ -5,7 +5,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 import prisma from "./prisma.js";
-import { initShopify, shopify } from "./shopify.js";
+import * as shopifyModule from "./shopify.js";
 
 import settingsRouter from "./routes/settings.js";
 import trackRouter from "./routes/track.js";
@@ -62,7 +62,7 @@ app.use("/attribution", attributionRouter);
 /* =========================================================
    SHOPIFY INIT (OAuth + Session Middleware)
 ========================================================= */
-initShopify(app);
+shopifyModule.initShopify(app);
 
 /* =========================================================
    STATIC FILES
@@ -121,7 +121,8 @@ app.get("/*", async (req, res, next) => {
   /**
    * ✅ Shopify handles OAuth automatically here
    */
-  return shopify.auth.ensureInstalledOnShop()(req, res, async () => {
+  return shopifyModule.shopify.auth.ensureInstalledOnShop()
+(req, res, async () => {
     const indexPath = path.join(
       __dirname,
       "frontend",
