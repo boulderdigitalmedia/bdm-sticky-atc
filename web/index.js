@@ -125,7 +125,15 @@ app.get(/.*/, async (req, res) => {
    * If Shopify loads the app and shop exists,
    * escape iframe and start OAuth.
    */
-  if (shop) {
+  import { shopify } from "./shopify.js"; // <-- IMPORTANT
+
+...
+
+if (shop) {
+  const sessionId = shopify.session.getOfflineId(shop);
+  const session = await shopify.config.sessionStorage.loadSession(sessionId);
+
+  if (!session) {
     console.log("🔑 No session — starting OAuth", shop);
 
     return res.send(`
@@ -142,6 +150,7 @@ app.get(/.*/, async (req, res) => {
       </html>
     `);
   }
+}
 
   const html = fs
     .readFileSync(indexPath, "utf8")
