@@ -28,17 +28,21 @@ export function initShopify(app) {
     .map((s) => s.trim())
     .filter(Boolean);
 
-  shopify = shopifyApi({
-    apiKey,
-    apiSecretKey,
-    scopes,
-    hostName: appUrl.host,
-    hostScheme: appUrl.protocol.replace(":", "") || "https",
-    apiVersion: LATEST_API_VERSION,
-    isEmbeddedApp: true,
-    restResources,
-    sessionStorage: prismaSessionStorage(),
-  });
+  sshopify = shopifyApi({
+  apiKey,
+  apiSecretKey,
+  scopes,
+  hostName: appUrl.host,
+  hostScheme: "https", // force https behind Render proxy
+  apiVersion: LATEST_API_VERSION,
+  isEmbeddedApp: true,
+  restResources,
+  sessionStorage: prismaSessionStorage(),
+  cookies: {
+    secure: true,
+    sameSite: "none",
+  },
+});
 
   shopify.webhooks.addHandlers({
     ORDERS_PAID: {
