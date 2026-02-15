@@ -87,7 +87,7 @@ app.get("/__debug/conversions", async (req, res) => {
 });
 
 /* =========================================================
-   ⭐ EMBEDDED APP LOADER (CORRECT FOR shopify-api SDK)
+   ⭐ EMBEDDED APP LOADER (FIXED + STABLE)
 ========================================================= */
 app.get("/*", async (req, res, next) => {
   const p = req.path || "";
@@ -102,10 +102,13 @@ app.get("/*", async (req, res, next) => {
     return next();
   }
 
-  const shop = req.query.shop;
+  console.log("📥 Loader hit:", req.originalUrl);
+
+  let shop = req.query.shop;
   const host = req.query.host;
 
   if (!shop || !host) {
+    console.log("⚠️ Missing shop or host — blocking direct access");
     return res.status(200).send(`
       <html>
         <head><title>Sticky Add To Cart Bar</title></head>
@@ -117,7 +120,6 @@ app.get("/*", async (req, res, next) => {
     `);
   }
 
-  // ✅ SAFE SHOPIFY ACCESS
   const shopify = shopifyModule.shopify;
 
   if (!shopify) {
@@ -125,19 +127,33 @@ app.get("/*", async (req, res, next) => {
     return res.status(500).send("Shopify not ready");
   }
 
+  // ⭐ ALWAYS sanitize shop
+  shop = shopify.utils.sanitizeShop(String(shop));
+  if (!shop) {
+    console.error("❌ Invalid shop param");
+    return res.status(400).send("Invalid shop");
+  }
+
+  console.log("🔎 Checking offline session for:", shop);
+
+  let session = null;
+
   try {
     const sessionId = shopify.session.getOfflineId(shop);
-    const session =
-      await shopify.config.sessionStorage.loadSession(sessionId);
+    console.log("🪪 Session ID:", sessionId);
 
-    // 👉 Only start OAuth if session missing
-    if (!session) {
-      console.log("🔑 No session — starting OAuth", shop);
-      return res.redirect(`/auth?shop=${encodeURIComponent(shop)}`);
-    }
+    session = await shopify.config.sessionStorage.loadSession(sessionId);
   } catch (e) {
-    console.error("Session lookup failed:", e);
+    console.error("❌ Session lookup failed:", e);
   }
+
+  // ⭐ THIS IS THE CRITICAL LINE
+  if (!session) {
+    console.log("🔑 No session — redirecting to OAuth");
+    return res.redirect(`/auth?shop=${encodeURIComponent(shop)}`);
+  }
+
+  console.log("✅ Session found — loading SPA");
 
   const indexPath = path.join(
     __dirname,
@@ -159,6 +175,7 @@ app.get("/*", async (req, res, next) => {
 
   res.send(html);
 });
+
 
 
 /* =========================================================
