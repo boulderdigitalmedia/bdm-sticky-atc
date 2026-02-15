@@ -56,25 +56,47 @@ export function initShopify(app) {
   });
 
   app.get("/auth", async (req, res) => {
-    try {
-      const shopParam = req.query.shop;
-      if (!shopParam) return res.status(400).send("Missing shop");
+  try {
+    const shopParam = req.query.shop;
+    if (!shopParam) return res.status(400).send("Missing shop");
 
-      const shop = shopify.utils.sanitizeShop(String(shopParam));
-      if (!shop) return res.status(400).send("Invalid shop");
+    const shop = shopify.utils.sanitizeShop(String(shopParam));
+    if (!shop) return res.status(400).send("Invalid shop");
 
-      await shopify.auth.begin({
-        shop,
-        callbackPath: "/auth/callback",
-        isOnline: false,
-        rawRequest: req,
-        rawResponse: res,
-      });
-    } catch (err) {
-      console.error("❌ OAuth begin failed:", err);
-      res.status(500).send("Auth start failed");
+    // ⭐ CRITICAL FIX: escape iframe BEFORE OAuth
+    if (!req.query.embedded) {
+      const redirectUrl = `/auth?shop=${encodeURIComponent(
+        shop
+      )}&embedded=1`;
+
+      return res.send(`
+        <html>
+          <body>
+            <script>
+              if (window.top === window.self) {
+                window.location.href = "${redirectUrl}";
+              } else {
+                window.top.location.href = "${redirectUrl}";
+              }
+            </script>
+          </body>
+        </html>
+      `);
     }
-  });
+
+    // Now start OAuth normally
+    await shopify.auth.begin({
+      shop,
+      callbackPath: "/auth/callback",
+      isOnline: false,
+      rawRequest: req,
+      rawResponse: res,
+    });
+  } catch (err) {
+    console.error("❌ OAuth begin failed:", err);
+    res.status(500).send("Auth start failed");
+  }
+});
 
   app.get("/auth/callback", async (req, res) => {
     try {
