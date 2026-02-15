@@ -62,7 +62,7 @@ app.use("/attribution", attributionRouter);
 /* =========================================================
    SHOPIFY INIT
 ========================================================= */
-const shopify = initShopify(app);
+initShopify(app);
 
 /* =========================================================
    STATIC
@@ -87,11 +87,15 @@ app.get("/__debug/conversions", async (req, res) => {
 
 /* =========================================================
    ⭐ EMBEDDED APP LOADER (FINAL STABLE)
+   IMPORTANT:
+   - NO OAuth logic here
+   - NO session checks
+   - Shopify handles auth via /auth routes
 ========================================================= */
 app.get(/.*/, async (req, res) => {
   const p = req.path || "";
 
-  // NEVER let SPA intercept these
+  // Never let SPA intercept server routes
   if (
     p.startsWith("/auth") ||
     p.startsWith("/webhooks") ||
@@ -101,51 +105,28 @@ app.get(/.*/, async (req, res) => {
     return res.status(404).send("Not found");
   }
 
-  const indexPath = path.join(__dirname, "frontend", "dist", "index.html");
+  const indexPath = path.join(
+    __dirname,
+    "frontend",
+    "dist",
+    "index.html"
+  );
 
   const apiKey = process.env.SHOPIFY_API_KEY || "";
   const shop = req.query.shop;
+  const host = req.query.host;
 
-  /**
-   * 🔐 SESSION CHECK
-   *
-   * CRITICAL FIX:
-   * DO NOT use res.redirect() here.
-   * Shopify blocks iframe redirects.
-   * Must escape iframe with JS.
-   */
-  if (shop) {
-    // DO NOT trigger OAuth here.
-// Shopify auth flow already handles install + reauth.
-
-if (!shop && !req.query.host) {
-  return res.status(200).send(`
-    <html>
-      <head><title>Sticky Add To Cart Bar</title></head>
-      <body style="font-family: sans-serif; padding: 24px;">
-        <h2>Sticky Add To Cart Bar</h2>
-        <p>This app must be opened from inside Shopify Admin.</p>
-      </body>
-    </html>
-  `);
-}
- catch (err) {
-      console.error("Session check failed, forcing OAuth:", err);
-
-      return res.send(`
-        <html>
-          <body>
-            <script>
-              if (window.top === window.self) {
-                window.location.href = "/auth?shop=${shop}";
-              } else {
-                window.top.location.href = "/auth?shop=${shop}";
-              }
-            </script>
-          </body>
-        </html>
-      `);
-    }
+  // Prevent direct Render URL access
+  if (!shop && !host) {
+    return res.status(200).send(`
+      <html>
+        <head><title>Sticky Add To Cart Bar</title></head>
+        <body style="font-family: sans-serif; padding: 24px;">
+          <h2>Sticky Add To Cart Bar</h2>
+          <p>This app must be opened from inside Shopify Admin.</p>
+        </body>
+      </html>
+    `);
   }
 
   const html = fs
