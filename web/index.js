@@ -1,4 +1,5 @@
 console.log("🚀 INDEX FILE LOADED");
+
 import express from "express";
 import cors from "cors";
 import fs from "fs";
@@ -34,7 +35,7 @@ app.use(
 app.options("*", cors());
 
 /* =========================================================
-   WEBHOOK — RAW BODY (MUST COME BEFORE JSON PARSER)
+   WEBHOOK — RAW BODY
 ========================================================= */
 app.post(
   "/webhooks/orders/paid",
@@ -42,6 +43,35 @@ app.post(
   async (req, res) => {
     console.log("🔥 orders/paid webhook HIT");
     return ordersCreate(req, res);
+  }
+);
+
+/* =========================================================
+   APP UNINSTALLED WEBHOOK — SESSION CLEANUP
+========================================================= */
+app.post(
+  "/webhooks/app/uninstalled",
+  express.raw({ type: "*/*" }),
+  async (req, res) => {
+    try {
+      const shop =
+        req.headers["x-shopify-shop-domain"] ||
+        req.headers["X-Shopify-Shop-Domain"];
+
+      console.log("🧹 APP_UNINSTALLED received for:", shop);
+
+      if (shop) {
+        await prisma.session.deleteMany({
+          where: { shop },
+        });
+        console.log("🧹 Sessions deleted for:", shop);
+      }
+
+      res.status(200).send("ok");
+    } catch (err) {
+      console.error("❌ APP_UNINSTALLED cleanup failed:", err);
+      res.status(500).send("error");
+    }
   }
 );
 
@@ -61,7 +91,7 @@ app.use("/apps/bdm-sticky-atc", stickyAnalyticsRouter);
 app.use("/attribution", attributionRouter);
 
 /* =========================================================
-   SHOPIFY INIT (OAuth + Session Middleware)
+   SHOPIFY INIT
 ========================================================= */
 shopifyModule.initShopify(app);
 
@@ -87,12 +117,11 @@ app.get("/__debug/conversions", async (req, res) => {
 });
 
 /* =========================================================
-   ⭐ EMBEDDED APP LOADER (FIXED + STABLE)
+   ⭐ EMBEDDED APP LOADER (UNCHANGED)
 ========================================================= */
 app.get("/*", async (req, res, next) => {
   const p = req.path || "";
 
-  // Never let SPA intercept backend routes
   if (
     p.startsWith("/auth") ||
     p.startsWith("/webhooks") ||
@@ -127,7 +156,6 @@ app.get("/*", async (req, res, next) => {
     return res.status(500).send("Shopify not ready");
   }
 
-  // ⭐ ALWAYS sanitize shop
   shop = shopify.utils.sanitizeShop(String(shop));
   if (!shop) {
     console.error("❌ Invalid shop param");
@@ -141,13 +169,11 @@ app.get("/*", async (req, res, next) => {
   try {
     const sessionId = shopify.session.getOfflineId(shop);
     console.log("🪪 Session ID:", sessionId);
-
     session = await shopify.config.sessionStorage.loadSession(sessionId);
   } catch (e) {
     console.error("❌ Session lookup failed:", e);
   }
 
-  // ⭐ THIS IS THE CRITICAL LINE
   if (!session) {
     console.log("🔑 No session — redirecting to OAuth");
     return res.redirect(`/auth?shop=${encodeURIComponent(shop)}`);
@@ -175,8 +201,6 @@ app.get("/*", async (req, res, next) => {
 
   res.send(html);
 });
-
-
 
 /* =========================================================
    START SERVER
