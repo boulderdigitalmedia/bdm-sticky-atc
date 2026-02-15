@@ -86,11 +86,7 @@ app.get("/__debug/conversions", async (req, res) => {
 });
 
 /* =========================================================
-   ⭐ EMBEDDED APP LOADER (FINAL STABLE)
-   IMPORTANT:
-   - NO OAuth logic here
-   - NO session checks
-   - Shopify handles auth via /auth routes
+   ⭐ EMBEDDED APP LOADER (WORKING VERSION — OAUTH TRIGGER)
 ========================================================= */
 app.get(/.*/, async (req, res) => {
   const p = req.path || "";
@@ -105,12 +101,7 @@ app.get(/.*/, async (req, res) => {
     return res.status(404).send("Not found");
   }
 
-  const indexPath = path.join(
-    __dirname,
-    "frontend",
-    "dist",
-    "index.html"
-  );
+  const indexPath = path.join(__dirname, "frontend", "dist", "index.html");
 
   const apiKey = process.env.SHOPIFY_API_KEY || "";
   const shop = req.query.shop;
@@ -129,13 +120,34 @@ app.get(/.*/, async (req, res) => {
     `);
   }
 
+  /**
+   * 🔑 WORKING OAUTH TRIGGER
+   * If Shopify loads the app and shop exists,
+   * escape iframe and start OAuth.
+   */
+  if (shop) {
+    console.log("🔑 No session — starting OAuth", shop);
+
+    return res.send(`
+      <html>
+        <body>
+          <script>
+            if (window.top === window.self) {
+              window.location.href="/auth?shop=${shop}";
+            } else {
+              window.top.location.href="/auth?shop=${shop}";
+            }
+          </script>
+        </body>
+      </html>
+    `);
+  }
+
   const html = fs
     .readFileSync(indexPath, "utf8")
     .replace(
       "</head>",
-      `<script>window.__SHOPIFY_API_KEY__ = ${JSON.stringify(
-        apiKey
-      )};</script></head>`
+      \`<script>window.__SHOPIFY_API_KEY__ = \${JSON.stringify(apiKey)};</script></head>\`
     );
 
   res.send(html);
