@@ -115,35 +115,21 @@ app.get(/.*/, async (req, res) => {
    * Must escape iframe with JS.
    */
   if (shop) {
-    try {
-      const sanitizedShop = shopify.utils.sanitizeShop(shop.toString());
-      if (!sanitizedShop) {
-        return res.status(400).send("Invalid shop");
-      }
+    // DO NOT trigger OAuth here.
+// Shopify auth flow already handles install + reauth.
 
-      const offlineId = shopify.session.getOfflineId(sanitizedShop);
-
-      const session =
-        await shopify.config.sessionStorage.loadSession(offlineId);
-
-      if (!session || !session.accessToken) {
-        console.log("🔑 No session — starting OAuth", sanitizedShop);
-
-        return res.send(`
-          <html>
-            <body>
-              <script>
-                if (window.top === window.self) {
-                  window.location.href = "/auth?shop=${sanitizedShop}";
-                } else {
-                  window.top.location.href = "/auth?shop=${sanitizedShop}";
-                }
-              </script>
-            </body>
-          </html>
-        `);
-      }
-    } catch (err) {
+if (!shop && !req.query.host) {
+  return res.status(200).send(`
+    <html>
+      <head><title>Sticky Add To Cart Bar</title></head>
+      <body style="font-family: sans-serif; padding: 24px;">
+        <h2>Sticky Add To Cart Bar</h2>
+        <p>This app must be opened from inside Shopify Admin.</p>
+      </body>
+    </html>
+  `);
+}
+ catch (err) {
       console.error("Session check failed, forcing OAuth:", err);
 
       return res.send(`
