@@ -108,18 +108,23 @@ app.get(/.*/, async (req, res) => {
   const shop = req.query.shop;
   const host = req.query.host;
 
-  // Prevent direct access
-  if (!shop && !host) {
-    return res.status(200).send(`
-      <html>
-        <head><title>Sticky Add To Cart Bar</title></head>
-        <body style="font-family: sans-serif; padding: 24px;">
-          <h2>Sticky Add To Cart Bar</h2>
-          <p>This app must be opened from inside Shopify Admin.</p>
-        </body>
-      </html>
-    `);
+  if (shop) {
+  try {
+    const sanitizedShop = shopify.utils.sanitizeShop(shop);
+    const offlineId = shopify.session.getOfflineId(sanitizedShop);
+
+    const session =
+      await shopify.config.sessionStorage.loadSession(offlineId);
+
+    if (!session || !session.accessToken) {
+      console.log("🔑 No session — starting OAuth", sanitizedShop);
+      return res.redirect(`/auth?shop=${encodeURIComponent(sanitizedShop)}`);
+    }
+  } catch (err) {
+    console.error("Session check failed, forcing OAuth:", err);
+    return res.redirect(`/auth?shop=${encodeURIComponent(shop)}`);
   }
+}
 
   const html = fs
     .readFileSync(indexPath, "utf8")
