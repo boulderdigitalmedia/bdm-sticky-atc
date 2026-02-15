@@ -86,8 +86,7 @@ app.get("/__debug/conversions", async (req, res) => {
 });
 
 /* =========================================================
-   ⭐ MODERN EMBEDDED APP LOADER
-   (Official Shopify Pattern — No Manual OAuth Redirects)
+   ⭐ EMBEDDED APP LOADER (CORRECT FOR shopify-api SDK)
 ========================================================= */
 app.get("/*", async (req, res, next) => {
   const p = req.path || "";
@@ -105,7 +104,6 @@ app.get("/*", async (req, res, next) => {
   const shop = req.query.shop;
   const host = req.query.host;
 
-  // Prevent direct Render URL access
   if (!shop || !host) {
     return res.status(200).send(`
       <html>
@@ -118,32 +116,49 @@ app.get("/*", async (req, res, next) => {
     `);
   }
 
-  /**
-   * ✅ Shopify handles OAuth automatically here
-   */
-  return shopifyModule.shopify.auth.ensureInstalledOnShop()
-(req, res, async () => {
-    const indexPath = path.join(
-      __dirname,
-      "frontend",
-      "dist",
-      "index.html"
+  // ✅ SAFE SHOPIFY ACCESS
+  const shopify = shopifyModule.shopify;
+
+  if (!shopify) {
+    console.error("❌ Shopify not initialized");
+    return res.status(500).send("Shopify not ready");
+  }
+
+  try {
+    const sessionId = shopify.session.getOfflineId(shop);
+    const session =
+      await shopify.config.sessionStorage.loadSession(sessionId);
+
+    // 👉 Only start OAuth if session missing
+    if (!session) {
+      console.log("🔑 No session — starting OAuth", shop);
+      return res.redirect(`/auth?shop=${encodeURIComponent(shop)}`);
+    }
+  } catch (e) {
+    console.error("Session lookup failed:", e);
+  }
+
+  const indexPath = path.join(
+    __dirname,
+    "frontend",
+    "dist",
+    "index.html"
+  );
+
+  const apiKey = process.env.SHOPIFY_API_KEY || "";
+
+  const html = fs
+    .readFileSync(indexPath, "utf8")
+    .replace(
+      "</head>",
+      `<script>window.__SHOPIFY_API_KEY__ = ${JSON.stringify(
+        apiKey
+      )};</script></head>`
     );
 
-    const apiKey = process.env.SHOPIFY_API_KEY || "";
-
-    const html = fs
-      .readFileSync(indexPath, "utf8")
-      .replace(
-        "</head>",
-        `<script>window.__SHOPIFY_API_KEY__ = ${JSON.stringify(
-          apiKey
-        )};</script></head>`
-      );
-
-    res.send(html);
-  });
+  res.send(html);
 });
+
 
 /* =========================================================
    START SERVER
