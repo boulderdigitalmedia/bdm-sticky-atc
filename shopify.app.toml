@@ -1,5 +1,5 @@
 name = "BDM Sticky ATC Bar"
-client_id = "YOUR_API_KEY"
+client_id = "274644b8e4ba970fe66b9a97dcbbb712"
 application_url = "https://sticky-add-to-cart-bar-pro.onrender.com.onrender.com/auth"
 embedded = true
 
