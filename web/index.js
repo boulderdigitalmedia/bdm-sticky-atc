@@ -146,10 +146,11 @@ app.get(/.*/, async (req, res) => {
   const html = fs
     .readFileSync(indexPath, "utf8")
     .replace(
-      "</head>",
-      \`<script>window.__SHOPIFY_API_KEY__ = \${JSON.stringify(apiKey)};</script></head>\`
-    );
-
+  "</head>",
+  `<script>window.__SHOPIFY_API_KEY__ = ${JSON.stringify(
+    apiKey
+  )};</script></head>`
+);
   res.send(html);
 });
 
