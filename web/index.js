@@ -117,7 +117,7 @@ app.get("/__debug/conversions", async (req, res) => {
 });
 
 /* =========================================================
-   ⭐ EMBEDDED APP LOADER (UNCHANGED)
+   ⭐ EMBEDDED APP LOADER (FIXED SESSION CHECK)
 ========================================================= */
 app.get("/*", async (req, res, next) => {
   const p = req.path || "";
@@ -167,9 +167,13 @@ app.get("/*", async (req, res, next) => {
   let session = null;
 
   try {
-    const sessionId = shopify.session.getOfflineId(shop);
-    console.log("🪪 Session ID:", sessionId);
-    session = await shopify.config.sessionStorage.loadSession(sessionId);
+    // ⭐ FIX: use Prisma instead of getOfflineId()
+    session = await prisma.session.findFirst({
+      where: {
+        shop: shop,
+        isOnline: false,
+      },
+    });
   } catch (e) {
     console.error("❌ Session lookup failed:", e);
   }
