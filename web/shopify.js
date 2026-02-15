@@ -28,7 +28,7 @@ export function initShopify(app) {
     .map((s) => s.trim())
     .filter(Boolean);
 
-  sshopify = shopifyApi({
+  shopify = shopifyApi({
   apiKey,
   apiSecretKey,
   scopes,
