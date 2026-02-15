@@ -36,9 +36,11 @@ export function initShopify(app) {
     isEmbeddedApp: true,
     restResources,
     sessionStorage: prismaSessionStorage(),
-    // 🔥 IMPORTANT: remove custom cookie override to avoid OAuth cookie mismatch
   });
 
+  /* =====================================================
+     WEBHOOK DECLARATION
+  ===================================================== */
   shopify.webhooks.addHandlers({
     ORDERS_PAID: {
       deliveryMethod: DeliveryMethod.Http,
@@ -46,7 +48,9 @@ export function initShopify(app) {
     },
   });
 
-  // Auto register webhooks (best-effort)
+  /* =====================================================
+     AUTO REGISTER WEBHOOKS (BEST EFFORT)
+  ===================================================== */
   (async () => {
     try {
       const sessions = await prisma.session.findMany({
@@ -61,9 +65,9 @@ export function initShopify(app) {
     } catch {}
   })();
 
-  /**
-   * 🔐 AUTH START
-   */
+  /* =====================================================
+     🔐 AUTH START
+  ===================================================== */
   app.get("/auth", async (req, res) => {
     try {
       const shop = req.query.shop;
@@ -85,9 +89,9 @@ export function initShopify(app) {
     }
   });
 
-  /**
-   * 🔐 AUTH CALLBACK
-   */
+  /* =====================================================
+     🔐 AUTH CALLBACK — FIXED VERSION
+  ===================================================== */
   app.get("/auth/callback", async (req, res) => {
     try {
       const { session } = await shopify.auth.callback({
@@ -95,20 +99,23 @@ export function initShopify(app) {
         rawResponse: res,
       });
 
-      const offlineSessionId = shopify.session.getOfflineId(session.shop);
-      const offlineSession =
-        await shopify.config.sessionStorage.loadSession(offlineSessionId);
-
-      if (!offlineSession?.accessToken) {
-        return res.status(500).send("Offline session missing");
+      if (!session?.accessToken) {
+        throw new Error("Missing access token");
       }
 
-      await shopify.webhooks.register({ session: offlineSession });
+      console.log("🔑 OAuth session received:", session.shop);
+
+      /**
+       * ⭐ IMPORTANT FIX
+       * Use session returned by callback directly.
+       * DO NOT reload from Prisma here.
+       */
+      await shopify.webhooks.register({ session });
 
       const host = req.query.host;
 
       const redirectUrl =
-        `${appBaseUrl}/?shop=${encodeURIComponent(offlineSession.shop)}` +
+        `${appBaseUrl}/?shop=${encodeURIComponent(session.shop)}` +
         (host ? `&host=${encodeURIComponent(host)}` : "");
 
       return res.redirect(redirectUrl);

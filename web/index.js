@@ -45,7 +45,7 @@ app.post(
 );
 
 /* =========================================================
-   BODY PARSING
+   BODY PARSING (AFTER WEBHOOK RAW)
 ========================================================= */
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -60,7 +60,8 @@ app.use("/apps/bdm-sticky-atc", stickyAnalyticsRouter);
 app.use("/attribution", attributionRouter);
 
 /* =========================================================
-   SHOPIFY INIT (THIS HANDLES OAUTH)
+   SHOPIFY INIT (REGISTERS /auth + /auth/callback)
+   IMPORTANT: This must be BEFORE the catch-all loader
 ========================================================= */
 initShopify(app);
 
@@ -75,9 +76,32 @@ app.use(
 );
 
 /* =========================================================
-   ⭐ EMBEDDED APP LOADER — NO AUTH LOGIC
+   DEBUG
 ========================================================= */
-app.get("*", async (req, res) => {
+app.get("/__debug/conversions", async (req, res) => {
+  const rows = await prisma.stickyConversion.findMany({
+    orderBy: { occurredAt: "desc" },
+    take: 5,
+  });
+  res.json(rows);
+});
+
+/* =========================================================
+   ⭐ EMBEDDED APP LOADER — NO AUTH LOGIC
+   Put LAST so it can't intercept /auth or other routes.
+========================================================= */
+app.get(/.*/, async (req, res) => {
+  // Hard guard: never serve the SPA for these server routes
+  const p = req.path || "";
+  if (
+    p.startsWith("/auth") ||
+    p.startsWith("/webhooks") ||
+    p.startsWith("/api") ||
+    p.startsWith("/__debug")
+  ) {
+    return res.status(404).send("Not found");
+  }
+
   const indexPath = path.join(__dirname, "frontend", "dist", "index.html");
 
   const apiKey = process.env.SHOPIFY_API_KEY || "";
@@ -107,17 +131,6 @@ app.get("*", async (req, res) => {
     );
 
   res.send(html);
-});
-
-/* =========================================================
-   DEBUG
-========================================================= */
-app.get("/__debug/conversions", async (req, res) => {
-  const rows = await prisma.stickyConversion.findMany({
-    orderBy: { occurredAt: "desc" },
-    take: 5,
-  });
-  res.json(rows);
 });
 
 /* =========================================================
