@@ -86,12 +86,12 @@ app.get("/__debug/conversions", async (req, res) => {
 });
 
 /* =========================================================
-   ⭐ EMBEDDED APP LOADER (FINAL WORKING VERSION)
+   ⭐ EMBEDDED APP LOADER (FINAL STABLE)
 ========================================================= */
 app.get(/.*/, async (req, res) => {
   const p = req.path || "";
 
-  // Never let SPA intercept auth or API routes
+  // NEVER let SPA intercept these
   if (
     p.startsWith("/auth") ||
     p.startsWith("/webhooks") ||
@@ -108,12 +108,19 @@ app.get(/.*/, async (req, res) => {
 
   /**
    * 🔐 SESSION CHECK
-   * IMPORTANT:
-   * Must escape iframe BEFORE starting OAuth
+   *
+   * CRITICAL FIX:
+   * DO NOT use res.redirect() here.
+   * Shopify blocks iframe redirects.
+   * Must escape iframe with JS.
    */
   if (shop) {
     try {
       const sanitizedShop = shopify.utils.sanitizeShop(shop.toString());
+      if (!sanitizedShop) {
+        return res.status(400).send("Invalid shop");
+      }
+
       const offlineId = shopify.session.getOfflineId(sanitizedShop);
 
       const session =
@@ -123,18 +130,34 @@ app.get(/.*/, async (req, res) => {
         console.log("🔑 No session — starting OAuth", sanitizedShop);
 
         return res.send(`
-          <script>
-            window.top.location.href="/auth?shop=${sanitizedShop}";
-          </script>
+          <html>
+            <body>
+              <script>
+                if (window.top === window.self) {
+                  window.location.href = "/auth?shop=${sanitizedShop}";
+                } else {
+                  window.top.location.href = "/auth?shop=${sanitizedShop}";
+                }
+              </script>
+            </body>
+          </html>
         `);
       }
     } catch (err) {
       console.error("Session check failed, forcing OAuth:", err);
 
       return res.send(`
-        <script>
-          window.top.location.href="/auth?shop=${shop}";
-        </script>
+        <html>
+          <body>
+            <script>
+              if (window.top === window.self) {
+                window.location.href = "/auth?shop=${shop}";
+              } else {
+                window.top.location.href = "/auth?shop=${shop}";
+              }
+            </script>
+          </body>
+        </html>
       `);
     }
   }
