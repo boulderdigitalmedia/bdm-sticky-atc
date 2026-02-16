@@ -61,7 +61,7 @@ app.post(
       console.log("🧹 APP_UNINSTALLED received for:", shop);
 
       if (shop) {
-        await prisma.session.deleteMany({
+        await prisma.sessionStorage.deleteMany({
           where: { shop },
         });
         console.log("🧹 Sessions deleted for:", shop);
