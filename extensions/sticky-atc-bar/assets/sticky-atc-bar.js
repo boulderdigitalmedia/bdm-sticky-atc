@@ -2,8 +2,11 @@
   if (window.__BDM_STICKY_ATC_INIT__) return;
   window.__BDM_STICKY_ATC_INIT__ = true;
 
+  /* =====================================================
+     DIRECT ANALYTICS ENDPOINT (NO APP PROXY)
+  ===================================================== */
   const TRACK_ENDPOINT =
-    "https://sticky-add-to-cart-bar-pro.onrender.com/api/track/track";
+  "https://sticky-add-to-cart-bar-pro.onrender.com/api/track/track";
 
   function track(event, payload = {}) {
     try {
@@ -25,6 +28,9 @@
     } catch {}
   }
 
+  /* =====================================================
+     STICKY ATC MARKER (UNCHANGED)
+  ===================================================== */
   function markStickyATC({ productId, variantId, quantity }) {
     try {
       const payload = {
@@ -58,63 +64,118 @@
     if (!bar) return;
 
     /* =====================================================
-       ⭐ ADDED: CART DRAWER VISIBILITY + CART REFRESH FIXES
+       ⭐ FIX BLOCK — CART DRAWER + EMPTY CART REFRESH
+       (THIS IS THE ONLY ADDITION)
     ===================================================== */
 
-    function isCartDrawerOpen() {
-      const drawer =
-        document.querySelector('[data-cart-drawer]') ||
-        document.querySelector('.cart-drawer') ||
-        document.querySelector('cart-drawer') ||
-        document.getElementById("CartDrawer");
+    function __bdm_isVisible(el) {
+      if (!el) return false;
+      const cs = getComputedStyle(el);
+      if (cs.display === "none" || cs.visibility === "hidden" || cs.opacity === "0")
+        return false;
+      const r = el.getBoundingClientRect();
+      return r.width > 0 && r.height > 0;
+    }
 
-      if (!drawer) return false;
+    function __bdm_findCartContainer() {
+      const selectors = [
+        "cart-drawer",
+        "#CartDrawer",
+        "[data-cart-drawer]",
+        ".cart-drawer",
+        ".drawer--cart",
+        ".drawer.cart",
+        ".drawer",
+        "[id*='CartDrawer']",
+        "[class*='CartDrawer']",
+        "[data-drawer*='cart']",
+      ];
 
-      return (
-        drawer.classList.contains("is-open") ||
-        drawer.classList.contains("active") ||
-        drawer.getAttribute("open") !== null ||
-        drawer.getAttribute("aria-hidden") === "false"
+      for (const sel of selectors) {
+        const el = document.querySelector(sel);
+        if (el) return el;
+      }
+
+      const dialogs = Array.from(
+        document.querySelectorAll("dialog, [role='dialog'], [aria-modal='true']")
+      );
+
+      return dialogs.find((d) =>
+        /your cart/i.test((d.textContent || "").trim())
       );
     }
 
-    function updateStickyVisibilityFromDrawer() {
-      if (!bar) return;
-      if (isCartDrawerOpen()) {
-        bar.style.display = "none";
-      } else {
-        bar.style.display = "";
-      }
+    function __bdm_isCartOpen() {
+      const container = __bdm_findCartContainer();
+      if (!container) return false;
+      if (!__bdm_isVisible(container)) return false;
+      return true;
     }
 
-    async function refreshStickyBarFromCart() {
-      try {
-        const res = await fetch("/cart.js");
-        const cart = await res.json();
+    function __bdm_setStickyHidden(hidden) {
+      bar.style.display = hidden ? "none" : "";
+    }
 
-        if (!cart || cart.item_count === 0) {
-          bar.classList.remove("is-visible");
+    function __bdm_syncStickyWithCartUI() {
+      __bdm_setStickyHidden(__bdm_isCartOpen());
+    }
+
+    async function __bdm_refreshWhenCartEmpty() {
+      try {
+        const r = await fetch("/cart.js", { credentials: "same-origin" });
+        if (!r.ok) return;
+        const cart = await r.json();
+        if (cart && cart.item_count === 0) {
+          __bdm_syncStickyWithCartUI();
         }
       } catch {}
     }
 
-    const observer = new MutationObserver(() => {
-      updateStickyVisibilityFromDrawer();
+    __bdm_syncStickyWithCartUI();
+
+    const __bdm_observer = new MutationObserver(() => {
+      __bdm_syncStickyWithCartUI();
     });
 
-    observer.observe(document.body, {
-      attributes: true,
+    __bdm_observer.observe(document.documentElement, {
       subtree: true,
-      childList: true
+      childList: true,
+      attributes: true,
+      attributeFilter: ["class", "style", "open", "aria-hidden"],
     });
 
-    document.addEventListener("cart:updated", refreshStickyBarFromCart);
-    document.addEventListener("ajaxCart:updated", refreshStickyBarFromCart);
-    document.addEventListener("cart:change", refreshStickyBarFromCart);
+    document.addEventListener(
+      "click",
+      (e) => {
+        const t = e.target;
+
+        const looksLikeCartControl =
+          t.closest("a[href='/cart']") ||
+          t.closest("[data-cart]") ||
+          t.closest("[aria-controls*='CartDrawer']") ||
+          t.closest("button");
+
+        if (!looksLikeCartControl) return;
+
+        setTimeout(() => {
+          __bdm_syncStickyWithCartUI();
+          __bdm_refreshWhenCartEmpty();
+        }, 350);
+      },
+      true
+    );
+
+    ["cart:updated", "ajaxCart:updated", "cart:change", "cart:refresh"].forEach((evt) =>
+      document.addEventListener(evt, () => {
+        __bdm_syncStickyWithCartUI();
+        __bdm_refreshWhenCartEmpty();
+      })
+    );
 
     /* =====================================================
-       ONLY SHOW ON PRODUCT PAGES
+       ORIGINAL SCRIPT BELOW — UNCHANGED
     ===================================================== */
+
     if (!location.pathname.includes("/products/")) {
       bar.setAttribute("hidden", "");
       return;
@@ -276,8 +337,6 @@
         atcBtn.disabled = false;
         if (!res.ok) return;
 
-        updateStickyVisibilityFromDrawer(); // ⭐ ADDED
-
         const sections = ["cart-drawer", "cart-icon-bubble"];
         const sectionRes = await fetch(`/?sections=${sections.join(",")}`);
         const data = await sectionRes.json();
@@ -302,8 +361,6 @@
         drawer.classList.add("active");
         drawer.setAttribute("open", "");
         drawer.dispatchEvent(new Event("open", { bubbles: true }));
-
-        updateStickyVisibilityFromDrawer(); // ⭐ ADDED
 
         return;
       }
