@@ -60,14 +60,15 @@ app.post(
 
       console.log("🧹 APP_UNINSTALLED received for:", shop);
 
-      if (shop) {
-        const shopify = shopifyModule.shopify;
+      const shopify = shopifyModule.shopify;
 
-        session = await shopify.config.sessionStorage.findSessionsByShop(shop);
+      if (shopify && shop) {
+        const sessions =
+          await shopify.config.sessionStorage.findSessionsByShop(shop);
 
-if (Array.isArray(session) && session.length > 0) {
-  session = session.find(s => !s.isOnline);
-}
+        for (const s of sessions) {
+          await shopify.config.sessionStorage.deleteSession(s.id);
+        }
 
         console.log("🧹 Session deleted via Shopify storage:", shop);
       }
@@ -172,12 +173,12 @@ app.get("/*", async (req, res, next) => {
   let session = null;
 
   try {
-    // ⭐ CORRECT FIX — use Shopify session storage
-    const sessionId = shopify.session.getOfflineId(shop);
+    const sessions =
+      await shopify.config.sessionStorage.findSessionsByShop(shop);
 
-    console.log("🪪 Session ID:", sessionId);
-
-    session = await shopify.config.sessionStorage.loadSession(sessionId);
+    session = Array.isArray(sessions)
+      ? sessions.find((s) => !s.isOnline)
+      : null;
   } catch (e) {
     console.error("❌ Session lookup failed:", e);
   }
