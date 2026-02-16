@@ -29,20 +29,20 @@ export function initShopify(app) {
     .filter(Boolean);
 
   shopify = shopifyApi({
-  apiKey,
-  apiSecretKey,
-  scopes,
-  hostName: appUrl.host,
-  hostScheme: "https", // force https behind Render proxy
-  apiVersion: LATEST_API_VERSION,
-  isEmbeddedApp: true,
-  restResources,
-  sessionStorage: prismaSessionStorage(),
-  cookies: {
-    secure: true,
-    sameSite: "none",
-  },
-});
+    apiKey,
+    apiSecretKey,
+    scopes,
+    hostName: appUrl.host,
+    hostScheme: "https",
+    apiVersion: LATEST_API_VERSION,
+    isEmbeddedApp: true,
+    restResources,
+    sessionStorage: prismaSessionStorage(), // ✅ using Prisma storage
+    cookies: {
+      secure: true,
+      sameSite: "none",
+    },
+  });
 
   shopify.webhooks.addHandlers({
     ORDERS_PAID: {
@@ -55,49 +55,54 @@ export function initShopify(app) {
     },
   });
 
+  /* =========================================================
+     AUTH START
+  ========================================================= */
   app.get("/auth", async (req, res) => {
-  try {
-    const shopParam = req.query.shop;
-    if (!shopParam) return res.status(400).send("Missing shop");
+    try {
+      const shopParam = req.query.shop;
+      if (!shopParam) return res.status(400).send("Missing shop");
 
-    const shop = shopify.utils.sanitizeShop(String(shopParam));
-    if (!shop) return res.status(400).send("Invalid shop");
+      const shop = shopify.utils.sanitizeShop(String(shopParam));
+      if (!shop) return res.status(400).send("Invalid shop");
 
-    // ⭐ CRITICAL FIX: escape iframe BEFORE OAuth
-    if (!req.query.embedded) {
-      const redirectUrl = `/auth?shop=${encodeURIComponent(
-        shop
-      )}&embedded=1`;
+      // Escape iframe BEFORE OAuth
+      if (!req.query.embedded) {
+        const redirectUrl = `/auth?shop=${encodeURIComponent(
+          shop
+        )}&embedded=1`;
 
-      return res.send(`
-        <html>
-          <body>
-            <script>
-              if (window.top === window.self) {
-                window.location.href = "${redirectUrl}";
-              } else {
-                window.top.location.href = "${redirectUrl}";
-              }
-            </script>
-          </body>
-        </html>
-      `);
+        return res.send(`
+          <html>
+            <body>
+              <script>
+                if (window.top === window.self) {
+                  window.location.href = "${redirectUrl}";
+                } else {
+                  window.top.location.href = "${redirectUrl}";
+                }
+              </script>
+            </body>
+          </html>
+        `);
+      }
+
+      await shopify.auth.begin({
+        shop,
+        callbackPath: "/auth/callback",
+        isOnline: false,
+        rawRequest: req,
+        rawResponse: res,
+      });
+    } catch (err) {
+      console.error("❌ OAuth begin failed:", err);
+      res.status(500).send("Auth start failed");
     }
+  });
 
-    // Now start OAuth normally
-    await shopify.auth.begin({
-      shop,
-      callbackPath: "/auth/callback",
-      isOnline: false,
-      rawRequest: req,
-      rawResponse: res,
-    });
-  } catch (err) {
-    console.error("❌ OAuth begin failed:", err);
-    res.status(500).send("Auth start failed");
-  }
-});
-
+  /* =========================================================
+     AUTH CALLBACK (⭐ FIX APPLIED HERE)
+  ========================================================= */
   app.get("/auth/callback", async (req, res) => {
     try {
       const { session } = await shopify.auth.callback({
@@ -108,6 +113,14 @@ export function initShopify(app) {
       if (!session?.accessToken) throw new Error("Missing access token");
 
       console.log("🔑 OAuth session received:", session.shop);
+
+      // ⭐⭐⭐ CRITICAL FIX — FORCE STORE SESSION
+      try {
+        await shopify.config.sessionStorage.storeSession(session);
+        console.log("💾 Session stored:", session.id);
+      } catch (e) {
+        console.error("❌ Manual session store failed:", e);
+      }
 
       try {
         await shopify.webhooks.register({ session });
