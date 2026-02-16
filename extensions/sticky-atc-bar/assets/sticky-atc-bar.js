@@ -278,6 +278,7 @@
     bar.querySelectorAll(".bdm-qty-btn").forEach(btn => {
       btn.addEventListener("click", e => {
         e.preventDefault();
+e.stopImmediatePropagation();
         if (btn.dataset.action === "increase") currentQty++;
         if (btn.dataset.action === "decrease") {
           currentQty = Math.max(1, currentQty - 1);
