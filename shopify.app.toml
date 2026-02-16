@@ -1,19 +1,25 @@
-name = "BDM Sticky ATC Bar"
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
 client_id = "1bd9623cc54e833a0a0aec96a5fe1af4"
-
-# ⭐ MUST BE ROOT URL ONLY
+name = "Sticky Add-To-Cart Bar Pro"
 application_url = "https://sticky-add-to-cart-bar-pro.onrender.com"
-
 embedded = true
 
+[webhooks]
+api_version = "2026-01"
+
 [access_scopes]
-scopes = "read_products,read_orders"
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "read_orders,read_products,write_script_tags,read_themes"
+optional_scopes = [ ]
+use_legacy_install_flow = false
 
 [auth]
 redirect_urls = [
   "https://sticky-add-to-cart-bar-pro.onrender.com/auth/callback"
 ]
 
-[[webhooks.subscriptions]]
-topics = ["orders/paid"]
-uri = "/webhooks/orders/paid"
+[app_proxy]
+url = "https://sticky-add-to-cart-bar-pro.onrender.com"
+subpath = "bdm-sticky-atc"
+prefix = "apps"

@@ -2,11 +2,8 @@
   if (window.__BDM_STICKY_ATC_INIT__) return;
   window.__BDM_STICKY_ATC_INIT__ = true;
 
-  /* =====================================================
-     DIRECT ANALYTICS ENDPOINT (NO APP PROXY)
-  ===================================================== */
   const TRACK_ENDPOINT =
-  "https://sticky-add-to-cart-bar-pro.onrender.com/api/track/track";
+    "https://sticky-add-to-cart-bar-pro.onrender.com/api/track/track";
 
   function track(event, payload = {}) {
     try {
@@ -28,9 +25,6 @@
     } catch {}
   }
 
-  /* =====================================================
-     STICKY ATC MARKER (UNCHANGED)
-  ===================================================== */
   function markStickyATC({ productId, variantId, quantity }) {
     try {
       const payload = {
@@ -48,9 +42,6 @@
     } catch {}
   }
 
-  /* =====================================================
-     STICKY VIEW LOGGER (UPDATED — DIRECT TRACK)
-  ===================================================== */
   function logStickyView() {
     try {
       if (document.body.dataset.__bdmStickyViewLogged) return;
@@ -66,17 +57,69 @@
     const bar = document.getElementById("bdm-sticky-atc");
     if (!bar) return;
 
-    /* ================================
+    /* =====================================================
+       ⭐ ADDED: CART DRAWER VISIBILITY + CART REFRESH FIXES
+    ===================================================== */
+
+    function isCartDrawerOpen() {
+      const drawer =
+        document.querySelector('[data-cart-drawer]') ||
+        document.querySelector('.cart-drawer') ||
+        document.querySelector('cart-drawer') ||
+        document.getElementById("CartDrawer");
+
+      if (!drawer) return false;
+
+      return (
+        drawer.classList.contains("is-open") ||
+        drawer.classList.contains("active") ||
+        drawer.getAttribute("open") !== null ||
+        drawer.getAttribute("aria-hidden") === "false"
+      );
+    }
+
+    function updateStickyVisibilityFromDrawer() {
+      if (!bar) return;
+      if (isCartDrawerOpen()) {
+        bar.style.display = "none";
+      } else {
+        bar.style.display = "";
+      }
+    }
+
+    async function refreshStickyBarFromCart() {
+      try {
+        const res = await fetch("/cart.js");
+        const cart = await res.json();
+
+        if (!cart || cart.item_count === 0) {
+          bar.classList.remove("is-visible");
+        }
+      } catch {}
+    }
+
+    const observer = new MutationObserver(() => {
+      updateStickyVisibilityFromDrawer();
+    });
+
+    observer.observe(document.body, {
+      attributes: true,
+      subtree: true,
+      childList: true
+    });
+
+    document.addEventListener("cart:updated", refreshStickyBarFromCart);
+    document.addEventListener("ajaxCart:updated", refreshStickyBarFromCart);
+    document.addEventListener("cart:change", refreshStickyBarFromCart);
+
+    /* =====================================================
        ONLY SHOW ON PRODUCT PAGES
-    ================================= */
+    ===================================================== */
     if (!location.pathname.includes("/products/")) {
       bar.setAttribute("hidden", "");
       return;
     }
 
-    /* ================================
-       SETTINGS
-    ================================= */
     const showDesktop = bar.hasAttribute("data-enable-desktop");
     const showMobile = bar.hasAttribute("data-enable-mobile");
     const showOnScroll = bar.hasAttribute("data-show-on-scroll");
@@ -86,9 +129,6 @@
     const showPrice = bar.hasAttribute("data-show-price");
     const showQty = bar.hasAttribute("data-show-qty");
 
-    /* ================================
-       DEVICE VISIBILITY
-    ================================= */
     const isMobile = matchMedia("(max-width: 768px)").matches;
     if ((isMobile && !showMobile) || (!isMobile && !showDesktop)) {
       bar.setAttribute("hidden", "");
@@ -96,15 +136,11 @@
     }
     bar.removeAttribute("hidden");
 
-    /* ================================
-       SCROLL VISIBILITY
-    ================================= */
     const updateScrollVisibility = () => {
       const visible = !showOnScroll || scrollY >= scrollOffset;
       bar.classList.toggle("is-visible", visible);
       bar.setAttribute("aria-hidden", String(!visible));
 
-      // 🔥 VIEW EVENT
       if (visible && !bar.dataset.__viewLogged) {
         bar.dataset.__viewLogged = "1";
         logStickyView();
@@ -114,9 +150,6 @@
     updateScrollVisibility();
     addEventListener("scroll", updateScrollVisibility);
 
-    /* ================================
-       PRODUCT FORM (SAFE)
-    ================================= */
     const productForm =
       document.querySelector('form[action*="/cart/add"]') ||
       document.querySelector("product-form form");
@@ -126,9 +159,6 @@
     const variantInput = productForm.querySelector('[name="id"]');
     if (!variantInput) return;
 
-    /* ================================
-       BAR ELEMENTS
-    ================================= */
     const titleEl = bar.querySelector("#bdm-title");
     const priceEl = bar.querySelector("#bdm-price");
     const qtyWrapper = bar.querySelector(".bdm-qty");
@@ -142,9 +172,6 @@
     if (priceEl) priceEl.style.display = showPrice ? "" : "none";
     if (qtyWrapper) qtyWrapper.style.display = showQty ? "inline-flex" : "none";
 
-    /* ================================
-       PRODUCT DATA
-    ================================= */
     const handle = location.pathname.split("/products/")[1];
     if (!handle) return;
 
@@ -179,9 +206,6 @@
         );
       });
 
-    /* ================================
-       QTY
-    ================================= */
     let currentQty = 1;
     if (qtyEl) qtyEl.value = currentQty;
 
@@ -201,9 +225,6 @@
       });
     });
 
-    /* ================================
-       SUBMIT-TIME QUANTITY INJECTION
-    ================================= */
     productForm.addEventListener(
       "submit",
       () => {
@@ -219,9 +240,6 @@
       true
     );
 
-    /* ================================
-       ADD TO CART
-    ================================= */
     atcBtn.addEventListener("click", async e => {
       e.preventDefault();
       if (atcBtn.disabled) return;
@@ -232,7 +250,6 @@
         quantity: currentQty
       });
 
-      // 🔥 ATC EVENT
       track("add_to_cart", {
         source: "bdm_sticky_atc",
         variantId: variantInput.value,
@@ -259,18 +276,7 @@
         atcBtn.disabled = false;
         if (!res.ok) return;
 
-        try {
-          const marker = sessionStorage.getItem("bdm_sticky_atc_event");
-          if (marker) {
-            await fetch("/cart/update.js", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                attributes: { bdm_sticky_atc: marker }
-              })
-            });
-          }
-        } catch {}
+        updateStickyVisibilityFromDrawer(); // ⭐ ADDED
 
         const sections = ["cart-drawer", "cart-icon-bubble"];
         const sectionRes = await fetch(`/?sections=${sections.join(",")}`);
@@ -297,21 +303,10 @@
         drawer.setAttribute("open", "");
         drawer.dispatchEvent(new Event("open", { bubbles: true }));
 
+        updateStickyVisibilityFromDrawer(); // ⭐ ADDED
+
         return;
       }
-
-      try {
-        const marker = sessionStorage.getItem("bdm_sticky_atc_event");
-        if (marker) {
-          fetch("/cart/update.js", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              attributes: { bdm_sticky_atc: marker }
-            })
-          });
-        }
-      } catch {}
 
       productForm.requestSubmit();
     });
