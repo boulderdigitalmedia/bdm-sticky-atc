@@ -47,7 +47,7 @@ app.post(
 );
 
 /* =========================================================
-   APP UNINSTALLED WEBHOOK — SESSION CLEANUP (FIXED)
+   APP UNINSTALLED WEBHOOK — SESSION CLEANUP
 ========================================================= */
 app.post(
   "/webhooks/app/uninstalled",
@@ -123,7 +123,7 @@ app.get("/__debug/conversions", async (req, res) => {
 });
 
 /* =========================================================
-   ⭐ EMBEDDED APP LOADER (FIXED SESSION CHECK)
+   ⭐ MODERN EMBEDDED APP LOADER (OFFICIAL PATTERN)
 ========================================================= */
 app.get("/*", async (req, res, next) => {
   const p = req.path || "";
@@ -139,22 +139,6 @@ app.get("/*", async (req, res, next) => {
 
   console.log("📥 Loader hit:", req.originalUrl);
 
-  let shop = req.query.shop;
-  const host = req.query.host;
-
-  if (!shop || !host) {
-    console.log("⚠️ Missing shop or host — blocking direct access");
-    return res.status(200).send(`
-      <html>
-        <head><title>Sticky Add To Cart Bar</title></head>
-        <body style="font-family:sans-serif;padding:24px;">
-          <h2>Sticky Add To Cart Bar</h2>
-          <p>This app must be opened from inside Shopify Admin.</p>
-        </body>
-      </html>
-    `);
-  }
-
   const shopify = shopifyModule.shopify;
 
   if (!shopify) {
@@ -162,33 +146,21 @@ app.get("/*", async (req, res, next) => {
     return res.status(500).send("Shopify not ready");
   }
 
-  shop = shopify.utils.sanitizeShop(String(shop));
-  if (!shop) {
-    console.error("❌ Invalid shop param");
-    return res.status(400).send("Invalid shop");
-  }
-
-  console.log("🔎 Checking offline session for:", shop);
-
-  let session = null;
-
   try {
-    const sessions =
-      await shopify.config.sessionStorage.findSessionsByShop(shop);
-
-    session = Array.isArray(sessions)
-      ? sessions.find((s) => !s.isOnline)
-      : null;
-  } catch (e) {
-    console.error("❌ Session lookup failed:", e);
+    /**
+     * ⭐ OFFICIAL INSTALL GUARD
+     * Handles OAuth automatically.
+     */
+    await shopify.auth.ensureInstalledOnShop({
+      rawRequest: req,
+      rawResponse: res,
+    });
+  } catch (err) {
+    console.error("❌ ensureInstalledOnShop failed:", err);
+    return;
   }
 
-  if (!session) {
-    console.log("🔑 No session — redirecting to OAuth");
-    return res.redirect(`/auth?shop=${encodeURIComponent(shop)}`);
-  }
-
-  console.log("✅ Session found — loading SPA");
+  console.log("✅ App confirmed installed — loading SPA");
 
   const indexPath = path.join(
     __dirname,
