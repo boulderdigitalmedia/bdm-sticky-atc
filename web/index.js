@@ -47,7 +47,7 @@ app.post(
 );
 
 /* =========================================================
-   APP UNINSTALLED WEBHOOK — SESSION CLEANUP
+   APP UNINSTALLED WEBHOOK — SESSION CLEANUP (FIXED)
 ========================================================= */
 app.post(
   "/webhooks/app/uninstalled",
@@ -61,10 +61,13 @@ app.post(
       console.log("🧹 APP_UNINSTALLED received for:", shop);
 
       if (shop) {
-        await prisma.sessionStorage.deleteMany({
-          where: { shop },
-        });
-        console.log("🧹 Sessions deleted for:", shop);
+        const shopify = shopifyModule.shopify;
+
+        const sessionId = shopify.session.getOfflineId(shop);
+
+        await shopify.config.sessionStorage.deleteSession(sessionId);
+
+        console.log("🧹 Session deleted via Shopify storage:", shop);
       }
 
       res.status(200).send("ok");
@@ -167,13 +170,12 @@ app.get("/*", async (req, res, next) => {
   let session = null;
 
   try {
-    // ⭐ FIX: use Prisma instead of getOfflineId()
-    session = await prisma.session.findFirst({
-      where: {
-        shop: shop,
-        isOnline: false,
-      },
-    });
+    // ⭐ CORRECT FIX — use Shopify session storage
+    const sessionId = shopify.session.getOfflineId(shop);
+
+    console.log("🪪 Session ID:", sessionId);
+
+    session = await shopify.config.sessionStorage.loadSession(sessionId);
   } catch (e) {
     console.error("❌ Session lookup failed:", e);
   }
