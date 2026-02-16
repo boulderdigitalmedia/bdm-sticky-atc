@@ -28,6 +28,9 @@
     } catch {}
   }
 
+  /* =====================================================
+     STICKY ATC MARKER (UNCHANGED)
+  ===================================================== */
   function markStickyATC({ productId, variantId, quantity }) {
     try {
       const payload = {
@@ -61,38 +64,8 @@
     if (!bar) return;
 
     /* =====================================================
-       ⭐ UNIVERSAL DRAWER REPLACER (NEW — DOES NOT CHANGE FLOW)
-    ===================================================== */
-    function __bdm_replaceDrawerContent(drawer, html) {
-      const doc = new DOMParser().parseFromString(html, "text/html");
-
-      const selectors = [
-        ".drawer__inner",          // Dawn
-        ".CartDrawer__Content",    // Prestige
-        ".drawer__content",        // Impulse variants
-        "[data-cart-render]"       // custom themes
-      ];
-
-      for (const sel of selectors) {
-        const freshInner = doc.querySelector(sel);
-        const currentInner = drawer.querySelector(sel);
-
-        if (freshInner && currentInner) {
-          currentInner.replaceWith(freshInner);
-          return;
-        }
-      }
-
-      // fallback to original behaviour
-      const fresh =
-        doc.querySelector("cart-drawer") ||
-        doc.getElementById("CartDrawer");
-
-      if (fresh) drawer.innerHTML = fresh.innerHTML;
-    }
-
-    /* =====================================================
        ⭐ FIX BLOCK — CART DRAWER + EMPTY CART REFRESH
+       (UNCHANGED)
     ===================================================== */
 
     function __bdm_isVisible(el) {
@@ -199,6 +172,10 @@
       })
     );
 
+    /* =====================================================
+       ORIGINAL SCRIPT BELOW — UNCHANGED
+    ===================================================== */
+
     if (!location.pathname.includes("/products/")) {
       bar.setAttribute("hidden", "");
       return;
@@ -252,6 +229,10 @@
     if (!atcBtn) return;
     atcBtn.dataset.originalText = atcBtn.textContent;
 
+    if (titleEl) titleEl.style.display = showTitle ? "" : "none";
+    if (priceEl) priceEl.style.display = showPrice ? "" : "none";
+    if (qtyWrapper) qtyWrapper.style.display = showQty ? "inline-flex" : "none";
+
     const handle = location.pathname.split("/products/")[1];
     if (!handle) return;
 
@@ -289,6 +270,37 @@
     let currentQty = 1;
     if (qtyEl) qtyEl.value = currentQty;
 
+    qtyEl?.addEventListener("change", () => {
+      currentQty = Math.max(1, parseInt(qtyEl.value || "1", 10));
+      qtyEl.value = currentQty;
+    });
+
+    bar.querySelectorAll(".bdm-qty-btn").forEach(btn => {
+      btn.addEventListener("click", e => {
+        e.preventDefault();
+        if (btn.dataset.action === "increase") currentQty++;
+        if (btn.dataset.action === "decrease") {
+          currentQty = Math.max(1, currentQty - 1);
+        }
+        qtyEl.value = currentQty;
+      });
+    });
+
+    productForm.addEventListener(
+      "submit",
+      () => {
+        let q = productForm.querySelector('[name="quantity"]');
+        if (!q) {
+          q = document.createElement("input");
+          q.type = "hidden";
+          q.name = "quantity";
+          productForm.appendChild(q);
+        }
+        q.value = currentQty;
+      },
+      true
+    );
+
     atcBtn.addEventListener("click", async e => {
       e.preventDefault();
       if (atcBtn.disabled) return;
@@ -315,6 +327,8 @@
         const fd = new FormData();
         fd.append("id", variantInput.value);
         fd.append("quantity", currentQty);
+
+        /* ⭐⭐⭐ FIX APPLIED HERE — SINGLE SHOPIFY SECTIONS REQUEST ⭐⭐⭐ */
         fd.append("sections", "cart-drawer,cart-icon-bubble");
         fd.append("sections_url", window.location.pathname);
 
@@ -335,7 +349,15 @@
         }
 
         if (data.sections?.["cart-drawer"]) {
-          __bdm_replaceDrawerContent(drawer, data.sections["cart-drawer"]);
+          const doc = new DOMParser().parseFromString(
+            data.sections["cart-drawer"],
+            "text/html"
+          );
+          const fresh =
+            doc.querySelector("cart-drawer") ||
+            doc.getElementById("CartDrawer");
+
+          if (fresh) drawer.innerHTML = fresh.innerHTML;
         }
 
         drawer.classList.add("active");
