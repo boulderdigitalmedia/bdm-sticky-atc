@@ -123,7 +123,7 @@ app.get("/__debug/conversions", async (req, res) => {
 });
 
 /* =========================================================
-   ⭐ MODERN EMBEDDED APP LOADER (OFFICIAL PATTERN)
+   ⭐ EMBEDDED APP LOADER (FINAL FIX)
 ========================================================= */
 app.get("/*", async (req, res, next) => {
   const p = req.path || "";
@@ -139,6 +139,16 @@ app.get("/*", async (req, res, next) => {
 
   console.log("📥 Loader hit:", req.originalUrl);
 
+  /**
+   * ⭐ CRITICAL FIX
+   * If no shop param exists, this is NOT a Shopify load.
+   * Just return quietly — do NOT trigger OAuth.
+   */
+  if (!req.query.shop) {
+    console.log("⚠️ No shop param — ignoring non-Shopify request");
+    return res.status(200).send("OK");
+  }
+
   const shopify = shopifyModule.shopify;
 
   if (!shopify) {
@@ -146,21 +156,29 @@ app.get("/*", async (req, res, next) => {
     return res.status(500).send("Shopify not ready");
   }
 
+  let shop = shopify.utils.sanitizeShop(String(req.query.shop));
+
+  console.log("🔎 Checking offline session for:", shop);
+
+  let session = null;
+
   try {
-    /**
-     * ⭐ OFFICIAL INSTALL GUARD
-     * Handles OAuth automatically.
-     */
-    await shopify.auth.ensureInstalledOnShop({
-      rawRequest: req,
-      rawResponse: res,
-    });
-  } catch (err) {
-    console.error("❌ ensureInstalledOnShop failed:", err);
-    return;
+    const sessions =
+      await shopify.config.sessionStorage.findSessionsByShop(shop);
+
+    session = Array.isArray(sessions)
+      ? sessions.find((s) => !s.isOnline)
+      : null;
+  } catch (e) {
+    console.error("❌ Session lookup failed:", e);
   }
 
-  console.log("✅ App confirmed installed — loading SPA");
+  if (!session) {
+    console.log("🔑 No session — redirecting to OAuth");
+    return res.redirect(`/auth?shop=${encodeURIComponent(shop)}`);
+  }
+
+  console.log("✅ Session found — loading SPA");
 
   const indexPath = path.join(
     __dirname,
