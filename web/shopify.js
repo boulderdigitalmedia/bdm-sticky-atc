@@ -17,54 +17,93 @@ function requiredEnv(name) {
 export let shopify;
 
 /* =========================================================
-   💳 BILLING HELPER (ADDED)
+   💳 BILLING HELPERS
 ========================================================= */
-export async function ensureBilling(session) {
-  try {
-    const client = new shopify.clients.Graphql({ session });
+async function hasActiveSubscription(session) {
+  const client = new shopify.clients.Graphql({ session });
 
-    const RETURN_URL =
-      `${process.env.SHOPIFY_APP_URL}/?shop=${session.shop}`;
-
-    const mutation = `
-      mutation AppSubscriptionCreate($name: String!, $returnUrl: URL!, $trialDays: Int!) {
-        appSubscriptionCreate(
-          name: $name
-          returnUrl: $returnUrl
-          trialDays: $trialDays
-          test: true
-          lineItems: [
-            {
-              plan: {
-                appRecurringPricingDetails: {
-                  price: { amount: 7.99, currencyCode: USD }
-                }
-              }
-            }
-          ]
-        ) {
-          confirmationUrl
-          userErrors { field message }
+  const result = await client.request(`
+    query {
+      currentAppInstallation {
+        activeSubscriptions {
+          id
+          status
         }
       }
-    `;
+    }
+  `);
 
-    const response = await client.query({
-      data: {
-        query: mutation,
-        variables: {
-          name: "Sticky Add To Cart Bar Pro",
-          returnUrl: RETURN_URL,
-          trialDays: 7,
-        },
-      },
-    });
+  const subs =
+    result?.data?.currentAppInstallation?.activeSubscriptions || [];
 
-    return response.body.data.appSubscriptionCreate.confirmationUrl || null;
-  } catch (e) {
-    console.error("❌ Billing creation failed:", e);
+  return subs.length > 0;
+}
+
+async function createSubscription(session, returnUrl) {
+  const client = new shopify.clients.Graphql({ session });
+
+  // NOTE:
+  // - Keep test: true for dev stores
+  // - For production, set SHOPIFY_BILLING_TEST=false and use: test: false
+  const testMode = (process.env.SHOPIFY_BILLING_TEST || "true") === "true";
+
+  const mutation = `
+    mutation AppSubscriptionCreate($name: String!, $returnUrl: URL!, $trialDays: Int!, $test: Boolean!) {
+      appSubscriptionCreate(
+        name: $name
+        returnUrl: $returnUrl
+        trialDays: $trialDays
+        test: $test
+        lineItems: [
+          {
+            plan: {
+              appRecurringPricingDetails: {
+                price: { amount: 7.99, currencyCode: USD }
+              }
+            }
+          }
+        ]
+      ) {
+        confirmationUrl
+        userErrors { field message }
+      }
+    }
+  `;
+
+  const result = await client.request(mutation, {
+    variables: {
+      name: "Sticky Add To Cart Bar Pro",
+      returnUrl,
+      trialDays: 7,
+      test: testMode,
+    },
+  });
+
+  const payload = result?.data?.appSubscriptionCreate;
+  const errors = payload?.userErrors || [];
+
+  if (errors.length) {
+    console.error("❌ Billing userErrors:", errors);
     return null;
   }
+
+  return payload?.confirmationUrl || null;
+}
+
+function topRedirectHtml(url) {
+  return `
+    <html>
+      <body>
+        <script>
+          if (window.top === window.self) {
+            window.location.href = "${url}";
+          } else {
+            window.top.location.href = "${url}";
+          }
+        </script>
+      </body>
+    </html>
+  `;
 }
 
 export function initShopify(app) {
@@ -117,24 +156,10 @@ export function initShopify(app) {
       const shop = shopify.utils.sanitizeShop(String(shopParam));
       if (!shop) return res.status(400).send("Invalid shop");
 
+      // Escape iframe BEFORE OAuth
       if (!req.query.embedded) {
-        const redirectUrl = `/auth?shop=${encodeURIComponent(
-          shop
-        )}&embedded=1`;
-
-        return res.send(`
-          <html>
-            <body>
-              <script>
-                if (window.top === window.self) {
-                  window.location.href = "${redirectUrl}";
-                } else {
-                  window.top.location.href = "${redirectUrl}";
-                }
-              </script>
-            </body>
-          </html>
-        `);
+        const redirectUrl = `/auth?shop=${encodeURIComponent(shop)}&embedded=1`;
+        return res.send(topRedirectHtml(redirectUrl));
       }
 
       await shopify.auth.begin({
@@ -151,7 +176,10 @@ export function initShopify(app) {
   });
 
   /* =========================================================
-     AUTH CALLBACK + BILLING
+     AUTH CALLBACK
+     - store session
+     - register webhooks
+     - then go to billing subscribe endpoint (NO LOOPS)
   ========================================================= */
   app.get("/auth/callback", async (req, res) => {
     try {
@@ -164,29 +192,87 @@ export function initShopify(app) {
 
       console.log("🔑 OAuth session received:", session.shop);
 
+      // Force store session (you already proved this helps)
       await shopify.config.sessionStorage.storeSession(session);
       console.log("💾 Session stored:", session.id);
 
-      await shopify.webhooks.register({ session });
-
-      // 💳 BILLING REDIRECT
-      const confirmationUrl = await ensureBilling(session);
-      if (confirmationUrl) {
-        console.log("💳 Redirecting to billing approval");
-        return res.redirect(confirmationUrl);
+      try {
+        await shopify.webhooks.register({ session });
+      } catch (e) {
+        console.error("⚠️ Webhook register failed:", e);
       }
 
       const host = req.query.host ? String(req.query.host) : null;
 
-      const redirectUrl =
-        `/?shop=${encodeURIComponent(session.shop)}` +
+      // IMPORTANT: send them to billing subscribe (NOT to / directly)
+      // so the first page-load after auth doesn’t loop.
+      const billingUrl =
+        `/billing/subscribe?shop=${encodeURIComponent(session.shop)}` +
         (host ? `&host=${encodeURIComponent(host)}` : "") +
         `&embedded=1`;
 
-      return res.redirect(redirectUrl);
+      return res.redirect(billingUrl);
     } catch (err) {
       console.error("❌ OAuth callback failed", err);
       return res.status(500).send("Auth failed");
+    }
+  });
+
+  /* =========================================================
+     💳 BILLING SUBSCRIBE (NEW)
+     - uses OFFLINE session
+     - if already active -> redirect into app
+     - if not -> create subscription and redirect to confirmationUrl
+  ========================================================= */
+  app.get("/billing/subscribe", async (req, res) => {
+    try {
+      const shopParam = req.query.shop;
+      if (!shopParam) return res.status(400).send("Missing shop");
+
+      const shop = shopify.utils.sanitizeShop(String(shopParam));
+      if (!shop) return res.status(400).send("Invalid shop");
+
+      const host = req.query.host ? String(req.query.host) : null;
+
+      // Load offline session from your storage
+      const sessions = await shopify.config.sessionStorage.findSessionsByShop(
+        shop
+      );
+      const session = Array.isArray(sessions)
+        ? sessions.find((s) => !s.isOnline)
+        : null;
+
+      if (!session) {
+        // No session yet -> go auth
+        return res.redirect(`/auth?shop=${encodeURIComponent(shop)}`);
+      }
+
+      // If subscription exists, go to app
+      const active = await hasActiveSubscription(session);
+      if (active) {
+        const redirectUrl =
+          `/?shop=${encodeURIComponent(shop)}` +
+          (host ? `&host=${encodeURIComponent(host)}` : "") +
+          `&embedded=1`;
+        return res.redirect(redirectUrl);
+      }
+
+      // Create subscription and send merchant to approve
+      const returnUrl =
+        `${process.env.SHOPIFY_APP_URL}/?shop=${encodeURIComponent(shop)}` +
+        (host ? `&host=${encodeURIComponent(host)}` : "") +
+        `&embedded=1`;
+
+      const confirmationUrl = await createSubscription(session, returnUrl);
+      if (!confirmationUrl) {
+        return res.status(500).send("Could not start billing");
+      }
+
+      // confirmationUrl needs top-level redirect (embedded app)
+      return res.send(topRedirectHtml(confirmationUrl));
+    } catch (e) {
+      console.error("❌ /billing/subscribe failed:", e);
+      return res.status(500).send("Billing failed");
     }
   });
 

@@ -35,7 +35,7 @@ app.use(
 app.options("*", cors());
 
 /* =========================================================
-   WEBHOOKS
+   WEBHOOK — RAW BODY
 ========================================================= */
 app.post(
   "/webhooks/orders/paid",
@@ -46,6 +46,9 @@ app.post(
   }
 );
 
+/* =========================================================
+   APP UNINSTALLED WEBHOOK — SESSION CLEANUP
+========================================================= */
 app.post(
   "/webhooks/app/uninstalled",
   express.raw({ type: "*/*" }),
@@ -84,17 +87,23 @@ app.post(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-/* ROUTES */
+/* =========================================================
+   ROUTES
+========================================================= */
 app.use("/api/settings", settingsRouter);
 app.use("/api/track", trackRouter);
 app.use("/apps/bdm-sticky-atc/track", trackRouter);
 app.use("/apps/bdm-sticky-atc", stickyAnalyticsRouter);
 app.use("/attribution", attributionRouter);
 
-/* INIT SHOPIFY */
+/* =========================================================
+   SHOPIFY INIT
+========================================================= */
 shopifyModule.initShopify(app);
 
-/* STATIC */
+/* =========================================================
+   STATIC FILES
+========================================================= */
 app.use("/web", express.static(path.join(__dirname, "public")));
 app.use(
   express.static(path.join(__dirname, "frontend", "dist"), {
@@ -103,13 +112,25 @@ app.use(
 );
 
 /* =========================================================
-   ⭐ EMBEDDED APP LOADER (WITH BILLING CHECK ADDED)
+   DEBUG ROUTE
+========================================================= */
+app.get("/__debug/conversions", async (req, res) => {
+  const rows = await prisma.stickyConversion.findMany({
+    orderBy: { occurredAt: "desc" },
+    take: 5,
+  });
+  res.json(rows);
+});
+
+/* =========================================================
+   ⭐ EMBEDDED APP LOADER (FINAL FIX + BILLING ROUTE)
 ========================================================= */
 app.get("/*", async (req, res, next) => {
   const p = req.path || "";
 
   if (
     p.startsWith("/auth") ||
+    p.startsWith("/billing") ||
     p.startsWith("/webhooks") ||
     p.startsWith("/api") ||
     p.startsWith("/__debug")
@@ -125,7 +146,16 @@ app.get("/*", async (req, res, next) => {
   }
 
   const shopify = shopifyModule.shopify;
+
+  if (!shopify) {
+    console.error("❌ Shopify not initialized");
+    return res.status(500).send("Shopify not ready");
+  }
+
+  const host = req.query.host ? String(req.query.host) : null;
+
   let shop = shopify.utils.sanitizeShop(String(req.query.shop));
+  if (!shop) return res.status(400).send("Invalid shop");
 
   console.log("🔎 Checking offline session for:", shop);
 
@@ -148,28 +178,34 @@ app.get("/*", async (req, res, next) => {
   }
 
   /* =========================================================
-     💳 BILLING CHECK (ADDED)
+     💳 BILLING CHECK (NO LOOP)
   ========================================================= */
   try {
     const client = new shopify.clients.Graphql({ session });
 
-    const billingCheck = await client.query({
-      data: `{
+    const billingCheck = await client.request(`
+      query {
         currentAppInstallation {
           activeSubscriptions {
             id
             status
           }
         }
-      }`,
-    });
+      }
+    `);
 
-    const active =
-      billingCheck.body.data.currentAppInstallation.activeSubscriptions.length > 0;
+    const subs =
+      billingCheck?.data?.currentAppInstallation?.activeSubscriptions || [];
 
-    if (!active) {
-      console.log("💳 No active subscription — redirecting to billing");
-      return res.redirect(`/auth?shop=${encodeURIComponent(shop)}`);
+    if (!subs.length) {
+      console.log("💳 No active subscription — redirecting to /billing/subscribe");
+
+      const billingUrl =
+        `/billing/subscribe?shop=${encodeURIComponent(shop)}` +
+        (host ? `&host=${encodeURIComponent(host)}` : "") +
+        `&embedded=1`;
+
+      return res.redirect(billingUrl);
     }
   } catch (e) {
     console.error("❌ Billing check failed:", e);
@@ -177,12 +213,7 @@ app.get("/*", async (req, res, next) => {
 
   console.log("✅ Session found — loading SPA");
 
-  const indexPath = path.join(
-    __dirname,
-    "frontend",
-    "dist",
-    "index.html"
-  );
+  const indexPath = path.join(__dirname, "frontend", "dist", "index.html");
 
   const apiKey = process.env.SHOPIFY_API_KEY || "";
 
@@ -190,14 +221,15 @@ app.get("/*", async (req, res, next) => {
     .readFileSync(indexPath, "utf8")
     .replace(
       "</head>",
-      `<script>window.__SHOPIFY_API_KEY__ = ${JSON.stringify(
-        apiKey
-      )};</script></head>`
+      `<script>window.__SHOPIFY_API_KEY__ = ${JSON.stringify(apiKey)};</script></head>`
     );
 
   res.send(html);
 });
 
+/* =========================================================
+   START SERVER
+========================================================= */
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`✅ App running on port ${PORT}`);
