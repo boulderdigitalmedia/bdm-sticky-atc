@@ -63,9 +63,11 @@ app.post(
       if (shop) {
         const shopify = shopifyModule.shopify;
 
-        const sessionId = shopify.session.getOfflineId(shop);
+        session = await shopify.config.sessionStorage.findSessionsByShop(shop);
 
-        await shopify.config.sessionStorage.deleteSession(sessionId);
+if (Array.isArray(session) && session.length > 0) {
+  session = session.find(s => !s.isOnline);
+}
 
         console.log("🧹 Session deleted via Shopify storage:", shop);
       }
