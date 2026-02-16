@@ -344,10 +344,24 @@ e.stopImmediatePropagation();
 
         await res.json(); // keep response consumed
 
-// ⭐ Force fresh section render (prevents first-add cache)
+await res.json();
+
+// ⭐ Wait for cart to actually update before pulling drawer HTML
+let attempts = 0;
+while (attempts < 5) {
+  const cartCheck = await fetch('/cart.js', { credentials: 'same-origin' });
+  const cartData = await cartCheck.json();
+  if (cartData.item_count > 0) break;
+  await new Promise(r => setTimeout(r, 80));
+  attempts++;
+}
+
+// Now request fresh drawer HTML
 const sectionRes = await fetch(
-  `/?sections=cart-drawer,cart-icon-bubble&timestamp=${Date.now()}`
+  `/?sections=cart-drawer,cart-icon-bubble&ts=${Date.now()}`
 );
+const data = await sectionRes.json();
+
 
 const data = await sectionRes.json();
 
