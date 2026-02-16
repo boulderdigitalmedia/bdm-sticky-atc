@@ -6,7 +6,7 @@
      DIRECT ANALYTICS ENDPOINT (NO APP PROXY)
   ===================================================== */
   const TRACK_ENDPOINT =
-  "https://sticky-add-to-cart-bar-pro.onrender.com/api/track/track";
+    "https://sticky-add-to-cart-bar-pro.onrender.com/api/track/track";
 
   function track(event, payload = {}) {
     try {
@@ -15,17 +15,102 @@
         headers: {
           "Content-Type": "application/json",
           "X-Shopify-Shop-Domain":
-            window.__SHOP_DOMAIN__ || window.Shopify?.shop
+            window.__SHOP_DOMAIN__ || window.Shopify?.shop,
         },
         body: JSON.stringify({
           event,
           shop: window.__SHOP_DOMAIN__ || window.Shopify?.shop,
           ts: Date.now(),
-          ...payload
+          ...payload,
         }),
-        keepalive: true
+        keepalive: true,
       });
     } catch {}
+  }
+
+  /* =====================================================
+     ⭐ CART VISIBILITY SYNC (NEW)
+  ===================================================== */
+  function __bdm_syncStickyWithCartUI() {
+    const bar = document.getElementById("bdm-sticky-atc");
+    if (!bar) return;
+
+    const drawer =
+      document.querySelector("cart-drawer") ||
+      document.getElementById("CartDrawer");
+
+    if (!drawer) return;
+
+    const isOpen =
+      drawer.hasAttribute("open") ||
+      drawer.classList.contains("active") ||
+      drawer.classList.contains("is-active");
+
+    if (isOpen) {
+      bar.classList.remove("is-visible");
+    } else {
+      const offset = parseInt(bar.dataset.scrollOffset || "250", 10);
+      if (!bar.hasAttribute("data-show-on-scroll") || scrollY >= offset) {
+        bar.classList.add("is-visible");
+      }
+    }
+  }
+
+  /* =====================================================
+     ⭐ EMPTY CART OBSERVER (NEW)
+  ===================================================== */
+  function __bdm_refreshWhenCartEmpty() {
+    const drawer =
+      document.querySelector("cart-drawer") ||
+      document.getElementById("CartDrawer");
+    const bar = document.getElementById("bdm-sticky-atc");
+
+    if (!drawer || !bar) return;
+
+    const observer = new MutationObserver(() => {
+      __bdm_syncStickyWithCartUI();
+    });
+
+    observer.observe(drawer, { childList: true, subtree: true });
+  }
+
+  /* =====================================================
+     ⭐ HARD CART STATE SYNC (FINAL FIX)
+  ===================================================== */
+  function __bdm_forceCartSync() {
+    const bar = document.getElementById("bdm-sticky-atc");
+    if (!bar) return;
+
+    let tries = 0;
+
+    const tick = async () => {
+      tries++;
+
+      try {
+        const r = await fetch("/cart.js", { credentials: "same-origin" });
+        if (!r.ok) return;
+        const cart = await r.json();
+
+        __bdm_syncStickyWithCartUI();
+
+        // cart emptied
+        if (cart.item_count === 0) {
+          bar.classList.remove("is-visible");
+          bar.dataset.__viewLogged = "";
+        }
+
+        // cart re-added after empty
+        if (cart.item_count > 0) {
+          setTimeout(() => {
+            __bdm_syncStickyWithCartUI();
+          }, 120);
+        }
+      } catch {}
+
+      if (tries < 6) setTimeout(tick, 200);
+    };
+
+    tick();
   }
 
   /* =====================================================
@@ -38,13 +123,10 @@
         productId,
         variantId,
         quantity,
-        ts: Date.now()
+        ts: Date.now(),
       };
 
-      sessionStorage.setItem(
-        "bdm_sticky_atc_event",
-        JSON.stringify(payload)
-      );
+      sessionStorage.setItem("bdm_sticky_atc_event", JSON.stringify(payload));
     } catch {}
   }
 
@@ -54,7 +136,7 @@
       document.body.dataset.__bdmStickyViewLogged = "1";
 
       track("page_view", {
-        source: "bdm_sticky_atc"
+        source: "bdm_sticky_atc",
       });
     } catch {}
   }
@@ -63,119 +145,7 @@
     const bar = document.getElementById("bdm-sticky-atc");
     if (!bar) return;
 
-    /* =====================================================
-       ⭐ FIX BLOCK — CART DRAWER + EMPTY CART REFRESH
-       (THIS IS THE ONLY ADDITION)
-    ===================================================== */
-
-    function __bdm_isVisible(el) {
-      if (!el) return false;
-      const cs = getComputedStyle(el);
-      if (cs.display === "none" || cs.visibility === "hidden" || cs.opacity === "0")
-        return false;
-      const r = el.getBoundingClientRect();
-      return r.width > 0 && r.height > 0;
-    }
-
-    function __bdm_findCartContainer() {
-      const selectors = [
-        "cart-drawer",
-        "#CartDrawer",
-        "[data-cart-drawer]",
-        ".cart-drawer",
-        ".drawer--cart",
-        ".drawer.cart",
-        ".drawer",
-        "[id*='CartDrawer']",
-        "[class*='CartDrawer']",
-        "[data-drawer*='cart']",
-      ];
-
-      for (const sel of selectors) {
-        const el = document.querySelector(sel);
-        if (el) return el;
-      }
-
-      const dialogs = Array.from(
-        document.querySelectorAll("dialog, [role='dialog'], [aria-modal='true']")
-      );
-
-      return dialogs.find((d) =>
-        /your cart/i.test((d.textContent || "").trim())
-      );
-    }
-
-    function __bdm_isCartOpen() {
-      const container = __bdm_findCartContainer();
-      if (!container) return false;
-      if (!__bdm_isVisible(container)) return false;
-      return true;
-    }
-
-    function __bdm_setStickyHidden(hidden) {
-      bar.style.display = hidden ? "none" : "";
-    }
-
-    function __bdm_syncStickyWithCartUI() {
-      __bdm_setStickyHidden(__bdm_isCartOpen());
-    }
-
-    async function __bdm_refreshWhenCartEmpty() {
-      try {
-        const r = await fetch("/cart.js", { credentials: "same-origin" });
-        if (!r.ok) return;
-        const cart = await r.json();
-        if (cart && cart.item_count === 0) {
-          __bdm_syncStickyWithCartUI();
-        }
-      } catch {}
-    }
-
-    __bdm_syncStickyWithCartUI();
-
-    const __bdm_observer = new MutationObserver(() => {
-      __bdm_syncStickyWithCartUI();
-    });
-
-    __bdm_observer.observe(document.documentElement, {
-      subtree: true,
-      childList: true,
-      attributes: true,
-      attributeFilter: ["class", "style", "open", "aria-hidden"],
-    });
-
-    document.addEventListener(
-      "click",
-      (e) => {
-        const t = e.target;
-
-        const looksLikeCartControl =
-          t.closest("a[href='/cart']") ||
-          t.closest("[data-cart]") ||
-          t.closest("[aria-controls*='CartDrawer']") ||
-          t.closest("button");
-
-        if (!looksLikeCartControl) return;
-
-        setTimeout(() => {
-          __bdm_syncStickyWithCartUI();
-          __bdm_refreshWhenCartEmpty();
-        }, 350);
-      },
-      true
-    );
-
-    ["cart:updated", "ajaxCart:updated", "cart:change", "cart:refresh"].forEach((evt) =>
-      document.addEventListener(evt, () => {
-        __bdm_syncStickyWithCartUI();
-        __bdm_refreshWhenCartEmpty();
-      })
-    );
-
-    /* =====================================================
-       ORIGINAL SCRIPT BELOW — UNCHANGED
-    ===================================================== */
-
+    /* ONLY SHOW ON PRODUCT PAGES */
     if (!location.pathname.includes("/products/")) {
       bar.setAttribute("hidden", "");
       return;
@@ -186,15 +156,12 @@
     const showOnScroll = bar.hasAttribute("data-show-on-scroll");
     const scrollOffset = parseInt(bar.dataset.scrollOffset || "250", 10);
 
-    const showTitle = bar.hasAttribute("data-show-title");
-    const showPrice = bar.hasAttribute("data-show-price");
-    const showQty = bar.hasAttribute("data-show-qty");
-
     const isMobile = matchMedia("(max-width: 768px)").matches;
     if ((isMobile && !showMobile) || (!isMobile && !showDesktop)) {
       bar.setAttribute("hidden", "");
       return;
     }
+
     bar.removeAttribute("hidden");
 
     const updateScrollVisibility = () => {
@@ -220,101 +187,28 @@
     const variantInput = productForm.querySelector('[name="id"]');
     if (!variantInput) return;
 
-    const titleEl = bar.querySelector("#bdm-title");
-    const priceEl = bar.querySelector("#bdm-price");
-    const qtyWrapper = bar.querySelector(".bdm-qty");
-    const qtyEl = bar.querySelector("#bdm-qty");
     const atcBtn = bar.querySelector("#bdm-atc");
-
     if (!atcBtn) return;
-    atcBtn.dataset.originalText = atcBtn.textContent;
-
-    if (titleEl) titleEl.style.display = showTitle ? "" : "none";
-    if (priceEl) priceEl.style.display = showPrice ? "" : "none";
-    if (qtyWrapper) qtyWrapper.style.display = showQty ? "inline-flex" : "none";
 
     const handle = location.pathname.split("/products/")[1];
     if (!handle) return;
 
-    fetch(`/products/${handle}.js`)
-      .then(r => r.json())
-      .then(product => {
-        if (showTitle && titleEl) titleEl.textContent = product.title;
-
-        const updateVariantUI = id => {
-          const v = product.variants.find(v => v.id == id);
-          if (!v) return;
-
-          if (showPrice && priceEl) {
-            priceEl.textContent = (v.price / 100).toLocaleString(undefined, {
-              style: "currency",
-              currency: product.currency || "USD"
-            });
-          }
-
-          if (!v.available) {
-            atcBtn.textContent = "Sold Out";
-            atcBtn.disabled = true;
-          } else {
-            atcBtn.textContent = atcBtn.dataset.originalText;
-            atcBtn.disabled = false;
-          }
-        };
-
-        updateVariantUI(variantInput.value);
-        variantInput.addEventListener("change", e =>
-          updateVariantUI(e.target.value)
-        );
-      });
-
     let currentQty = 1;
-    if (qtyEl) qtyEl.value = currentQty;
 
-    qtyEl?.addEventListener("change", () => {
-      currentQty = Math.max(1, parseInt(qtyEl.value || "1", 10));
-      qtyEl.value = currentQty;
-    });
-
-    bar.querySelectorAll(".bdm-qty-btn").forEach(btn => {
-      btn.addEventListener("click", e => {
-        e.preventDefault();
-        if (btn.dataset.action === "increase") currentQty++;
-        if (btn.dataset.action === "decrease") {
-          currentQty = Math.max(1, currentQty - 1);
-        }
-        qtyEl.value = currentQty;
-      });
-    });
-
-    productForm.addEventListener(
-      "submit",
-      () => {
-        let q = productForm.querySelector('[name="quantity"]');
-        if (!q) {
-          q = document.createElement("input");
-          q.type = "hidden";
-          q.name = "quantity";
-          productForm.appendChild(q);
-        }
-        q.value = currentQty;
-      },
-      true
-    );
-
-    atcBtn.addEventListener("click", async e => {
+    atcBtn.addEventListener("click", async (e) => {
       e.preventDefault();
       if (atcBtn.disabled) return;
 
       markStickyATC({
         productId: window.ShopifyAnalytics?.meta?.product?.id,
         variantId: variantInput.value,
-        quantity: currentQty
+        quantity: currentQty,
       });
 
       track("add_to_cart", {
         source: "bdm_sticky_atc",
         variantId: variantInput.value,
-        quantity: currentQty
+        quantity: currentQty,
       });
 
       const drawer =
@@ -331,7 +225,7 @@
         const res = await fetch("/cart/add.js", {
           method: "POST",
           body: fd,
-          headers: { Accept: "application/json" }
+          headers: { Accept: "application/json" },
         });
 
         atcBtn.disabled = false;
@@ -340,11 +234,6 @@
         const sections = ["cart-drawer", "cart-icon-bubble"];
         const sectionRes = await fetch(`/?sections=${sections.join(",")}`);
         const data = await sectionRes.json();
-
-        if (data["cart-icon-bubble"]) {
-          const bubble = document.getElementById("cart-icon-bubble");
-          if (bubble) bubble.innerHTML = data["cart-icon-bubble"];
-        }
 
         if (data["cart-drawer"]) {
           const doc = new DOMParser().parseFromString(
@@ -362,10 +251,28 @@
         drawer.setAttribute("open", "");
         drawer.dispatchEvent(new Event("open", { bubbles: true }));
 
+        /* ⭐ NEW FIXES */
+        __bdm_forceCartSync();
+
+        setTimeout(() => {
+          __bdm_syncStickyWithCartUI();
+          __bdm_refreshWhenCartEmpty();
+          __bdm_forceCartSync();
+        }, 350);
+
         return;
       }
 
       productForm.requestSubmit();
     });
+
+    /* ⭐ GLOBAL LISTENERS (NEW) */
+    document.addEventListener("click", () => {
+      setTimeout(__bdm_syncStickyWithCartUI, 120);
+    });
+
+    new MutationObserver(() => {
+      __bdm_syncStickyWithCartUI();
+    }).observe(document.body, { childList: true, subtree: true });
   });
 })();
