@@ -65,7 +65,7 @@
 
     /* =====================================================
        ⭐ FIX BLOCK — CART DRAWER + EMPTY CART REFRESH
-       (THIS IS THE ONLY ADDITION)
+       (UNCHANGED)
     ===================================================== */
 
     function __bdm_isVisible(el) {
@@ -328,6 +328,10 @@
         fd.append("id", variantInput.value);
         fd.append("quantity", currentQty);
 
+        /* ⭐⭐⭐ FIX APPLIED HERE — SINGLE SHOPIFY SECTIONS REQUEST ⭐⭐⭐ */
+        fd.append("sections", "cart-drawer,cart-icon-bubble");
+        fd.append("sections_url", window.location.pathname);
+
         const res = await fetch("/cart/add.js", {
           method: "POST",
           body: fd,
@@ -337,18 +341,16 @@
         atcBtn.disabled = false;
         if (!res.ok) return;
 
-        const sections = ["cart-drawer", "cart-icon-bubble"];
-        const sectionRes = await fetch(`/?sections=${sections.join(",")}`);
-        const data = await sectionRes.json();
+        const data = await res.json();
 
-        if (data["cart-icon-bubble"]) {
+        if (data.sections?.["cart-icon-bubble"]) {
           const bubble = document.getElementById("cart-icon-bubble");
-          if (bubble) bubble.innerHTML = data["cart-icon-bubble"];
+          if (bubble) bubble.innerHTML = data.sections["cart-icon-bubble"];
         }
 
-        if (data["cart-drawer"]) {
+        if (data.sections?.["cart-drawer"]) {
           const doc = new DOMParser().parseFromString(
-            data["cart-drawer"],
+            data.sections["cart-drawer"],
             "text/html"
           );
           const fresh =
@@ -361,6 +363,8 @@
         drawer.classList.add("active");
         drawer.setAttribute("open", "");
         drawer.dispatchEvent(new Event("open", { bubbles: true }));
+
+        document.dispatchEvent(new CustomEvent("cart:updated"));
 
         return;
       }
