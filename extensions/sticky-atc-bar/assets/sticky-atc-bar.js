@@ -372,6 +372,29 @@
         drawer.classList.add("active");
         drawer.setAttribute("open", "");
         drawer.dispatchEvent(new Event("open", { bubbles: true }));
+// ⭐ Force theme drawer controllers to re-open correctly
+setTimeout(() => {
+  try {
+    // Dawn / OS2 custom element
+    if (typeof drawer.open === "function") {
+      drawer.open();
+      return;
+    }
+
+    // Some themes expose JS instance
+    if (window.theme?.cartDrawer?.open) {
+      window.theme.cartDrawer.open();
+      return;
+    }
+
+    // Generic fallback click
+    const cartToggle =
+      document.querySelector('[aria-controls="CartDrawer"]') ||
+      document.querySelector('[data-cart-drawer-toggle]');
+
+    cartToggle?.click();
+  } catch {}
+}, 30);
 
         document.dispatchEvent(new CustomEvent("cart:updated"));
 document.dispatchEvent(new CustomEvent("cart:refresh"));
