@@ -16,6 +16,57 @@ function requiredEnv(name) {
 
 export let shopify;
 
+/* =========================================================
+   💳 BILLING HELPER (ADDED)
+========================================================= */
+export async function ensureBilling(session) {
+  try {
+    const client = new shopify.clients.Graphql({ session });
+
+    const RETURN_URL =
+      `${process.env.SHOPIFY_APP_URL}/?shop=${session.shop}`;
+
+    const mutation = `
+      mutation AppSubscriptionCreate($name: String!, $returnUrl: URL!, $trialDays: Int!) {
+        appSubscriptionCreate(
+          name: $name
+          returnUrl: $returnUrl
+          trialDays: $trialDays
+          test: true
+          lineItems: [
+            {
+              plan: {
+                appRecurringPricingDetails: {
+                  price: { amount: 7.99, currencyCode: USD }
+                }
+              }
+            }
+          ]
+        ) {
+          confirmationUrl
+          userErrors { field message }
+        }
+      }
+    `;
+
+    const response = await client.query({
+      data: {
+        query: mutation,
+        variables: {
+          name: "Sticky Add To Cart Bar Pro",
+          returnUrl: RETURN_URL,
+          trialDays: 7,
+        },
+      },
+    });
+
+    return response.body.data.appSubscriptionCreate.confirmationUrl || null;
+  } catch (e) {
+    console.error("❌ Billing creation failed:", e);
+    return null;
+  }
+}
+
 export function initShopify(app) {
   const apiKey = requiredEnv("SHOPIFY_API_KEY");
   const apiSecretKey = requiredEnv("SHOPIFY_API_SECRET");
@@ -37,7 +88,7 @@ export function initShopify(app) {
     apiVersion: LATEST_API_VERSION,
     isEmbeddedApp: true,
     restResources,
-    sessionStorage: prismaSessionStorage(), // ✅ using Prisma storage
+    sessionStorage: prismaSessionStorage(),
     cookies: {
       secure: true,
       sameSite: "none",
@@ -66,7 +117,6 @@ export function initShopify(app) {
       const shop = shopify.utils.sanitizeShop(String(shopParam));
       if (!shop) return res.status(400).send("Invalid shop");
 
-      // Escape iframe BEFORE OAuth
       if (!req.query.embedded) {
         const redirectUrl = `/auth?shop=${encodeURIComponent(
           shop
@@ -101,7 +151,7 @@ export function initShopify(app) {
   });
 
   /* =========================================================
-     AUTH CALLBACK (⭐ FIX APPLIED HERE)
+     AUTH CALLBACK + BILLING
   ========================================================= */
   app.get("/auth/callback", async (req, res) => {
     try {
@@ -114,18 +164,16 @@ export function initShopify(app) {
 
       console.log("🔑 OAuth session received:", session.shop);
 
-      // ⭐⭐⭐ CRITICAL FIX — FORCE STORE SESSION
-      try {
-        await shopify.config.sessionStorage.storeSession(session);
-        console.log("💾 Session stored:", session.id);
-      } catch (e) {
-        console.error("❌ Manual session store failed:", e);
-      }
+      await shopify.config.sessionStorage.storeSession(session);
+      console.log("💾 Session stored:", session.id);
 
-      try {
-        await shopify.webhooks.register({ session });
-      } catch (e) {
-        console.error("⚠️ Webhook register failed:", e);
+      await shopify.webhooks.register({ session });
+
+      // 💳 BILLING REDIRECT
+      const confirmationUrl = await ensureBilling(session);
+      if (confirmationUrl) {
+        console.log("💳 Redirecting to billing approval");
+        return res.redirect(confirmationUrl);
       }
 
       const host = req.query.host ? String(req.query.host) : null;

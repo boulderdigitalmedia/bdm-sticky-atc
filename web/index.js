@@ -35,7 +35,7 @@ app.use(
 app.options("*", cors());
 
 /* =========================================================
-   WEBHOOK — RAW BODY
+   WEBHOOKS
 ========================================================= */
 app.post(
   "/webhooks/orders/paid",
@@ -46,9 +46,6 @@ app.post(
   }
 );
 
-/* =========================================================
-   APP UNINSTALLED WEBHOOK — SESSION CLEANUP
-========================================================= */
 app.post(
   "/webhooks/app/uninstalled",
   express.raw({ type: "*/*" }),
@@ -87,23 +84,17 @@ app.post(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-/* =========================================================
-   ROUTES
-========================================================= */
+/* ROUTES */
 app.use("/api/settings", settingsRouter);
 app.use("/api/track", trackRouter);
 app.use("/apps/bdm-sticky-atc/track", trackRouter);
 app.use("/apps/bdm-sticky-atc", stickyAnalyticsRouter);
 app.use("/attribution", attributionRouter);
 
-/* =========================================================
-   SHOPIFY INIT
-========================================================= */
+/* INIT SHOPIFY */
 shopifyModule.initShopify(app);
 
-/* =========================================================
-   STATIC FILES
-========================================================= */
+/* STATIC */
 app.use("/web", express.static(path.join(__dirname, "public")));
 app.use(
   express.static(path.join(__dirname, "frontend", "dist"), {
@@ -112,18 +103,7 @@ app.use(
 );
 
 /* =========================================================
-   DEBUG ROUTE
-========================================================= */
-app.get("/__debug/conversions", async (req, res) => {
-  const rows = await prisma.stickyConversion.findMany({
-    orderBy: { occurredAt: "desc" },
-    take: 5,
-  });
-  res.json(rows);
-});
-
-/* =========================================================
-   ⭐ EMBEDDED APP LOADER (FINAL FIX)
+   ⭐ EMBEDDED APP LOADER (WITH BILLING CHECK ADDED)
 ========================================================= */
 app.get("/*", async (req, res, next) => {
   const p = req.path || "";
@@ -139,23 +119,12 @@ app.get("/*", async (req, res, next) => {
 
   console.log("📥 Loader hit:", req.originalUrl);
 
-  /**
-   * ⭐ CRITICAL FIX
-   * If no shop param exists, this is NOT a Shopify load.
-   * Just return quietly — do NOT trigger OAuth.
-   */
   if (!req.query.shop) {
     console.log("⚠️ No shop param — ignoring non-Shopify request");
     return res.status(200).send("OK");
   }
 
   const shopify = shopifyModule.shopify;
-
-  if (!shopify) {
-    console.error("❌ Shopify not initialized");
-    return res.status(500).send("Shopify not ready");
-  }
-
   let shop = shopify.utils.sanitizeShop(String(req.query.shop));
 
   console.log("🔎 Checking offline session for:", shop);
@@ -176,6 +145,34 @@ app.get("/*", async (req, res, next) => {
   if (!session) {
     console.log("🔑 No session — redirecting to OAuth");
     return res.redirect(`/auth?shop=${encodeURIComponent(shop)}`);
+  }
+
+  /* =========================================================
+     💳 BILLING CHECK (ADDED)
+  ========================================================= */
+  try {
+    const client = new shopify.clients.Graphql({ session });
+
+    const billingCheck = await client.query({
+      data: `{
+        currentAppInstallation {
+          activeSubscriptions {
+            id
+            status
+          }
+        }
+      }`,
+    });
+
+    const active =
+      billingCheck.body.data.currentAppInstallation.activeSubscriptions.length > 0;
+
+    if (!active) {
+      console.log("💳 No active subscription — redirecting to billing");
+      return res.redirect(`/auth?shop=${encodeURIComponent(shop)}`);
+    }
+  } catch (e) {
+    console.error("❌ Billing check failed:", e);
   }
 
   console.log("✅ Session found — loading SPA");
@@ -201,9 +198,6 @@ app.get("/*", async (req, res, next) => {
   res.send(html);
 });
 
-/* =========================================================
-   START SERVER
-========================================================= */
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`✅ App running on port ${PORT}`);
