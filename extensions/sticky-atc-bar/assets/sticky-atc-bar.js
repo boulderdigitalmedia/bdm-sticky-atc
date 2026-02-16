@@ -357,7 +357,16 @@
             doc.querySelector("cart-drawer") ||
             doc.getElementById("CartDrawer");
 
-          if (fresh) drawer.innerHTML = fresh.innerHTML;
+          if (fresh) {
+  drawer.innerHTML = fresh.innerHTML;
+
+  // ⭐ Force Shopify to re-upgrade <cart-drawer> element
+  if (drawer.tagName.toLowerCase() === "cart-drawer") {
+    const clone = drawer.cloneNode(true);
+    drawer.replaceWith(clone);
+  }
+}
+
         }
 
         drawer.classList.add("active");
