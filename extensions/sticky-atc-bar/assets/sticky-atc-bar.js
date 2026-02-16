@@ -341,7 +341,15 @@
         atcBtn.disabled = false;
         if (!res.ok) return;
 
-        const data = await res.json();
+        await res.json(); // keep response consumed
+
+// ⭐ Force fresh section render (prevents first-add cache)
+const sectionRes = await fetch(
+  `/?sections=cart-drawer,cart-icon-bubble&timestamp=${Date.now()}`
+);
+
+const data = await sectionRes.json();
+
 
         if (data.sections?.["cart-icon-bubble"]) {
           const bubble = document.getElementById("cart-icon-bubble");
