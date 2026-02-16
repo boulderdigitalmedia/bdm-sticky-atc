@@ -1,24 +1,15 @@
 import prisma from "./prisma.js";
+import { Session } from "@shopify/shopify-api";
 
 export function prismaSessionStorage() {
   return {
     async storeSession(session) {
       try {
-        if (!session) {
-          console.error("❌ storeSession called with empty session");
+        if (!session || !session.id) {
+          console.error("❌ storeSession invalid session");
           return false;
         }
 
-        if (!session.id) {
-          console.error("❌ storeSession: session.id is missing", {
-            shop: session.shop,
-            isOnline: session.isOnline,
-            hasAccessToken: Boolean(session.accessToken),
-          });
-          return false;
-        }
-
-        // Shopify Session fields can vary by version, so normalize safely
         const data = {
           id: session.id,
           shop: session.shop || null,
@@ -28,7 +19,6 @@ export function prismaSessionStorage() {
           expires: session.expires ?? null,
           accessToken: session.accessToken || null,
 
-          // Online session user fields (optional)
           userId: session.onlineAccessInfo?.associated_user?.id
             ? BigInt(session.onlineAccessInfo.associated_user.id)
             : null,
@@ -47,6 +37,8 @@ export function prismaSessionStorage() {
           create: data,
         });
 
+        console.log("💾 Session stored:", session.id);
+
         return true;
       } catch (err) {
         console.error("❌ storeSession Prisma error:", err);
@@ -64,32 +56,36 @@ export function prismaSessionStorage() {
 
         if (!record) return undefined;
 
-        // Return object in the shape Shopify expects
-        return {
+        /* ⭐ CRITICAL FIX:
+           Rebuild REAL Shopify Session instance
+        */
+        const session = new Session({
           id: record.id,
           shop: record.shop,
           state: record.state,
           isOnline: record.isOnline,
-          scope: record.scope,
-          expires: record.expires,
-          accessToken: record.accessToken,
+        });
 
-          // Rebuild onlineAccessInfo if present
-          onlineAccessInfo: record.userId
-            ? {
-                associated_user: {
-                  id: record.userId.toString(),
-                  first_name: record.firstName,
-                  last_name: record.lastName,
-                  email: record.email,
-                  account_owner: record.accountOwner,
-                  locale: record.locale,
-                  collaborator: record.collaborator,
-                  email_verified: record.emailVerified,
-                },
-              }
-            : undefined,
-        };
+        session.scope = record.scope;
+        session.expires = record.expires;
+        session.accessToken = record.accessToken;
+
+        if (record.userId) {
+          session.onlineAccessInfo = {
+            associated_user: {
+              id: record.userId.toString(),
+              first_name: record.firstName,
+              last_name: record.lastName,
+              email: record.email,
+              account_owner: record.accountOwner,
+              locale: record.locale,
+              collaborator: record.collaborator,
+              email_verified: record.emailVerified,
+            },
+          };
+        }
+
+        return session;
       } catch (err) {
         console.error("❌ loadSession Prisma error:", err);
         return undefined;
@@ -98,15 +94,14 @@ export function prismaSessionStorage() {
 
     async deleteSession(id) {
       try {
-        if (!id) return false;
+        if (!id) return true;
 
-        await prisma.shopifySession.delete({
+        await prisma.shopifySession.deleteMany({
           where: { id },
         });
 
         return true;
-      } catch (err) {
-        // If it doesn't exist, treat as deleted
+      } catch {
         return true;
       }
     },
@@ -134,29 +129,20 @@ export function prismaSessionStorage() {
           where: { shop },
         });
 
-        return records.map((record) => ({
-          id: record.id,
-          shop: record.shop,
-          state: record.state,
-          isOnline: record.isOnline,
-          scope: record.scope,
-          expires: record.expires,
-          accessToken: record.accessToken,
-          onlineAccessInfo: record.userId
-            ? {
-                associated_user: {
-                  id: record.userId.toString(),
-                  first_name: record.firstName,
-                  last_name: record.lastName,
-                  email: record.email,
-                  account_owner: record.accountOwner,
-                  locale: record.locale,
-                  collaborator: record.collaborator,
-                  email_verified: record.emailVerified,
-                },
-              }
-            : undefined,
-        }));
+        return records.map((r) => {
+          const session = new Session({
+            id: r.id,
+            shop: r.shop,
+            state: r.state,
+            isOnline: r.isOnline,
+          });
+
+          session.scope = r.scope;
+          session.expires = r.expires;
+          session.accessToken = r.accessToken;
+
+          return session;
+        });
       } catch (err) {
         console.error("❌ findSessionsByShop Prisma error:", err);
         return [];
