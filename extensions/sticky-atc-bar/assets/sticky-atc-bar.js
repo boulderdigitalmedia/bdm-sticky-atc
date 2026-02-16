@@ -365,6 +365,9 @@
         drawer.dispatchEvent(new Event("open", { bubbles: true }));
 
         document.dispatchEvent(new CustomEvent("cart:updated"));
+document.dispatchEvent(new CustomEvent("cart:refresh"));
+document.dispatchEvent(new CustomEvent("cart:change"));
+
 
         return;
       }
