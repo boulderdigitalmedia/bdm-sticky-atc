@@ -288,19 +288,27 @@
     });
 
     productForm.addEventListener(
-      "submit",
-      () => {
-        let q = productForm.querySelector('[name="quantity"]');
-        if (!q) {
-          q = document.createElement("input");
-          q.type = "hidden";
-          q.name = "quantity";
-          productForm.appendChild(q);
-        }
-        q.value = currentQty;
-      },
-      true
-    );
+  "submit",
+  () => {
+    let q =
+      productForm.querySelector('[name="quantity"]') ||
+      productForm.querySelector('input[name="quantity"]');
+
+    // Horizon often has NO quantity input at all
+    if (!q) {
+      q = document.createElement("input");
+      q.type = "hidden";
+      q.name = "quantity";
+
+      // ⭐ IMPORTANT: append inside form root, not button container
+      productForm.insertBefore(q, productForm.firstChild);
+    }
+
+    q.value = currentQty;
+  },
+  true
+);
+
 
     atcBtn.addEventListener("click", async e => {
       e.preventDefault();
