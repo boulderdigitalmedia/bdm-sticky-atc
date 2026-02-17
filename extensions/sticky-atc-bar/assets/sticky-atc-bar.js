@@ -364,12 +364,21 @@
             sectionsData.sections["cart-drawer"],
             "text/html"
           );
-          const fresh =
-            doc.querySelector("cart-drawer") ||
-            doc.getElementById("CartDrawer");
+          // ⭐ More reliable extraction across Dawn versions
+let fresh =
+  doc.querySelector("cart-drawer") ||
+  doc.getElementById("CartDrawer") ||
+  doc.querySelector('[id*="CartDrawer"]') ||
+  doc.querySelector('[class*="cart-drawer"]');
 
-          if (fresh) drawer.innerHTML = fresh.innerHTML;
-        }
+if (fresh) {
+  // If we grabbed wrapper, use its inner
+  const inner = fresh.tagName?.toLowerCase() === "cart-drawer"
+    ? fresh.innerHTML
+    : fresh.innerHTML;
+
+  drawer.innerHTML = inner;
+}
 
         drawer.classList.add("active");
         drawer.setAttribute("open", "");
