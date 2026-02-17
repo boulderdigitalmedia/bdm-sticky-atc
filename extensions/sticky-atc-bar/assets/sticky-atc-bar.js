@@ -312,7 +312,7 @@
         const fd = new FormData();
         fd.append("id", variantInput.value);
         fd.append("quantity", currentQty);
-        fd.append("sections", "header,cart-icon-bubble");
+        fd.append("sections", "cart-drawer,cart-icon-bubble");
         fd.append("sections_url", window.location.pathname);
 
         const res = await fetch("/cart/add.js", {
@@ -324,35 +324,30 @@
         atcBtn.disabled = false;
         if (!res.ok) return;
 
-        const addResponse = await res.json();
-
-        let sectionsData = addResponse;
+        let sectionsData = await res.json();
 
         const drawerHtml = sectionsData?.sections?.["cart-drawer"] || "";
         const looksEmpty = !drawerHtml || !/line-item|cart-item/i.test(drawerHtml);
 
         if (looksEmpty) {
+          let attempts = 0;
+          while (attempts < 6) {
+            const cartCheck = await fetch("/cart.js", { credentials: "same-origin" });
+            const cartData = await cartCheck.json();
+            if (cartData.item_count > 0) break;
+            await new Promise(r => setTimeout(r, 70));
+            attempts++;
+          }
 
-  // ⭐ Wait for cart to actually exist (first add timing issue)
-  let attempts = 0;
-  while (attempts < 6) {
-    const cartCheck = await fetch("/cart.js", { credentials: "same-origin" });
-    const cartData = await cartCheck.json();
-    if (cartData.item_count > 0) break;
-    await new Promise(r => setTimeout(r, 70));
-    attempts++;
-  }
+          const sectionRes = await fetch(
+            `/?sections=cart-drawer,cart-icon-bubble&ts=${Date.now()}`,
+            { credentials: "same-origin" }
+          );
 
-  const sectionRes = await fetch(
-    `/?sections=header,cart-icon-bubble&ts=${Date.now()}`,
-    { credentials: "same-origin" }
-  );
-
-  if (sectionRes.ok) {
-    sectionsData = await sectionRes.json();
-  }
-}
-
+          if (sectionRes.ok) {
+            sectionsData = await sectionRes.json();
+          }
+        }
 
         if (sectionsData?.sections?.["cart-icon-bubble"]) {
           const bubble = document.getElementById("cart-icon-bubble");
@@ -364,21 +359,15 @@
             sectionsData.sections["cart-drawer"],
             "text/html"
           );
-          // ⭐ More reliable extraction across Dawn versions
-let fresh =
-  doc.querySelector("cart-drawer") ||
-  doc.getElementById("CartDrawer") ||
-  doc.querySelector('[id*="CartDrawer"]') ||
-  doc.querySelector('[class*="cart-drawer"]');
 
-if (fresh) {
-  // If we grabbed wrapper, use its inner
-  const inner = fresh.tagName?.toLowerCase() === "cart-drawer"
-    ? fresh.innerHTML
-    : fresh.innerHTML;
+          let fresh =
+            doc.querySelector("cart-drawer") ||
+            doc.getElementById("CartDrawer") ||
+            doc.querySelector('[id*="CartDrawer"]') ||
+            doc.querySelector('[class*="cart-drawer"]');
 
-  drawer.innerHTML = inner;
-}
+          if (fresh) drawer.innerHTML = fresh.innerHTML;
+        }
 
         drawer.classList.add("active");
         drawer.setAttribute("open", "");
