@@ -366,14 +366,26 @@
             doc.querySelector('[class*="cart-drawer"]');
 
           if (sectionsData && typeof drawer.renderContents === "function") {
-            drawer.renderContents({
-              sections: {
-                "cart-drawer": sectionsData["cart-drawer"],
-                "cart-icon-bubble": sectionsData["cart-icon-bubble"],
-                "header": sectionsData["header"],
-                "cart-live-region-text": sectionsData["cart-live-region-text"]
-              }
-            });
+
+  // ⭐ Wait until Dawn cart-drawer fully initializes
+  let readyAttempts = 0;
+  while (
+    readyAttempts < 10 &&
+    !drawer.querySelector('[data-cart-items], .cart-items, cart-items')
+  ) {
+    await new Promise(r => setTimeout(r, 40));
+    readyAttempts++;
+  }
+
+  drawer.renderContents({
+    sections: {
+      "cart-drawer": sectionsData["cart-drawer"],
+      "cart-icon-bubble": sectionsData["cart-icon-bubble"],
+      "header": sectionsData["header"],
+      "cart-live-region-text": sectionsData["cart-live-region-text"]
+    }
+  });
+}
           } else if (fresh) {
             drawer.innerHTML = fresh.innerHTML;
           }
