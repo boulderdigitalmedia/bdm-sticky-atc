@@ -368,7 +368,15 @@
                   const cartState = await cartStateRes.json();
 
                   if (typeof drawer.renderContents === "function") {
-                    drawer.renderContents(cartState);
+                    drawer.renderContents({
+  sections: {
+    "cart-drawer": sectionsData["cart-drawer"],
+    "cart-icon-bubble": sectionsData["cart-icon-bubble"],
+    "header": sectionsData["header"],
+    "cart-live-region-text": sectionsData["cart-live-region-text"]
+  }
+});
+
                   }
                 }
               } catch {
