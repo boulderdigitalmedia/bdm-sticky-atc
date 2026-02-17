@@ -406,6 +406,39 @@ __bdm_qtyObserver.observe(productForm, {
   attributeFilter: ["value"]
 });
 
+/* ===============================
+   FORCE QUANTITY INTO AJAX ATC
+   Fixes Debut + themes with no qty input
+================================*/
+(function __bdm_patchFetchCartAdd() {
+  const origFetch = window.fetch;
+
+  window.fetch = function(input, init) {
+    try {
+      const url = typeof input === "string" ? input : input?.url;
+
+      if (url && /\/cart\/add(\.js)?/i.test(url) && init?.body) {
+        // FormData request (most themes)
+        if (init.body instanceof FormData) {
+          init.body.set("quantity", String(currentQty));
+        }
+
+        // JSON body request (rare themes)
+        else if (typeof init.body === "string") {
+          const data = JSON.parse(init.body);
+          if (data && typeof data === "object") {
+            data.quantity = currentQty;
+            init.body = JSON.stringify(data);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("BDM qty patch error", e);
+    }
+
+    return origFetch.apply(this, arguments);
+  };
+})();
 
     atcBtn.addEventListener("click", async e => {
       e.preventDefault();
