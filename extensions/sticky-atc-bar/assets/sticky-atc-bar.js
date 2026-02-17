@@ -332,14 +332,27 @@
         const looksEmpty = !drawerHtml || !/line-item|cart-item/i.test(drawerHtml);
 
         if (looksEmpty) {
-          const sectionRes = await fetch(
-            `/?sections=cart-drawer,cart-icon-bubble&ts=${Date.now()}`,
-            { credentials: "same-origin" }
-          );
-          if (sectionRes.ok) {
-            sectionsData = await sectionRes.json();
-          }
-        }
+
+  // ⭐ Wait for cart to actually exist (first add timing issue)
+  let attempts = 0;
+  while (attempts < 6) {
+    const cartCheck = await fetch("/cart.js", { credentials: "same-origin" });
+    const cartData = await cartCheck.json();
+    if (cartData.item_count > 0) break;
+    await new Promise(r => setTimeout(r, 70));
+    attempts++;
+  }
+
+  const sectionRes = await fetch(
+    `/?sections=cart-drawer,cart-icon-bubble&ts=${Date.now()}`,
+    { credentials: "same-origin" }
+  );
+
+  if (sectionRes.ok) {
+    sectionsData = await sectionRes.json();
+  }
+}
+
 
         if (sectionsData?.sections?.["cart-icon-bubble"]) {
           const bubble = document.getElementById("cart-icon-bubble");
