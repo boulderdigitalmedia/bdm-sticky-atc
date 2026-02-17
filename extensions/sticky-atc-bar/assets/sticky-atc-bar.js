@@ -360,8 +360,6 @@ while (attempts < 5) {
 const sectionRes = await fetch(
   `/?sections=cart-drawer,cart-icon-bubble&ts=${Date.now()}`
 );
-const data = await sectionRes.json();
-
 
 const data = await sectionRes.json();
 
