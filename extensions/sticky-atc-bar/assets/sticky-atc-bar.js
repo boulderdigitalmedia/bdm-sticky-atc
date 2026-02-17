@@ -304,11 +304,10 @@
 
       // ✅ IMPORTANT: prefer the custom element, not the inner div
       // ⭐ ALWAYS target the Dawn custom element first
-const drawer =
-  document.querySelector("cart-drawer") ||
-  document.getElementById("CartDrawer")?.closest("cart-drawer") ||
-  null;
-
+      const drawer =
+        document.querySelector("cart-drawer") ||
+        document.getElementById("CartDrawer")?.closest("cart-drawer") ||
+        null;
 
       if (drawer) {
         atcBtn.disabled = true;
@@ -358,21 +357,20 @@ const drawer =
         // ✅ SAFE: schedule Dawn render for next frame (no await loop, no blocking)
         if (sectionsData?.["cart-drawer"] && typeof drawer.renderContents === "function") {
           requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
+            requestAnimationFrame(async () => {
               try {
                 // ⭐ Dawn parsed-state refresh (YOUR THEME VERSION)
-const cartStateRes = await fetch("/cart.js", {
-  credentials: "same-origin"
-});
+                const cartStateRes = await fetch("/cart.js", {
+                  credentials: "same-origin"
+                });
 
-if (cartStateRes.ok) {
-  const cartState = await cartStateRes.json();
+                if (cartStateRes.ok) {
+                  const cartState = await cartStateRes.json();
 
-  if (typeof drawer.renderContents === "function") {
-    drawer.renderContents(cartState);
-  }
-}
-
+                  if (typeof drawer.renderContents === "function") {
+                    drawer.renderContents(cartState);
+                  }
+                }
               } catch {
                 try {
                   const doc = new DOMParser().parseFromString(
