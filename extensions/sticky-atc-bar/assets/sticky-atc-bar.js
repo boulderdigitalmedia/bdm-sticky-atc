@@ -376,6 +376,29 @@ const __bdm_qtyObserver = new MutationObserver(() => {
   __bdm_pullQtyFromTheme(input);
 });
 
+/* ===============================
+   DEBUT THEME BUTTON PATCH
+   Debut +/- buttons don't fire events
+================================*/
+document.addEventListener(
+  "click",
+  e => {
+    const btn = e.target.closest(
+      ".js-qty__adjust, .qty__adjust, [data-qty-btn], button[name='plus'], button[name='minus']"
+    );
+
+    if (!btn) return;
+
+    // wait for theme to update DOM value
+    setTimeout(() => {
+      const input = __bdm_findThemeQtyInput();
+      if (input) __bdm_pullQtyFromTheme(input);
+    }, 40);
+  },
+  true
+);
+
+
 __bdm_qtyObserver.observe(productForm, {
   subtree: true,
   childList: true,
