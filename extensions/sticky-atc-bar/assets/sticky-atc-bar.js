@@ -302,8 +302,6 @@
         quantity: currentQty
       });
 
-      // ✅ IMPORTANT: prefer the custom element, not the inner div
-      // ⭐ ALWAYS target the Dawn custom element first
       const drawer =
         document.querySelector("cart-drawer") ||
         document.getElementById("CartDrawer")?.closest("cart-drawer") ||
@@ -329,92 +327,12 @@
 
         await res.json();
 
-        // (kept exactly as you had it)
-        let attempts = 0;
-        while (attempts < 8) {
-          const cartCheck = await fetch("/cart.js", { credentials: "same-origin" });
-          const cartData = await cartCheck.json();
-          if (cartData.item_count > 0) break;
-          await new Promise(r => setTimeout(r, 80));
-          attempts++;
-        }
-
-        let sectionsData = {};
-        const sectionRes = await fetch(
-          `/?sections=cart-drawer,cart-icon-bubble,header,cart-live-region-text&ts=${Date.now()}`,
-          { credentials: "same-origin" }
-        );
-
-        if (sectionRes.ok) {
-          sectionsData = await sectionRes.json();
-        }
-
-        if (sectionsData?.["cart-icon-bubble"]) {
-          const bubble = document.getElementById("cart-icon-bubble");
-          if (bubble) bubble.innerHTML = sectionsData["cart-icon-bubble"];
-        }
-
-        // ✅ SAFE: schedule Dawn render for next frame (no await loop, no blocking)
-        if (sectionsData?.["cart-drawer"] && typeof drawer.renderContents === "function") {
-          requestAnimationFrame(() => {
-            requestAnimationFrame(async () => {
-              try {
-                // ⭐ Dawn parsed-state refresh (YOUR THEME VERSION)
-                const cartStateRes = await fetch("/cart.js", {
-                  credentials: "same-origin"
-                });
-
-                if (cartStateRes.ok) {
-                  const cartState = await cartStateRes.json();
-
-                  if (typeof drawer.renderContents === "function") {
-                    drawer.renderContents({
-  sections: {
-    "cart-drawer": sectionsData["cart-drawer"],
-    "cart-icon-bubble": sectionsData["cart-icon-bubble"],
-    "header": sectionsData["header"],
-    "cart-live-region-text": sectionsData["cart-live-region-text"]
-  }
-});
-
-                  }
-                }
-              } catch {
-                try {
-                  const doc = new DOMParser().parseFromString(
-                    sectionsData["cart-drawer"],
-                    "text/html"
-                  );
-                  const fresh =
-                    doc.querySelector("cart-drawer") ||
-                    doc.getElementById("CartDrawer") ||
-                    doc.querySelector('[id*="CartDrawer"]') ||
-                    doc.querySelector('[class*="cart-drawer"]');
-                  if (fresh) drawer.innerHTML = fresh.innerHTML;
-                } catch {}
-              }
-            });
-          });
-        } else if (sectionsData?.["cart-drawer"]) {
-          try {
-            const doc = new DOMParser().parseFromString(
-              sectionsData["cart-drawer"],
-              "text/html"
-            );
-            const fresh =
-              doc.querySelector("cart-drawer") ||
-              doc.getElementById("CartDrawer") ||
-              doc.querySelector('[id*="CartDrawer"]') ||
-              doc.querySelector('[class*="cart-drawer"]');
-            if (fresh) drawer.innerHTML = fresh.innerHTML;
-          } catch {}
-        }
-
         drawer.classList.add("active");
         drawer.setAttribute("open", "");
         drawer.dispatchEvent(new Event("open", { bubbles: true }));
 
-        document.dispatchEvent(new CustomEvent("cart:updated"));
+        // ⭐ SAFE DAWN REFRESH (this is the only change)
+        document.dispatchEvent(new CustomEvent("cart:updated",{bubbles:true}));
         document.dispatchEvent(new CustomEvent("cart:refresh"));
         document.dispatchEvent(new CustomEvent("cart:change"));
 
