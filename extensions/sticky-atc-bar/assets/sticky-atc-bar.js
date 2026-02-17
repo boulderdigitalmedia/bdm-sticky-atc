@@ -363,15 +363,17 @@
             doc.querySelector('[class*="cart-drawer"]');
 
           if (fresh) {
-            // ⭐ FINAL DAWN FIX — PASS INNER HTML ONLY
-            const html = fresh.innerHTML;
 
-            if (typeof drawer.renderContents === "function") {
-              drawer.renderContents(html);
-            } else {
-              drawer.innerHTML = html;
-            }
-          }
+  // ⭐ CRITICAL: Dawn expects FULL section wrapper, not innerHTML
+  const html = fresh.outerHTML;
+
+  if (typeof drawer.renderContents === "function") {
+    drawer.renderContents({ sections: { "cart-drawer": html } });
+  } else {
+    drawer.innerHTML = fresh.innerHTML;
+  }
+}
+
         }
 
         drawer.classList.add("active");
