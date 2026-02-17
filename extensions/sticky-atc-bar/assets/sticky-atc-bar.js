@@ -440,6 +440,68 @@ __bdm_qtyObserver.observe(productForm, {
   };
 })();
 
+    /* ===============================
+       FORCE QUANTITY INTO AJAX ATC (fetch)
+       Fixes themes using fetch("/cart/add")
+    ================================ */
+    (function __bdm_patchFetchCartAdd() {
+      const origFetch = window.fetch;
+
+      window.fetch = function(input, init) {
+        try {
+          const url = typeof input === "string" ? input : input?.url;
+
+          if (url && /\/cart\/add(\.js)?/i.test(url) && init?.body) {
+            if (init.body instanceof FormData) {
+              init.body.set("quantity", String(currentQty));
+            } else if (typeof init.body === "string") {
+              const data = JSON.parse(init.body);
+              if (data && typeof data === "object") {
+                data.quantity = currentQty;
+                init.body = JSON.stringify(data);
+              }
+            }
+          }
+        } catch {}
+        return origFetch.apply(this, arguments);
+      };
+    })();
+
+    /* ===============================
+       DEBUT JQUERY AJAX QTY PATCH
+       Fixes Debut using $.ajax("/cart/add")
+    ================================ */
+    (function __bdm_patchJqueryAjax() {
+      if (!window.jQuery || !jQuery.ajax) return;
+
+      const origAjax = jQuery.ajax;
+
+      jQuery.ajax = function(options) {
+        try {
+          if (options && options.url && /\/cart\/add(\.js)?/i.test(options.url)) {
+            if (options.data instanceof FormData) {
+              options.data.set("quantity", String(currentQty));
+            } else if (typeof options.data === "string") {
+              if (!options.data.includes("quantity=")) {
+                options.data += "&quantity=" + encodeURIComponent(currentQty);
+              }
+            } else if (typeof options.data === "object" && options.data) {
+              options.data.quantity = currentQty;
+            }
+          }
+        } catch {}
+        return origAjax.apply(this, arguments);
+      };
+    })();
+
+    // ✅ DO NOT MOVE THIS — it stays after the patches
+    atcBtn.addEventListener("click", async e => {
+      e.preventDefault();
+      if (atcBtn.disabled) return;
+
+      // ...your existing click logic...
+    });
+
     atcBtn.addEventListener("click", async e => {
       e.preventDefault();
       if (atcBtn.disabled) return;
@@ -561,5 +623,61 @@ __bdm_qtyObserver.observe(productForm, {
 
       productForm.requestSubmit();
     });
+ /* ===============================
+   🔥 AUTO REBIND ENGINE (OS2 SAFE)
+   Keeps Sticky ATC alive after
+   theme re-renders / variant swaps
+================================*/
+
+function __bdm_rebindSticky() {
+  const bar = document.getElementById("bdm-sticky-atc");
+  if (!bar) return;
+
+  if (bar.dataset.__bdmRebound) return;
+  bar.dataset.__bdmRebound = "1";
+
+  // Re-sync qty when form reappears
+  const form =
+    document.querySelector('form[action*="/cart/add"]') ||
+    document.querySelector("product-form form");
+
+  if (!form) return;
+
+  const input =
+    form.querySelector('[name="quantity"]') ||
+    document.querySelector('[name="quantity"]');
+
+  if (input) {
+    const val = parseInt(input.value || "1", 10);
+    if (!isNaN(val) && val > 0) {
+      const stickyQty = bar.querySelector("#bdm-qty");
+      if (stickyQty) stickyQty.value = val;
+    }
+  }
+}
+
+/* --- Shopify Section Reloads --- */
+document.addEventListener("shopify:section:load", () => {
+  setTimeout(__bdm_rebindSticky, 60);
+});
+
+/* --- Variant Change (many themes emit this) --- */
+document.addEventListener("variant:change", () => {
+  setTimeout(__bdm_rebindSticky, 40);
+});
+
+/* --- DOM Mutation Fallback (Horizon / AJAX swaps) --- */
+const __bdm_globalObserver = new MutationObserver(() => {
+  __bdm_rebindSticky();
+});
+
+__bdm_globalObserver.observe(document.body, {
+  childList: true,
+  subtree: true
+});
+
+/* Initial run */
+setTimeout(__bdm_rebindSticky, 100);
+
   });
 })();
