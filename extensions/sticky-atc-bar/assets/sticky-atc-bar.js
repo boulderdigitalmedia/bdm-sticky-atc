@@ -327,12 +327,78 @@
 
         await res.json();
 
+        let attempts = 0;
+        while (attempts < 8) {
+          const cartCheck = await fetch("/cart.js", { credentials: "same-origin" });
+          const cartData = await cartCheck.json();
+          if (cartData.item_count > 0) break;
+          await new Promise(r => setTimeout(r, 80));
+          attempts++;
+        }
+
+        let sectionsData = {};
+        const sectionRes = await fetch(
+          `/?sections=cart-drawer,cart-icon-bubble,header,cart-live-region-text&ts=${Date.now()}`,
+          { credentials: "same-origin" }
+        );
+
+        if (sectionRes.ok) {
+          sectionsData = await sectionRes.json();
+        }
+
+        if (sectionsData?.["cart-icon-bubble"]) {
+          const bubble = document.getElementById("cart-icon-bubble");
+          if (bubble) bubble.innerHTML = sectionsData["cart-icon-bubble"];
+        }
+
+        if (sectionsData?.["cart-drawer"] && typeof drawer.renderContents === "function") {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(async () => {
+              try {
+                const cartStateRes = await fetch("/cart.js", {
+                  credentials: "same-origin"
+                });
+
+                if (cartStateRes.ok) {
+                  const cartState = await cartStateRes.json();
+                  drawer.renderContents(cartState); // ⭐ ONLY CHANGE
+                }
+              } catch {
+                try {
+                  const doc = new DOMParser().parseFromString(
+                    sectionsData["cart-drawer"],
+                    "text/html"
+                  );
+                  const fresh =
+                    doc.querySelector("cart-drawer") ||
+                    doc.getElementById("CartDrawer") ||
+                    doc.querySelector('[id*="CartDrawer"]') ||
+                    doc.querySelector('[class*="cart-drawer"]');
+                  if (fresh) drawer.innerHTML = fresh.innerHTML;
+                } catch {}
+              }
+            });
+          });
+        } else if (sectionsData?.["cart-drawer"]) {
+          try {
+            const doc = new DOMParser().parseFromString(
+              sectionsData["cart-drawer"],
+              "text/html"
+            );
+            const fresh =
+              doc.querySelector("cart-drawer") ||
+              doc.getElementById("CartDrawer") ||
+              doc.querySelector('[id*="CartDrawer"]') ||
+              doc.querySelector('[class*="cart-drawer"]');
+            if (fresh) drawer.innerHTML = fresh.innerHTML;
+          } catch {}
+        }
+
         drawer.classList.add("active");
         drawer.setAttribute("open", "");
         drawer.dispatchEvent(new Event("open", { bubbles: true }));
 
-        // ⭐ SAFE DAWN REFRESH (this is the only change)
-        document.dispatchEvent(new CustomEvent("cart:updated",{bubbles:true}));
+        document.dispatchEvent(new CustomEvent("cart:updated"));
         document.dispatchEvent(new CustomEvent("cart:refresh"));
         document.dispatchEvent(new CustomEvent("cart:change"));
 
