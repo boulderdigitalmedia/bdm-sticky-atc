@@ -324,29 +324,25 @@
         atcBtn.disabled = false;
         if (!res.ok) return;
 
-        let sectionsData = await res.json();
+        await res.json();
 
-        const drawerHtml = sectionsData?.sections?.["cart-drawer"] || "";
-        const looksEmpty = !drawerHtml || !/line-item|cart-item/i.test(drawerHtml);
+        let attempts = 0;
+        while (attempts < 8) {
+          const cartCheck = await fetch("/cart.js", { credentials: "same-origin" });
+          const cartData = await cartCheck.json();
+          if (cartData.item_count > 0) break;
+          await new Promise(r => setTimeout(r, 80));
+          attempts++;
+        }
 
-        if (looksEmpty) {
-          let attempts = 0;
-          while (attempts < 6) {
-            const cartCheck = await fetch("/cart.js", { credentials: "same-origin" });
-            const cartData = await cartCheck.json();
-            if (cartData.item_count > 0) break;
-            await new Promise(r => setTimeout(r, 70));
-            attempts++;
-          }
+        let sectionsData = {};
+        const sectionRes = await fetch(
+          `/?sections=cart-drawer,cart-icon-bubble&ts=${Date.now()}`,
+          { credentials: "same-origin" }
+        );
 
-          const sectionRes = await fetch(
-            `/?sections=cart-drawer,cart-icon-bubble&ts=${Date.now()}`,
-            { credentials: "same-origin" }
-          );
-
-          if (sectionRes.ok) {
-            sectionsData = await sectionRes.json();
-          }
+        if (sectionRes.ok) {
+          sectionsData = await sectionRes.json();
         }
 
         if (sectionsData?.sections?.["cart-icon-bubble"]) {
