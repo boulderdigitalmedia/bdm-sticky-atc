@@ -95,11 +95,27 @@
     }
 
     function __bdm_isCartOpen() {
-      const container = __bdm_findCartContainer();
-      if (!container) return false;
-      if (!__bdm_isVisible(container)) return false;
-      return true;
-    }
+  const drawer =
+    document.querySelector("cart-drawer") ||
+    document.getElementById("CartDrawer")?.closest("cart-drawer");
+
+  // Dawn-style custom element
+  if (drawer) {
+    return drawer.classList.contains("active") ||
+           drawer.hasAttribute("open");
+  }
+
+  // Generic drawer fallback
+  const container = __bdm_findCartContainer();
+  if (!container) return false;
+
+  return (
+    container.classList.contains("is-open") ||
+    container.classList.contains("active") ||
+    container.getAttribute("aria-hidden") === "false"
+  );
+}
+
 
     function __bdm_setStickyHidden(hidden) {
       bar.style.display = hidden ? "none" : "";
