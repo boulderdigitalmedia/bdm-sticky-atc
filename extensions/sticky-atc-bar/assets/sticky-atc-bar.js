@@ -2,11 +2,8 @@
   if (window.__BDM_STICKY_ATC_INIT__) return;
   window.__BDM_STICKY_ATC_INIT__ = true;
 
-  /* =====================================================
-     DIRECT ANALYTICS ENDPOINT (NO APP PROXY)
-  ===================================================== */
   const TRACK_ENDPOINT =
-  "https://sticky-add-to-cart-bar-pro.onrender.com/api/track/track";
+    "https://sticky-add-to-cart-bar-pro.onrender.com/api/track/track";
 
   function track(event, payload = {}) {
     try {
@@ -28,9 +25,6 @@
     } catch {}
   }
 
-  /* =====================================================
-     STICKY ATC MARKER (UNCHANGED)
-  ===================================================== */
   function markStickyATC({ productId, variantId, quantity }) {
     try {
       const payload = {
@@ -62,11 +56,6 @@
   document.addEventListener("DOMContentLoaded", () => {
     const bar = document.getElementById("bdm-sticky-atc");
     if (!bar) return;
-
-    /* =====================================================
-       ⭐ FIX BLOCK — CART DRAWER + EMPTY CART REFRESH
-       (UNCHANGED)
-    ===================================================== */
 
     function __bdm_isVisible(el) {
       if (!el) return false;
@@ -172,10 +161,6 @@
       })
     );
 
-    /* =====================================================
-       ORIGINAL SCRIPT BELOW — UNCHANGED
-    ===================================================== */
-
     if (!location.pathname.includes("/products/")) {
       bar.setAttribute("hidden", "");
       return;
@@ -278,7 +263,6 @@
     bar.querySelectorAll(".bdm-qty-btn").forEach(btn => {
       btn.addEventListener("click", e => {
         e.preventDefault();
-e.stopImmediatePropagation();
         if (btn.dataset.action === "increase") currentQty++;
         if (btn.dataset.action === "decrease") {
           currentQty = Math.max(1, currentQty - 1);
@@ -328,96 +312,59 @@ e.stopImmediatePropagation();
         const fd = new FormData();
         fd.append("id", variantInput.value);
         fd.append("quantity", currentQty);
-
-        /* ⭐⭐⭐ FIX APPLIED HERE — SINGLE SHOPIFY SECTIONS REQUEST ⭐⭐⭐ */
         fd.append("sections", "cart-drawer,cart-icon-bubble");
         fd.append("sections_url", window.location.pathname);
 
-       const addResponse = await res.json();
-
+        const res = await fetch("/cart/add.js", {
+          method: "POST",
+          body: fd,
+          headers: { Accept: "application/json" }
+        });
 
         atcBtn.disabled = false;
         if (!res.ok) return;
 
-        await res.json(); // keep response consumed
+        const addResponse = await res.json();
 
-await res.json();
+        let sectionsData = addResponse;
 
-// ⭐ Wait for cart to actually update before pulling drawer HTML
-let attempts = 0;
-while (attempts < 5) {
-  const cartCheck = await fetch('/cart.js', { credentials: 'same-origin' });
-  const cartData = await cartCheck.json();
-  if (cartData.item_count > 0) break;
-  await new Promise(r => setTimeout(r, 80));
-  attempts++;
-}
+        const drawerHtml = sectionsData?.sections?.["cart-drawer"] || "";
+        const looksEmpty = !drawerHtml || !/line-item|cart-item/i.test(drawerHtml);
 
-// Now request fresh drawer HTML
-const sectionRes = await fetch(
-  `/?sections=cart-drawer,cart-icon-bubble&ts=${Date.now()}`
-);
-
-const data = await sectionRes.json();
-
-
-        if (data.sections?.["cart-icon-bubble"]) {
-          const bubble = document.getElementById("cart-icon-bubble");
-          if (bubble) bubble.innerHTML = data.sections["cart-icon-bubble"];
+        if (looksEmpty) {
+          const sectionRes = await fetch(
+            `/?sections=cart-drawer,cart-icon-bubble&ts=${Date.now()}`,
+            { credentials: "same-origin" }
+          );
+          if (sectionRes.ok) {
+            sectionsData = await sectionRes.json();
+          }
         }
 
-        if (data.sections?.["cart-drawer"]) {
+        if (sectionsData?.sections?.["cart-icon-bubble"]) {
+          const bubble = document.getElementById("cart-icon-bubble");
+          if (bubble) bubble.innerHTML = sectionsData.sections["cart-icon-bubble"];
+        }
+
+        if (sectionsData?.sections?.["cart-drawer"]) {
           const doc = new DOMParser().parseFromString(
-            data.sections["cart-drawer"],
+            sectionsData.sections["cart-drawer"],
             "text/html"
           );
           const fresh =
             doc.querySelector("cart-drawer") ||
             doc.getElementById("CartDrawer");
 
-          if (fresh) {
-  drawer.innerHTML = fresh.innerHTML;
-
-  // ⭐ Force Shopify to re-upgrade <cart-drawer> element
-  if (drawer.tagName.toLowerCase() === "cart-drawer") {
-    const clone = drawer.cloneNode(true);
-    drawer.replaceWith(clone);
-  }
-}
-
+          if (fresh) drawer.innerHTML = fresh.innerHTML;
         }
 
         drawer.classList.add("active");
         drawer.setAttribute("open", "");
         drawer.dispatchEvent(new Event("open", { bubbles: true }));
-// ⭐ Force theme drawer controllers to re-open correctly
-setTimeout(() => {
-  try {
-    // Dawn / OS2 custom element
-    if (typeof drawer.open === "function") {
-      drawer.open();
-      return;
-    }
-
-    // Some themes expose JS instance
-    if (window.theme?.cartDrawer?.open) {
-      window.theme.cartDrawer.open();
-      return;
-    }
-
-    // Generic fallback click
-    const cartToggle =
-      document.querySelector('[aria-controls="CartDrawer"]') ||
-      document.querySelector('[data-cart-drawer-toggle]');
-
-    cartToggle?.click();
-  } catch {}
-}, 30);
 
         document.dispatchEvent(new CustomEvent("cart:updated"));
-document.dispatchEvent(new CustomEvent("cart:refresh"));
-document.dispatchEvent(new CustomEvent("cart:change"));
-
+        document.dispatchEvent(new CustomEvent("cart:refresh"));
+        document.dispatchEvent(new CustomEvent("cart:change"));
 
         return;
       }
