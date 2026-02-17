@@ -312,7 +312,7 @@
         const fd = new FormData();
         fd.append("id", variantInput.value);
         fd.append("quantity", currentQty);
-        fd.append("sections", "cart-drawer,cart-icon-bubble");
+        fd.append("sections", "header,cart-icon-bubble");
         fd.append("sections_url", window.location.pathname);
 
         const res = await fetch("/cart/add.js", {
@@ -344,7 +344,7 @@
   }
 
   const sectionRes = await fetch(
-    `/?sections=cart-drawer,cart-icon-bubble&ts=${Date.now()}`,
+    `/?sections=header,cart-icon-bubble&ts=${Date.now()}`,
     { credentials: "same-origin" }
   );
 
