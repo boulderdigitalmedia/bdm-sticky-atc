@@ -360,14 +360,19 @@ const drawer =
           requestAnimationFrame(() => {
             requestAnimationFrame(() => {
               try {
-                drawer.renderContents({
-                  sections: {
-                    "cart-drawer": sectionsData["cart-drawer"],
-                    "cart-icon-bubble": sectionsData["cart-icon-bubble"],
-                    "header": sectionsData["header"],
-                    "cart-live-region-text": sectionsData["cart-live-region-text"]
-                  }
-                });
+                // ⭐ Dawn parsed-state refresh (YOUR THEME VERSION)
+const cartStateRes = await fetch("/cart.js", {
+  credentials: "same-origin"
+});
+
+if (cartStateRes.ok) {
+  const cartState = await cartStateRes.json();
+
+  if (typeof drawer.renderContents === "function") {
+    drawer.renderContents(cartState);
+  }
+}
+
               } catch {
                 try {
                   const doc = new DOMParser().parseFromString(
