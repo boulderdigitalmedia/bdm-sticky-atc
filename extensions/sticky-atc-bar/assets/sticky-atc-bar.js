@@ -333,11 +333,8 @@ e.stopImmediatePropagation();
         fd.append("sections", "cart-drawer,cart-icon-bubble");
         fd.append("sections_url", window.location.pathname);
 
-        const res = await fetch("/cart/add.js", {
-          method: "POST",
-          body: fd,
-          headers: { Accept: "application/json" }
-        });
+       const addResponse = await res.json();
+
 
         atcBtn.disabled = false;
         if (!res.ok) return;
