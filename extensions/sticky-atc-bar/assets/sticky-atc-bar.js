@@ -11,7 +11,8 @@
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Shopify-Shop-Domain": window.__SHOP_DOMAIN__ || window.Shopify?.shop
+          "X-Shopify-Shop-Domain":
+            window.__SHOP_DOMAIN__ || window.Shopify?.shop
         },
         body: JSON.stringify({
           event,
@@ -34,7 +35,10 @@
         ts: Date.now()
       };
 
-      sessionStorage.setItem("bdm_sticky_atc_event", JSON.stringify(payload));
+      sessionStorage.setItem(
+        "bdm_sticky_atc_event",
+        JSON.stringify(payload)
+      );
     } catch {}
   }
 
@@ -56,11 +60,7 @@
     function __bdm_isVisible(el) {
       if (!el) return false;
       const cs = getComputedStyle(el);
-      if (
-        cs.display === "none" ||
-        cs.visibility === "hidden" ||
-        cs.opacity === "0"
-      )
+      if (cs.display === "none" || cs.visibility === "hidden" || cs.opacity === "0")
         return false;
       const r = el.getBoundingClientRect();
       return r.width > 0 && r.height > 0;
@@ -77,7 +77,7 @@
         ".drawer",
         "[id*='CartDrawer']",
         "[class*='CartDrawer']",
-        "[data-drawer*='cart']"
+        "[data-drawer*='cart']",
       ];
 
       for (const sel of selectors) {
@@ -130,7 +130,7 @@
       subtree: true,
       childList: true,
       attributes: true,
-      attributeFilter: ["class", "style", "open", "aria-hidden"]
+      attributeFilter: ["class", "style", "open", "aria-hidden"],
     });
 
     document.addEventListener(
@@ -154,12 +154,11 @@
       true
     );
 
-    ["cart:updated", "ajaxCart:updated", "cart:change", "cart:refresh"].forEach(
-      (evt) =>
-        document.addEventListener(evt, () => {
-          __bdm_syncStickyWithCartUI();
-          __bdm_refreshWhenCartEmpty();
-        })
+    ["cart:updated", "ajaxCart:updated", "cart:change", "cart:refresh"].forEach((evt) =>
+      document.addEventListener(evt, () => {
+        __bdm_syncStickyWithCartUI();
+        __bdm_refreshWhenCartEmpty();
+      })
     );
 
     if (!location.pathname.includes("/products/")) {
@@ -223,12 +222,12 @@
     if (!handle) return;
 
     fetch(`/products/${handle}.js`)
-      .then((r) => r.json())
-      .then((product) => {
+      .then(r => r.json())
+      .then(product => {
         if (showTitle && titleEl) titleEl.textContent = product.title;
 
-        const updateVariantUI = (id) => {
-          const v = product.variants.find((v) => v.id == id);
+        const updateVariantUI = id => {
+          const v = product.variants.find(v => v.id == id);
           if (!v) return;
 
           if (showPrice && priceEl) {
@@ -248,7 +247,7 @@
         };
 
         updateVariantUI(variantInput.value);
-        variantInput.addEventListener("change", (e) =>
+        variantInput.addEventListener("change", e =>
           updateVariantUI(e.target.value)
         );
       });
@@ -261,8 +260,8 @@
       qtyEl.value = currentQty;
     });
 
-    bar.querySelectorAll(".bdm-qty-btn").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
+    bar.querySelectorAll(".bdm-qty-btn").forEach(btn => {
+      btn.addEventListener("click", e => {
         e.preventDefault();
         if (btn.dataset.action === "increase") currentQty++;
         if (btn.dataset.action === "decrease") {
@@ -287,7 +286,7 @@
       true
     );
 
-    atcBtn.addEventListener("click", async (e) => {
+    atcBtn.addEventListener("click", async e => {
       e.preventDefault();
       if (atcBtn.disabled) return;
 
@@ -303,8 +302,10 @@
         quantity: currentQty
       });
 
+      // ✅ IMPORTANT: prefer the custom element, not the inner div
       const drawer =
         document.querySelector("cart-drawer") ||
+        document.getElementById("CartDrawer")?.closest("cart-drawer") ||
         document.getElementById("CartDrawer");
 
       if (drawer) {
@@ -327,14 +328,13 @@
 
         await res.json();
 
+        // (kept exactly as you had it)
         let attempts = 0;
         while (attempts < 8) {
-          const cartCheck = await fetch("/cart.js", {
-            credentials: "same-origin"
-          });
+          const cartCheck = await fetch("/cart.js", { credentials: "same-origin" });
           const cartData = await cartCheck.json();
           if (cartData.item_count > 0) break;
-          await new Promise((r) => setTimeout(r, 80));
+          await new Promise(r => setTimeout(r, 80));
           attempts++;
         }
 
@@ -353,42 +353,48 @@
           if (bubble) bubble.innerHTML = sectionsData["cart-icon-bubble"];
         }
 
-        if (sectionsData?.["cart-drawer"]) {
-          const doc = new DOMParser().parseFromString(
-            sectionsData["cart-drawer"],
-            "text/html"
-          );
-
-          let fresh =
-            doc.querySelector("cart-drawer") ||
-            doc.getElementById("CartDrawer") ||
-            doc.querySelector('[id*="CartDrawer"]') ||
-            doc.querySelector('[class*="cart-drawer"]');
-
-          if (sectionsData && typeof drawer.renderContents === "function") {
-
-  // ⭐ Wait until Dawn cart-drawer fully initializes
-  let readyAttempts = 0;
-  while (
-    readyAttempts < 10 &&
-    !drawer.querySelector('[data-cart-items], .cart-items, cart-items')
-  ) {
-    await new Promise(r => setTimeout(r, 40));
-    readyAttempts++;
-  }
-
-  drawer.renderContents({
-    sections: {
-      "cart-drawer": sectionsData["cart-drawer"],
-      "cart-icon-bubble": sectionsData["cart-icon-bubble"],
-      "header": sectionsData["header"],
-      "cart-live-region-text": sectionsData["cart-live-region-text"]
-    }
-  });
-}
-          } else if (fresh) {
-            drawer.innerHTML = fresh.innerHTML;
-          }
+        // ✅ SAFE: schedule Dawn render for next frame (no await loop, no blocking)
+        if (sectionsData?.["cart-drawer"] && typeof drawer.renderContents === "function") {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              try {
+                drawer.renderContents({
+                  sections: {
+                    "cart-drawer": sectionsData["cart-drawer"],
+                    "cart-icon-bubble": sectionsData["cart-icon-bubble"],
+                    "header": sectionsData["header"],
+                    "cart-live-region-text": sectionsData["cart-live-region-text"]
+                  }
+                });
+              } catch {
+                try {
+                  const doc = new DOMParser().parseFromString(
+                    sectionsData["cart-drawer"],
+                    "text/html"
+                  );
+                  const fresh =
+                    doc.querySelector("cart-drawer") ||
+                    doc.getElementById("CartDrawer") ||
+                    doc.querySelector('[id*="CartDrawer"]') ||
+                    doc.querySelector('[class*="cart-drawer"]');
+                  if (fresh) drawer.innerHTML = fresh.innerHTML;
+                } catch {}
+              }
+            });
+          });
+        } else if (sectionsData?.["cart-drawer"]) {
+          try {
+            const doc = new DOMParser().parseFromString(
+              sectionsData["cart-drawer"],
+              "text/html"
+            );
+            const fresh =
+              doc.querySelector("cart-drawer") ||
+              doc.getElementById("CartDrawer") ||
+              doc.querySelector('[id*="CartDrawer"]') ||
+              doc.querySelector('[class*="cart-drawer"]');
+            if (fresh) drawer.innerHTML = fresh.innerHTML;
+          } catch {}
         }
 
         drawer.classList.add("active");
