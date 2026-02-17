@@ -362,7 +362,16 @@
             doc.querySelector('[id*="CartDrawer"]') ||
             doc.querySelector('[class*="cart-drawer"]');
 
-          if (fresh) drawer.innerHTML = fresh.innerHTML;
+          if (fresh) {
+            // ⭐ FINAL DAWN FIX — PASS INNER HTML ONLY
+            const html = fresh.innerHTML;
+
+            if (typeof drawer.renderContents === "function") {
+              drawer.renderContents(html);
+            } else {
+              drawer.innerHTML = html;
+            }
+          }
         }
 
         drawer.classList.add("active");
