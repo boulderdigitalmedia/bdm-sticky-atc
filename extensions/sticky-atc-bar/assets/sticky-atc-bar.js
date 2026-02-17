@@ -303,10 +303,12 @@
       });
 
       // ✅ IMPORTANT: prefer the custom element, not the inner div
-      const drawer =
-        document.querySelector("cart-drawer") ||
-        document.getElementById("CartDrawer")?.closest("cart-drawer") ||
-        document.getElementById("CartDrawer");
+      // ⭐ ALWAYS target the Dawn custom element first
+const drawer =
+  document.querySelector("cart-drawer") ||
+  document.getElementById("CartDrawer")?.closest("cart-drawer") ||
+  null;
+
 
       if (drawer) {
         atcBtn.disabled = true;
