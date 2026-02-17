@@ -271,43 +271,117 @@
     let currentQty = 1;
     if (qtyEl) qtyEl.value = currentQty;
 
-    qtyEl?.addEventListener("change", () => {
-      currentQty = Math.max(1, parseInt(qtyEl.value || "1", 10));
-      qtyEl.value = currentQty;
-    });
+   /* ===============================
+   TRUE UNIVERSAL QTY SYNC ENGINE
+   =============================== */
 
-    bar.querySelectorAll(".bdm-qty-btn").forEach(btn => {
-      btn.addEventListener("click", e => {
-        e.preventDefault();
-        if (btn.dataset.action === "increase") currentQty++;
-        if (btn.dataset.action === "decrease") {
-          currentQty = Math.max(1, currentQty - 1);
-        }
-        qtyEl.value = currentQty;
-      });
-    });
+let __bdm_qtyLock = false;
 
-    productForm.addEventListener(
-  "submit",
-  () => {
-    let q =
-      productForm.querySelector('[name="quantity"]') ||
-      productForm.querySelector('input[name="quantity"]');
+// Find ANY quantity input across themes
+function __bdm_findThemeQtyInput() {
+  return (
+    productForm.querySelector('[name="quantity"]') ||
+    productForm.querySelector('input[name="quantity"]') ||
+    productForm.querySelector('quantity-input input') ||
+    productForm.querySelector('[data-quantity-input]') ||
+    document.querySelector('quantity-input input') ||
+    document.querySelector('[name="quantity"]')
+  );
+}
 
-    // Horizon often has NO quantity input at all
-    if (!q) {
-      q = document.createElement("input");
-      q.type = "hidden";
-      q.name = "quantity";
+// PUSH sticky qty → theme
+function __bdm_pushQtyToTheme() {
+  const input = __bdm_findThemeQtyInput();
+  if (!input) return;
 
-      // ⭐ IMPORTANT: append inside form root, not button container
-      productForm.insertBefore(q, productForm.firstChild);
+  __bdm_qtyLock = true;
+  input.value = currentQty;
+
+  ["input", "change", "blur"].forEach(evt =>
+    input.dispatchEvent(new Event(evt, { bubbles: true }))
+  );
+
+  requestAnimationFrame(() => {
+    __bdm_qtyLock = false;
+  });
+}
+
+// PULL theme qty → sticky
+function __bdm_pullQtyFromTheme(el) {
+  if (__bdm_qtyLock) return;
+  if (!el) return;
+
+  const val = parseInt(el.value || "1", 10);
+  if (!isNaN(val) && val > 0) {
+    currentQty = val;
+    if (qtyEl) qtyEl.value = currentQty;
+  }
+}
+
+/* Sticky → Theme */
+qtyEl?.addEventListener("input", () => {
+  currentQty = Math.max(1, parseInt(qtyEl.value || "1", 10));
+  qtyEl.value = currentQty;
+  __bdm_pushQtyToTheme();
+});
+
+bar.querySelectorAll(".bdm-qty-btn").forEach(btn => {
+  btn.addEventListener("click", e => {
+    e.preventDefault();
+
+    if (btn.dataset.action === "increase") currentQty++;
+    if (btn.dataset.action === "decrease")
+      currentQty = Math.max(1, currentQty - 1);
+
+    qtyEl.value = currentQty;
+    __bdm_pushQtyToTheme();
+  });
+});
+
+/* Theme → Sticky */
+productForm.addEventListener(
+  "input",
+  e => {
+    const t = e.target;
+    if (
+      t.name === "quantity" ||
+      t.closest?.("quantity-input") ||
+      t.hasAttribute?.("data-quantity-input")
+    ) {
+      __bdm_pullQtyFromTheme(t);
     }
-
-    q.value = currentQty;
   },
   true
 );
+
+productForm.addEventListener(
+  "change",
+  e => {
+    const t = e.target;
+    if (
+      t.name === "quantity" ||
+      t.closest?.("quantity-input") ||
+      t.hasAttribute?.("data-quantity-input")
+    ) {
+      __bdm_pullQtyFromTheme(t);
+    }
+  },
+  true
+);
+
+/* Mutation observer fallback */
+const __bdm_qtyObserver = new MutationObserver(() => {
+  const input = __bdm_findThemeQtyInput();
+  if (!input) return;
+  __bdm_pullQtyFromTheme(input);
+});
+
+__bdm_qtyObserver.observe(productForm, {
+  subtree: true,
+  childList: true,
+  attributes: true,
+  attributeFilter: ["value"]
+});
 
 
     atcBtn.addEventListener("click", async e => {
