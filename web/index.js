@@ -41,8 +41,24 @@ app.post(
   "/webhooks/orders/updated",
   express.raw({ type: "*/*" }),
   async (req, res) => {
-    console.log("🔥 orders/updated webhook HIT");
-    return ordersUpdated(req, res);
+    try {
+      console.log("🔥 ORDERS_UPDATED webhook received");
+
+      const payload = JSON.parse(req.body.toString());
+
+      // Example: detect paid orders
+      if (payload.financial_status === "paid") {
+        console.log("💰 Paid order:", payload.id);
+
+        // 👉 call your existing logic here if needed
+        // await ordersUpdated(payload);
+      }
+
+      res.status(200).send("ok");
+    } catch (err) {
+      console.error("❌ ORDERS_UPDATED failed:", err);
+      res.status(500).send("error");
+    }
   }
 );
 
