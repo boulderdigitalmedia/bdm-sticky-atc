@@ -54,28 +54,37 @@ function parseWebhookBody(req) {
 
 // Extract sticky marker from order
 function getStickyMarkerFromOrder(order) {
+  // 🔥 NOTE ATTRIBUTES (most themes)
   const na = order?.note_attributes;
 
-  // Dawn / OS2 array format
   if (Array.isArray(na)) {
     const match = na.find(a => a?.name === "bdm_sticky_atc");
     if (match?.value) return match.value;
   }
 
-  // Shopify "Additional details" object format
   if (na && typeof na === "object") {
     if (na.bdm_sticky_atc) return na.bdm_sticky_atc;
   }
 
-  // fallback
+  // 🔥 NEW — ORDERS_PAID SAFE LOCATION
+  const ca = order?.cart_attributes;
+
+  if (Array.isArray(ca)) {
+    const match = ca.find(a => a?.name === "bdm_sticky_atc");
+    if (match?.value) return match.value;
+  }
+
+  if (ca && typeof ca === "object") {
+    if (ca.bdm_sticky_atc) return ca.bdm_sticky_atc;
+  }
+
+  // legacy fallback
   if (order?.attributes?.bdm_sticky_atc) {
     return order.attributes.bdm_sticky_atc;
   }
 
   return null;
 }
-
-
 
 /* ────────────────────────────────────────────── */
 /* ORDERS_PAID WEBHOOK */
