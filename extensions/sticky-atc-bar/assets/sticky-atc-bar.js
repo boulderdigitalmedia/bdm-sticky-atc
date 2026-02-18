@@ -406,39 +406,6 @@ __bdm_qtyObserver.observe(productForm, {
   attributeFilter: ["value"]
 });
 
-/* ===============================
-   FORCE QUANTITY INTO AJAX ATC
-   Fixes Debut + themes with no qty input
-================================*/
-(function __bdm_patchFetchCartAdd() {
-  const origFetch = window.fetch;
-
-  window.fetch = function(input, init) {
-    try {
-      const url = typeof input === "string" ? input : input?.url;
-
-      if (url && /\/cart\/add(\.js)?/i.test(url) && init?.body) {
-        // FormData request (most themes)
-        if (init.body instanceof FormData) {
-          init.body.set("quantity", String(currentQty));
-        }
-
-        // JSON body request (rare themes)
-        else if (typeof init.body === "string") {
-          const data = JSON.parse(init.body);
-          if (data && typeof data === "object") {
-            data.quantity = currentQty;
-            init.body = JSON.stringify(data);
-          }
-        }
-      }
-    } catch (e) {
-      console.warn("BDM qty patch error", e);
-    }
-
-    return origFetch.apply(this, arguments);
-  };
-})();
 
     /* ===============================
        FORCE QUANTITY INTO AJAX ATC (fetch)
@@ -495,13 +462,7 @@ __bdm_qtyObserver.observe(productForm, {
     })();
 
     // ✅ DO NOT MOVE THIS — it stays after the patches
-    atcBtn.addEventListener("click", async e => {
-      e.preventDefault();
-      if (atcBtn.disabled) return;
-
-      // ...your existing click logic...
-    });
-
+  
     atcBtn.addEventListener("click", async e => {
       e.preventDefault();
       if (atcBtn.disabled) return;
@@ -511,6 +472,29 @@ __bdm_qtyObserver.observe(productForm, {
         variantId: variantInput.value,
         quantity: currentQty
       });
+
+      /* ✅ WRITE STICKY MARKER INTO CHECKOUT */
+try {
+  await fetch("/cart/update.js", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      note_attributes: [
+        {
+          name: "bdm_sticky_atc",
+          value: JSON.stringify({
+            source: "bdm_sticky_atc",
+            variantId: variantInput.value,
+            quantity: currentQty,
+            ts: Date.now()
+          })
+        }
+      ]
+    })
+  });
+} catch {}
+
 
       track("add_to_cart", {
         source: "bdm_sticky_atc",
