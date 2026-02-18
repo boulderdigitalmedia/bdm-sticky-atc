@@ -200,7 +200,9 @@ export function initShopify(app) {
       try {
   const response = await shopify.webhooks.register({ session });
 
-  console.log("📡 WEBHOOK REGISTER RESULT", response);
+  console.log("📡 WEBHOOK REGISTER RESULT");
+console.log(JSON.stringify(response, null, 2));
+
 } catch (e) {
   console.error("⚠️ Webhook register failed:", e);
 }
