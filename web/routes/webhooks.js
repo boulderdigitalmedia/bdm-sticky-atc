@@ -90,7 +90,14 @@ function getStickyMarkerFromOrder(order) {
 /* ORDERS_PAID WEBHOOK */
 /* ────────────────────────────────────────────── */
 
-export async function ordersCreate(req, res) {
+export async function ordersUpdated(req, res) {
+ const payload = JSON.parse(req.body.toString());
+
+if (payload.financial_status === "paid") {
+  console.log("💰 Order became PAID:", payload.id);
+
+  // your existing conversion logic here
+} 
   console.log("🔥 WEBHOOK HIT", {
     topic: req.get("X-Shopify-Topic"),
     shopHeader: req.get("X-Shopify-Shop-Domain"),

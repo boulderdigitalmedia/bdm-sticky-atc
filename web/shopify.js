@@ -124,7 +124,7 @@ export function initShopify(app) {
     scopes,
     hostName: appUrl.host,
     hostScheme: "https",
-    apiVersion: LATEST_API_VERSION,
+    apiVersion: "2024-01",
     isEmbeddedApp: true,
     restResources,
     sessionStorage: prismaSessionStorage(),
@@ -135,9 +135,9 @@ export function initShopify(app) {
   });
 
   shopify.webhooks.addHandlers({
-  ORDERS_CREATE: {
+  ORDERS_UPDATED: {
   deliveryMethod: DeliveryMethod.Http,
-  callbackUrl: "/webhooks/orders/paid",
+  callbackUrl: "/webhooks/orders/updated",
 },
 
     APP_UNINSTALLED: {

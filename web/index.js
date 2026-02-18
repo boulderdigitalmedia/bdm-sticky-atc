@@ -13,7 +13,7 @@ import settingsRouter from "./routes/settings.js";
 import trackRouter from "./routes/track.js";
 import stickyAnalyticsRouter from "./routes/stickyAnalytics.js";
 import attributionRouter from "./routes/attribution.js";
-import { ordersCreate } from "./routes/webhooks.js";
+import { ordersUpdated } from "./routes/webhooks.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -38,11 +38,11 @@ app.options("*", cors());
    WEBHOOK — RAW BODY
 ========================================================= */
 app.post(
-  "/webhooks/orders/paid",
+  "/webhooks/orders/updated",
   express.raw({ type: "*/*" }),
   async (req, res) => {
-    console.log("🔥 orders/paid webhook HIT");
-    return ordersCreate(req, res);
+    console.log("🔥 orders/updated webhook HIT");
+    return ordersUpdated(req, res);
   }
 );
 
