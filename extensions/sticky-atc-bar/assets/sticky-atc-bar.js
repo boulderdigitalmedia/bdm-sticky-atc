@@ -417,6 +417,10 @@ __bdm_qtyObserver.observe(productForm, {
       window.fetch = function(input, init) {
         try {
           const url = typeof input === "string" ? input : input?.url;
+if (!url || !url.includes("/cart/add")) {
+  return origFetch.apply(this, arguments);
+}
+
 
           if (url && /\/cart\/add(\.js)?/i.test(url) && init?.body) {
             if (init.body instanceof FormData) {
@@ -463,6 +467,7 @@ __bdm_qtyObserver.observe(productForm, {
 
     // ✅ DO NOT MOVE THIS — it stays after the patches
   
+
     atcBtn.addEventListener("click", async e => {
       e.preventDefault();
       if (atcBtn.disabled) return;
@@ -480,17 +485,15 @@ try {
     credentials: "same-origin",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      note_attributes: [
-        {
-          name: "bdm_sticky_atc",
-          value: JSON.stringify({
-            source: "bdm_sticky_atc",
-            variantId: variantInput.value,
-            quantity: currentQty,
-            ts: Date.now()
-          })
-        }
-      ]
+      attributes: {
+  bdm_sticky_atc: JSON.stringify({
+    source: "bdm_sticky_atc",
+    variantId: variantInput.value,
+    quantity: currentQty,
+    ts: Date.now()
+  })
+}
+
     })
   });
 } catch {}
