@@ -135,10 +135,10 @@ export function initShopify(app) {
   });
 
   shopify.webhooks.addHandlers({
-  "ORDERS_PAID": {
+  ORDERS_PAID: {
     deliveryMethod: DeliveryMethod.Http,
     callbackUrl: "/webhooks/orders/paid",
-    topic: "orders/paid",
+    topic: "orders/paid", // ⭐ REQUIRED FIX
   },
 
     APP_UNINSTALLED: {
