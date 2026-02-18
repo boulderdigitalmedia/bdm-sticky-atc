@@ -137,7 +137,7 @@ export function initShopify(app) {
   shopify.webhooks.addHandlers({
   ORDERS_UPDATED: {
   deliveryMethod: DeliveryMethod.Http,
-  callbackUrl: "/webhooks/orders/updated",
+  callbackUrl: "/apps/bdm-sticky-atc/webhooks/orders/updated",
 },
 
     APP_UNINSTALLED: {
