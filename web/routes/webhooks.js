@@ -56,24 +56,25 @@ function parseWebhookBody(req) {
 function getStickyMarkerFromOrder(order) {
   const na = order?.note_attributes;
 
-  // OS2 format (array)
+  // Dawn / OS2 array format
   if (Array.isArray(na)) {
     const match = na.find(a => a?.name === "bdm_sticky_atc");
     if (match?.value) return match.value;
   }
 
-  // Admin "Additional details" object format (WHAT YOU HAVE NOW)
+  // Shopify "Additional details" object format
   if (na && typeof na === "object") {
     if (na.bdm_sticky_atc) return na.bdm_sticky_atc;
   }
 
-  // Legacy attribute fallback
+  // fallback
   if (order?.attributes?.bdm_sticky_atc) {
     return order.attributes.bdm_sticky_atc;
   }
 
   return null;
 }
+
 
 
 /* ────────────────────────────────────────────── */
