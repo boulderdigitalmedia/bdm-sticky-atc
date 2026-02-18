@@ -197,10 +197,12 @@ export function initShopify(app) {
       console.log("💾 Session stored:", session.id);
 
       try {
-        await shopify.webhooks.register({ session });
-      } catch (e) {
-        console.error("⚠️ Webhook register failed:", e);
-      }
+  const response = await shopify.webhooks.register({ session });
+
+  console.log("📡 WEBHOOK REGISTER RESULT", response);
+} catch (e) {
+  console.error("⚠️ Webhook register failed:", e);
+}
 
       const host = req.query.host ? String(req.query.host) : null;
 
