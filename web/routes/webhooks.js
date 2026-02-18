@@ -54,17 +54,27 @@ function parseWebhookBody(req) {
 
 // Extract sticky marker from order
 function getStickyMarkerFromOrder(order) {
-  const fromNoteAttrs = Array.isArray(order?.note_attributes)
-    ? order.note_attributes.find(a => a?.name === "bdm_sticky_atc")?.value
-    : null;
+  const na = order?.note_attributes;
 
-  if (fromNoteAttrs) return fromNoteAttrs;
+  // OS2 format (array)
+  if (Array.isArray(na)) {
+    const match = na.find(a => a?.name === "bdm_sticky_atc");
+    if (match?.value) return match.value;
+  }
 
-  const fromAttrs = order?.attributes?.bdm_sticky_atc;
-  if (fromAttrs) return fromAttrs;
+  // Admin "Additional details" object format (WHAT YOU HAVE NOW)
+  if (na && typeof na === "object") {
+    if (na.bdm_sticky_atc) return na.bdm_sticky_atc;
+  }
+
+  // Legacy attribute fallback
+  if (order?.attributes?.bdm_sticky_atc) {
+    return order.attributes.bdm_sticky_atc;
+  }
 
   return null;
 }
+
 
 /* ────────────────────────────────────────────── */
 /* ORDERS_PAID WEBHOOK */
