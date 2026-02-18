@@ -135,7 +135,7 @@ export function initShopify(app) {
   });
 
   shopify.webhooks.addHandlers({
-  ORDERS_PAID: {
+  ORDERS_CREATE: {
   deliveryMethod: DeliveryMethod.Http,
   callbackUrl: "/webhooks/orders/paid",
 },
