@@ -1,7 +1,6 @@
 import "@shopify/shopify-api/adapters/node";
 import {
   shopifyApi,
-  LATEST_API_VERSION,
   DeliveryMethod,
 } from "@shopify/shopify-api";
 import { restResources } from "@shopify/shopify-api/rest/admin/2024-01";
@@ -15,80 +14,6 @@ function requiredEnv(name) {
 }
 
 export let shopify;
-
-/* =========================================================
-   💳 BILLING HELPERS
-========================================================= */
-async function hasActiveSubscription(session) {
-  const client = new shopify.clients.Graphql({ session });
-
-  const result = await client.request(`
-    query {
-      currentAppInstallation {
-        activeSubscriptions {
-          id
-          status
-        }
-      }
-    }
-  `);
-
-  const subs =
-    result?.data?.currentAppInstallation?.activeSubscriptions || [];
-
-  return subs.length > 0;
-}
-
-async function createSubscription(session, returnUrl) {
-  const client = new shopify.clients.Graphql({ session });
-
-  // NOTE:
-  // - Keep test: true for dev stores
-  // - For production, set SHOPIFY_BILLING_TEST=false and use: test: false
-  const testMode = (process.env.SHOPIFY_BILLING_TEST || "true") === "true";
-
-  const mutation = `
-    mutation AppSubscriptionCreate($name: String!, $returnUrl: URL!, $trialDays: Int!, $test: Boolean!) {
-      appSubscriptionCreate(
-        name: $name
-        returnUrl: $returnUrl
-        trialDays: $trialDays
-        test: $test
-        lineItems: [
-          {
-            plan: {
-              appRecurringPricingDetails: {
-                price: { amount: 7.99, currencyCode: USD }
-              }
-            }
-          }
-        ]
-      ) {
-        confirmationUrl
-        userErrors { field message }
-      }
-    }
-  `;
-
-  const result = await client.request(mutation, {
-    variables: {
-      name: "Sticky Add To Cart Bar Pro",
-      returnUrl,
-      trialDays: 7,
-      test: testMode,
-    },
-  });
-
-  const payload = result?.data?.appSubscriptionCreate;
-  const errors = payload?.userErrors || [];
-
-  if (errors.length) {
-    console.error("❌ Billing userErrors:", errors);
-    return null;
-  }
-
-  return payload?.confirmationUrl || null;
-}
 
 function topRedirectHtml(url) {
   return `
@@ -105,6 +30,7 @@ function topRedirectHtml(url) {
     </html>
   `;
 }
+
 
 export function initShopify(app) {
   const apiKey = requiredEnv("SHOPIFY_API_KEY");
@@ -224,75 +150,16 @@ console.log(JSON.stringify(response, null, 2));
 
       const host = req.query.host ? String(req.query.host) : null;
 
-      // IMPORTANT: send them to billing subscribe (NOT to / directly)
-      // so the first page-load after auth doesn’t loop.
-      const billingUrl =
-        `/billing/subscribe?shop=${encodeURIComponent(session.shop)}` +
-        (host ? `&host=${encodeURIComponent(host)}` : "") +
-        `&embedded=1`;
+      const redirectUrl =
+  `/?shop=${encodeURIComponent(session.shop)}` +
+  (host ? `&host=${encodeURIComponent(host)}` : "") +
+  `&embedded=1`;
 
-      return res.redirect(billingUrl);
+return res.redirect(redirectUrl);
+
     } catch (err) {
       console.error("❌ OAuth callback failed", err);
       return res.status(500).send("Auth failed");
-    }
-  });
-
-  /* =========================================================
-     💳 BILLING SUBSCRIBE (NEW)
-     - uses OFFLINE session
-     - if already active -> redirect into app
-     - if not -> create subscription and redirect to confirmationUrl
-  ========================================================= */
-  app.get("/billing/subscribe", async (req, res) => {
-    try {
-      const shopParam = req.query.shop;
-      if (!shopParam) return res.status(400).send("Missing shop");
-
-      const shop = shopify.utils.sanitizeShop(String(shopParam));
-      if (!shop) return res.status(400).send("Invalid shop");
-
-      const host = req.query.host ? String(req.query.host) : null;
-
-      // Load offline session from your storage
-      const sessions = await shopify.config.sessionStorage.findSessionsByShop(
-        shop
-      );
-      const session = Array.isArray(sessions)
-        ? sessions.find((s) => !s.isOnline)
-        : null;
-
-      if (!session) {
-        // No session yet -> go auth
-        return res.redirect(`/auth?shop=${encodeURIComponent(shop)}`);
-      }
-
-      // If subscription exists, go to app
-      const active = await hasActiveSubscription(session);
-      if (active) {
-        const redirectUrl =
-          `/?shop=${encodeURIComponent(shop)}` +
-          (host ? `&host=${encodeURIComponent(host)}` : "") +
-          `&embedded=1`;
-        return res.redirect(redirectUrl);
-      }
-
-      // Create subscription and send merchant to approve
-      const returnUrl =
-        `${process.env.SHOPIFY_APP_URL}/?shop=${encodeURIComponent(shop)}` +
-        (host ? `&host=${encodeURIComponent(host)}` : "") +
-        `&embedded=1`;
-
-      const confirmationUrl = await createSubscription(session, returnUrl);
-      if (!confirmationUrl) {
-        return res.status(500).send("Could not start billing");
-      }
-
-      // confirmationUrl needs top-level redirect (embedded app)
-      return res.send(topRedirectHtml(confirmationUrl));
-    } catch (e) {
-      console.error("❌ /billing/subscribe failed:", e);
-      return res.status(500).send("Billing failed");
     }
   });
 
