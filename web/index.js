@@ -44,7 +44,12 @@ app.post(
     try {
       console.log("🔥 ORDERS_UPDATED webhook received");
 
-      const payload = JSON.parse(req.body.toString());
+      const payload =
+  typeof req.body === "string"
+    ? JSON.parse(req.body)
+    : req.body?.length
+      ? JSON.parse(req.body.toString())
+      : {};
 
       // Example: detect paid orders
       if (payload.financial_status === "paid") {
