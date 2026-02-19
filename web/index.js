@@ -93,6 +93,19 @@ app.post("/webhooks/orders/paid", async (req, res) => {
 
     console.log("💰 Paid order:", payload.id);
 
+    const revenue = parseFloat(payload.current_total_price || "0");
+
+await prisma.stickyConversion.create({
+  data: {
+    shop: payload.shop_domain || payload.shop || "",
+    orderId: String(payload.id),
+    revenue,
+    occurredAt: new Date(payload.created_at),
+  },
+});
+
+console.log("💵 Revenue recorded:", revenue);
+
     // 👉 call your existing logic here if needed
     // await ordersUpdated(payload);
 
