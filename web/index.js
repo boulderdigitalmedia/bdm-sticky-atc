@@ -40,7 +40,6 @@ app.options("*", cors());
 ========================================================= */
 app.post(
   "/webhooks/orders/updated",
-  express.raw({ type: "*/*" }),
   async (req, res) => {
     try {
       console.log("🔥 ORDERS_UPDATED webhook received");
@@ -68,7 +67,6 @@ app.post(
 ========================================================= */
 app.post(
   "/webhooks/app/uninstalled",
-  express.raw({ type: "*/*" }),
   async (req, res) => {
     try {
       const shop =
@@ -107,6 +105,33 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 /* =========================================================
+   SHOPIFY INIT
+========================================================= */
+shopifyModule.initShopify(app);
+
+/**
+ * Shopify Mandatory Compliance Webhooks
+ */
+
+// Customers Data Request
+app.post("/webhooks/customers/data_request", verifyWebhook, async (req, res) => {
+  console.log("customers/data_request webhook received");
+  res.status(200).send("ok");
+});
+
+// Customers Redact
+app.post("/webhooks/customers/redact", verifyWebhook, async (req, res) => {
+  console.log("customers/redact webhook received");
+  res.status(200).send("ok");
+});
+
+// Shop Redact
+app.post("/webhooks/shop/redact", verifyWebhook, async (req, res) => {
+  console.log("shop/redact webhook received");
+  res.status(200).send("ok");
+});
+
+/* =========================================================
    ROUTES
 ========================================================= */
 app.use("/api/settings", settingsRouter);
@@ -115,10 +140,6 @@ app.use("/apps/bdm-sticky-atc/track", trackRouter);
 app.use("/apps/bdm-sticky-atc", stickyAnalyticsRouter);
 app.use("/attribution", attributionRouter);
 
-/* =========================================================
-   SHOPIFY INIT
-========================================================= */
-shopifyModule.initShopify(app);
 
 /* =========================================================
    STATIC FILES
@@ -253,24 +274,4 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`✅ App running on port ${PORT}`);
 });
-/**
- * Shopify Mandatory Compliance Webhooks
- */
 
-// Customers Data Request
-app.post("/webhooks/customers/data_request", verifyWebhook, async (req, res) => {
-  console.log("customers/data_request webhook received");
-  res.status(200).send("ok");
-});
-
-// Customers Redact
-app.post("/webhooks/customers/redact", verifyWebhook, async (req, res) => {
-  console.log("customers/redact webhook received");
-  res.status(200).send("ok");
-});
-
-// Shop Redact
-app.post("/webhooks/shop/redact", verifyWebhook, async (req, res) => {
-  console.log("shop/redact webhook received");
-  res.status(200).send("ok");
-});
