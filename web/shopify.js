@@ -75,7 +75,7 @@ export function initShopify(app) {
 
   });
 
-  sshopify.webhooks.addHandlers({
+  shopify.webhooks.addHandlers({
   ORDERS_PAID: {
     deliveryMethod: DeliveryMethod.Http,
     callbackUrl: "/webhooks/orders/paid",
