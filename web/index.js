@@ -52,7 +52,7 @@ app.post(
       : {};
 
       // Example: detect paid orders
-      if (payload.financial_status === "paid") {
+      if (payload.financial_status === "paid" || payload.financial_status === "authorized") {
         console.log("💰 Paid order:", payload.id);
 
         // 👉 call your existing logic here if needed
