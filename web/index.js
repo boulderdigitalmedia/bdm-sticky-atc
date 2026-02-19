@@ -5,6 +5,7 @@ import cors from "cors";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { verifyWebhook } from "./verifyWebhook.js";
 
 import prisma from "./prisma.js";
 import * as shopifyModule from "./shopify.js";
@@ -100,6 +101,8 @@ app.post(
 /* =========================================================
    BODY PARSING
 ========================================================= */
+// Shopify webhooks MUST use raw body for HMAC verification
+app.use("/webhooks", express.raw({ type: "*/*" }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -249,4 +252,25 @@ app.get("/*", async (req, res, next) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`✅ App running on port ${PORT}`);
+});
+/**
+ * Shopify Mandatory Compliance Webhooks
+ */
+
+// Customers Data Request
+app.post("/webhooks/customers/data_request", verifyWebhook, async (req, res) => {
+  console.log("customers/data_request webhook received");
+  res.status(200).send("ok");
+});
+
+// Customers Redact
+app.post("/webhooks/customers/redact", verifyWebhook, async (req, res) => {
+  console.log("customers/redact webhook received");
+  res.status(200).send("ok");
+});
+
+// Shop Redact
+app.post("/webhooks/shop/redact", verifyWebhook, async (req, res) => {
+  console.log("shop/redact webhook received");
+  res.status(200).send("ok");
 });

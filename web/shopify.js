@@ -132,6 +132,21 @@ export function initShopify(app) {
       secure: true,
       sameSite: "none",
     },
+    webhooks: {
+  CUSTOMERS_DATA_REQUEST: {
+    deliveryMethod: DeliveryMethod.Http,
+    callbackUrl: "/webhooks/customers/data_request",
+  },
+  CUSTOMERS_REDACT: {
+    deliveryMethod: DeliveryMethod.Http,
+    callbackUrl: "/webhooks/customers/redact",
+  },
+  SHOP_REDACT: {
+    deliveryMethod: DeliveryMethod.Http,
+    callbackUrl: "/webhooks/shop/redact",
+  },
+},
+
   });
 
   shopify.webhooks.addHandlers({
