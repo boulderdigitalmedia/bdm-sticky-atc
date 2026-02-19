@@ -78,7 +78,7 @@ export function initShopify(app) {
   shopify.webhooks.addHandlers({
   ORDERS_UPDATED: {
   deliveryMethod: DeliveryMethod.Http,
-  callbackUrl: "https://sticky-add-to-cart-bar-pro.onrender.com/apps/bdm-sticky-atc/webhooks/orders/updated",
+  callbackUrl: "/webhooks/orders/updated",
 },
 
     APP_UNINSTALLED: {
