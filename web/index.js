@@ -36,36 +36,6 @@ app.use(
 app.options("*", cors());
 
 /* =========================================================
-   WEBHOOK — RAW BODY
-========================================================= */
-app.post("/webhooks/orders/paid", async (req, res) => {
-
-    try {
-      console.log("🔥 ORDERS_PAID webhook received");
-
-      const payload =
-  typeof req.body === "string"
-    ? JSON.parse(req.body)
-    : req.body?.length
-      ? JSON.parse(req.body.toString())
-      : {};
-
-      // Example: detect paid orders
-        console.log("💰 Paid order:", payload.id);
-
-        // 👉 call your existing logic here if needed
-        // await ordersUpdated(payload);
-      }
-
-      res.status(200).send("ok");
-    } catch (err) {
-      console.error("❌ ORDERS_UPDATED failed:", err);
-      res.status(500).send("error");
-    }
-  }
-);
-
-/* =========================================================
    APP UNINSTALLED WEBHOOK — SESSION CLEANUP
 ========================================================= */
 app.post(
@@ -106,6 +76,32 @@ app.post(
 app.use("/webhooks", express.raw({ type: "*/*" }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+/* =========================================================
+   WEBHOOK — RAW BODY
+========================================================= */
+app.post("/webhooks/orders/paid", async (req, res) => {
+  try {
+    console.log("🔥 ORDERS_PAID webhook received");
+
+    const payload =
+      typeof req.body === "string"
+        ? JSON.parse(req.body)
+        : req.body?.length
+          ? JSON.parse(req.body.toString())
+          : {};
+
+    console.log("💰 Paid order:", payload.id);
+
+    // 👉 call your existing logic here if needed
+    // await ordersUpdated(payload);
+
+    res.status(200).send("ok");
+  } catch (err) {
+    console.error("❌ ORDERS_PAID failed:", err);
+    res.status(500).send("error");
+  }
+});
 
 /* =========================================================
    SHOPIFY INIT
