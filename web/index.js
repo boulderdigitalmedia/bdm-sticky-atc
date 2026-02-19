@@ -166,6 +166,7 @@ app.get("/__debug/conversions", async (req, res) => {
    ⭐ EMBEDDED APP LOADER (FINAL FIX + BILLING ROUTE)
 ========================================================= */
 app.get("/*", async (req, res, next) => {
+
   const p = req.path || "";
 
   if (
@@ -218,38 +219,53 @@ app.get("/*", async (req, res, next) => {
   }
 
   /* =========================================================
-     💳 BILLING CHECK (NO LOOP)
-  ========================================================= */
-  try {
-    const client = new shopify.clients.Graphql({ session });
+   💳 MANAGED PRICING CHECK
+========================================================= */
+try {
+  const client = new shopify.clients.Graphql({ session });
 
-    const billingCheck = await client.request(`
-      query {
-        currentAppInstallation {
-          activeSubscriptions {
-            id
-            status
-          }
+  const billingCheck = await client.request(`
+    query {
+      currentAppInstallation {
+        activeSubscriptions {
+          id
+          status
         }
       }
-    `);
-
-    const subs =
-      billingCheck?.data?.currentAppInstallation?.activeSubscriptions || [];
-
-    if (!subs.length) {
-      console.log("💳 No active subscription — redirecting to /billing/subscribe");
-
-      const billingUrl =
-        `/billing/subscribe?shop=${encodeURIComponent(shop)}` +
-        (host ? `&host=${encodeURIComponent(host)}` : "") +
-        `&embedded=1`;
-
-      return res.redirect(billingUrl);
     }
-  } catch (e) {
-    console.error("❌ Billing check failed:", e);
+  `);
+
+  const subs =
+    billingCheck?.data?.currentAppInstallation?.activeSubscriptions || [];
+
+  if (!subs.length) {
+    console.log("💳 No active subscription — redirecting to Managed Pricing");
+
+    const storeHandle = String(shop).replace(".myshopify.com", "");
+    const appHandle = process.env.SHOPIFY_APP_HANDLE;
+
+    if (!appHandle) {
+      console.error("❌ Missing SHOPIFY_APP_HANDLE env var");
+      return res.status(500).send("Missing SHOPIFY_APP_HANDLE");
+    }
+
+    const pricingUrl =
+      `https://admin.shopify.com/store/${storeHandle}/charges/${appHandle}/pricing_plans`;
+
+    return res.status(200).send(`
+      <!doctype html>
+      <html>
+        <body>
+          <script>
+            window.top.location.href = ${JSON.stringify(pricingUrl)};
+          </script>
+        </body>
+      </html>
+    `);
   }
+} catch (e) {
+  console.error("❌ Billing check failed:", e);
+}
 
   console.log("✅ Session found — loading SPA");
 
