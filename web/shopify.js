@@ -75,11 +75,11 @@ export function initShopify(app) {
 
   });
 
-  shopify.webhooks.addHandlers({
-  ORDERS_UPDATED: {
-  deliveryMethod: DeliveryMethod.Http,
-  callbackUrl: "/webhooks/orders/updated",
-},
+  sshopify.webhooks.addHandlers({
+  ORDERS_PAID: {
+    deliveryMethod: DeliveryMethod.Http,
+    callbackUrl: "/webhooks/orders/paid",
+  },
 
     APP_UNINSTALLED: {
       deliveryMethod: DeliveryMethod.Http,

@@ -38,11 +38,10 @@ app.options("*", cors());
 /* =========================================================
    WEBHOOK — RAW BODY
 ========================================================= */
-app.post(
-  "/webhooks/orders/updated",
-  async (req, res) => {
+app.post("/webhooks/orders/paid", async (req, res) => {
+
     try {
-      console.log("🔥 ORDERS_UPDATED webhook received");
+      console.log("🔥 ORDERS_PAID webhook received");
 
       const payload =
   typeof req.body === "string"
@@ -52,7 +51,6 @@ app.post(
       : {};
 
       // Example: detect paid orders
-      if (payload.financial_status === "paid" || payload.financial_status === "authorized") {
         console.log("💰 Paid order:", payload.id);
 
         // 👉 call your existing logic here if needed
