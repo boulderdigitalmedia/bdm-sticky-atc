@@ -100,7 +100,7 @@ await prisma.stickyConversion.upsert({
   update: {},
   create: {
     id: `order_${payload.id}`,
-    shop: payload.domain || "",
+    shop: payload.domain,
     orderId: String(payload.id),
     revenue: parseFloat(payload.current_total_price || "0"),
     currency: payload.currency || "USD", // ⭐ add this line
