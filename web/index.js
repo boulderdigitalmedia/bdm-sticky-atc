@@ -91,16 +91,22 @@ app.post("/webhooks/orders/paid", async (req, res) => {
           ? JSON.parse(req.body.toString())
           : {};
 
+    const shop =
+  req.get("X-Shopify-Shop-Domain") ||
+  req.get("x-shopify-shop-domain") ||
+  "";
+
     console.log("💰 Paid order:", payload.id);
 
     const revenue = parseFloat(payload.current_total_price || "0");
 
+    
 await prisma.stickyConversion.upsert({
   where: { id: `order_${payload.id}` },
   update: {},
   create: {
     id: `order_${payload.id}`,
-    shop: payload.domain,
+    shop,
     orderId: String(payload.id),
     revenue: parseFloat(payload.current_total_price || "0"),
     currency: payload.currency || "USD", // ⭐ add this line
