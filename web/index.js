@@ -95,12 +95,15 @@ app.post("/webhooks/orders/paid", async (req, res) => {
 
     const revenue = parseFloat(payload.current_total_price || "0");
 
-await prisma.stickyConversion.create({
-  data: {
-    id: `order_${payload.id}`,   // ⭐ add this line
+await prisma.stickyConversion.upsert({
+  where: { id: `order_${payload.id}` },
+  update: {},
+  create: {
+    id: `order_${payload.id}`,
     shop: payload.domain || "",
     orderId: String(payload.id),
-    revenue,
+    revenue: parseFloat(payload.current_total_price || "0"),
+    currency: payload.currency || "USD", // ⭐ add this line
     occurredAt: new Date(payload.created_at),
   },
 });
