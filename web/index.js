@@ -95,6 +95,11 @@ app.post("/webhooks/orders/paid", async (req, res) => {
 
     console.log("💰 Paid order:", payload.id);
 
+    const revenue = Number(
+  payload.total_price ||
+  payload.current_total_price ||
+  0
+);
     const revenue = parseFloat(payload.current_total_price || "0");
 
     const attrs = Array.isArray(payload.note_attributes)
@@ -126,12 +131,7 @@ await prisma.stickyConversion.upsert({
     shop,
     orderId: String(payload.id),
     revenue,
-    const revenue = Number(
-  payload.total_price ||
-  payload.current_total_price ||
-  0
-);
-    currency: payload.currency || "USD", // ⭐ add this line
+    currency: payload.currency || "USD",
     occurredAt: new Date(payload.created_at),
   },
 });
