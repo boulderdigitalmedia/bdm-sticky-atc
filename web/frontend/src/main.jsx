@@ -14,9 +14,10 @@ import App from "./App.jsx";
 const urlParams = new URLSearchParams(window.location.search);
 const host = urlParams.get("host");
 
-const apiKey = import.meta.env.VITE_SHOPIFY_API_KEY || window.__SHOPIFY_API_KEY__;
+const apiKey =
+  import.meta.env.VITE_SHOPIFY_API_KEY ||
+  window.__SHOPIFY_API_KEY__;
 
-// Fail loudly instead of silently
 if (!apiKey) {
   document.body.innerHTML =
     "<h1>Missing Shopify API key</h1><p>Check frontend env vars or server config.</p>";
@@ -32,17 +33,17 @@ if (!host) {
 const config = {
   apiKey,
   host,
-  forceRedirect: true
+  forceRedirect: true,
 };
 
 ReactDOM.createRoot(document.getElementById("app")).render(
   <React.StrictMode>
-    <PolarisProvider i18n={enTranslations}>
-      <HashRouter>
-        <AppBridgeProvider config={config}>
+    <AppBridgeProvider config={config}>
+      <PolarisProvider i18n={enTranslations}>
+        <HashRouter>
           <App />
-        </AppBridgeProvider>
-      </HashRouter>
-    </PolarisProvider>
+        </HashRouter>
+      </PolarisProvider>
+    </AppBridgeProvider>
   </React.StrictMode>
 );

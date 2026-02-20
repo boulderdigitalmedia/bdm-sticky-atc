@@ -36,6 +36,14 @@ app.use(
 app.options("*", cors());
 
 /* =========================================================
+   BODY PARSING
+========================================================= */
+// Shopify webhooks MUST use raw body for HMAC verification
+app.use("/webhooks", express.raw({ type: "*/*" }));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+/* =========================================================
    APP UNINSTALLED WEBHOOK — SESSION CLEANUP
 ========================================================= */
 app.post(
@@ -69,13 +77,6 @@ app.post(
   }
 );
 
-/* =========================================================
-   BODY PARSING
-========================================================= */
-// Shopify webhooks MUST use raw body for HMAC verification
-app.use("/webhooks", express.raw({ type: "*/*" }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
 /* =========================================================
    WEBHOOK — RAW BODY
@@ -84,12 +85,7 @@ app.post("/webhooks/orders/paid", async (req, res) => {
   try {
     console.log("🔥 ORDERS_PAID webhook received");
 
-    const payload =
-      typeof req.body === "string"
-        ? JSON.parse(req.body)
-        : req.body?.length
-          ? JSON.parse(req.body.toString())
-          : {};
+    const payload = JSON.parse(req.body.toString());
 
     const shop =
   req.get("X-Shopify-Shop-Domain") ||
