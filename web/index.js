@@ -90,11 +90,32 @@ app.post("/webhooks/orders/paid", async (req, res) => {
     const shop =
   req.get("X-Shopify-Shop-Domain") ||
   req.get("x-shopify-shop-domain") ||
+  payload.shop_domain ||
   "";
 
     console.log("💰 Paid order:", payload.id);
 
     const revenue = parseFloat(payload.current_total_price || "0");
+
+    const attrs = Array.isArray(payload.note_attributes)
+  ? payload.note_attributes
+  : [];
+
+    const stickyAttr = attrs.find(
+      (a) => a?.name === "bdm_sticky_atc"
+    );
+
+    if (!stickyAttr) {
+      console.log("⛔ Not sticky ATC attributed — skipping");
+      return res.status(200).send("ok");
+    }
+
+    let stickyData = {};
+    try {
+      stickyData = JSON.parse(stickyAttr.value);
+    } catch {}
+
+    console.log("✅ Sticky ATC order detected:", stickyData);
 
     
 await prisma.stickyConversion.upsert({
@@ -104,7 +125,12 @@ await prisma.stickyConversion.upsert({
     id: `order_${payload.id}`,
     shop,
     orderId: String(payload.id),
-    revenue: parseFloat(payload.current_total_price || "0"),
+    revenue,
+    const revenue = Number(
+  payload.total_price ||
+  payload.current_total_price ||
+  0
+);
     currency: payload.currency || "USD", // ⭐ add this line
     occurredAt: new Date(payload.created_at),
   },
