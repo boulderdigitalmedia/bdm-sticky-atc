@@ -97,7 +97,8 @@ app.post("/webhooks/orders/paid", async (req, res) => {
 
 await prisma.stickyConversion.create({
   data: {
-    shop: payload.shop_domain || payload.shop || "",
+    id: `order_${payload.id}`,   // ⭐ add this line
+    shop: payload.domain || "",
     orderId: String(payload.id),
     revenue,
     occurredAt: new Date(payload.created_at),
