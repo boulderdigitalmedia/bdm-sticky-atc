@@ -100,7 +100,6 @@ app.post("/webhooks/orders/paid", async (req, res) => {
   payload.current_total_price ||
   0
 );
-    const revenue = parseFloat(payload.current_total_price || "0");
 
     const attrs = Array.isArray(payload.note_attributes)
   ? payload.note_attributes
