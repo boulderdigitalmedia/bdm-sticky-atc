@@ -257,9 +257,18 @@ app.get("/*", async (req, res, next) => {
   }
 
   if (!session) {
-    console.log("🔑 No session — redirecting to OAuth");
-    return res.redirect(`/auth?shop=${encodeURIComponent(shop)}`);
-  }
+  console.log("🔑 No session — escaping iframe to OAuth");
+
+  return res.status(200).send(`
+    <html>
+      <body>
+        <script>
+          window.top.location.href = "/auth?shop=${encodeURIComponent(shop)}";
+        </script>
+      </body>
+    </html>
+  `);
+}
 
   /* =========================================================
    💳 MANAGED PRICING CHECK
