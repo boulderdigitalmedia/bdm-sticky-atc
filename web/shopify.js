@@ -1,3 +1,5 @@
+console.log("🔥 NEW SHOPIFY.JS DEPLOYED");
+
 import "@shopify/shopify-api/adapters/node";
 import {
   shopifyApi,
@@ -146,40 +148,6 @@ export function initShopify(app) {
 
   console.log("📡 WEBHOOK REGISTER RESULT");
 console.log(JSON.stringify(response, null, 2));
-
- const client = new shopify.clients.Graphql({ session });
-
-  const appBaseUrl = process.env.SHOPIFY_APP_URL.replace(/\/+$/, "");
-
-  await client.request(`
-    mutation {
-      dataRequest: webhookSubscriptionCreate(
-        topic: CUSTOMERS_DATA_REQUEST
-        webhookSubscription: {
-          callbackUrl: "${appBaseUrl}/webhooks/customers/data_request"
-          format: JSON
-        }
-      ) { userErrors { field message } }
-
-      customersRedact: webhookSubscriptionCreate(
-        topic: CUSTOMERS_REDACT
-        webhookSubscription: {
-          callbackUrl: "${appBaseUrl}/webhooks/customers/redact"
-          format: JSON
-        }
-      ) { userErrors { field message } }
-
-      shopRedact: webhookSubscriptionCreate(
-        topic: SHOP_REDACT
-        webhookSubscription: {
-          callbackUrl: "${appBaseUrl}/webhooks/shop/redact"
-          format: JSON
-        }
-      ) { userErrors { field message } }
-    }
-  `);
-
-  console.log("✅ GDPR webhooks registered via GraphQL");
 
 } catch (e) {
   console.error("⚠️ Webhook register failed:", e);
