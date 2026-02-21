@@ -74,20 +74,20 @@ export function initShopify(app) {
     callbackUrl: "/webhooks/app/uninstalled",
   },
 
-  "customers/data_request": {
-  deliveryMethod: DeliveryMethod.Http,
-  callbackUrl: "/webhooks/customers/data_request",
-},
+  CUSTOMERS_DATA_REQUEST: {
+    deliveryMethod: DeliveryMethod.Http,
+    callbackUrl: "/webhooks/customers/data_request",
+  },
 
-"customers/redact": {
-  deliveryMethod: DeliveryMethod.Http,
-  callbackUrl: "/webhooks/customers/redact",
-},
+  CUSTOMERS_REDACT: {
+    deliveryMethod: DeliveryMethod.Http,
+    callbackUrl: "/webhooks/customers/redact",
+  },
 
-"shop/redact": {
-  deliveryMethod: DeliveryMethod.Http,
-  callbackUrl: "/webhooks/shop/redact",
-},
+  SHOP_REDACT: {
+    deliveryMethod: DeliveryMethod.Http,
+    callbackUrl: "/webhooks/shop/redact",
+  },
 });
 
   /* =========================================================
