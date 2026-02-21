@@ -81,7 +81,7 @@ app.post(
 /* =========================================================
    WEBHOOK — RAW BODY
 ========================================================= */
-app.post("/webhooks/orders/paid", async (req, res) => {
+app.post("/webhooks/orders/paid", verifyWebhook, async (req, res) => {
   try {
     console.log("🔥 ORDERS_PAID webhook received");
 
