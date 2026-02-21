@@ -147,11 +147,6 @@ console.log("💵 Revenue recorded:", revenue);
   }
 });
 
-/* =========================================================
-   SHOPIFY INIT
-========================================================= */
-shopifyModule.initShopify(app);
-
 /**
  * Shopify Mandatory Compliance Webhooks
  */
@@ -173,6 +168,11 @@ app.post("/webhooks/shop/redact", verifyWebhook, async (req, res) => {
   console.log("shop/redact webhook received");
   res.status(200).send("ok");
 });
+
+/* =========================================================
+   SHOPIFY INIT
+========================================================= */
+shopifyModule.initShopify(app);
 
 /* =========================================================
    ROUTES
