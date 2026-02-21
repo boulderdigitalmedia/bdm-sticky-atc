@@ -58,40 +58,9 @@ export function initShopify(app) {
       secure: true,
       sameSite: "none",
     },
-    webhooks: {
-  CUSTOMERS_DATA_REQUEST: {
-    deliveryMethod: DeliveryMethod.Http,
-    callbackUrl: "/webhooks/customers/data_request",
-  },
-  CUSTOMERS_REDACT: {
-    deliveryMethod: DeliveryMethod.Http,
-    callbackUrl: "/webhooks/customers/redact",
-  },
-  SHOP_REDACT: {
-    deliveryMethod: DeliveryMethod.Http,
-    callbackUrl: "/webhooks/shop/redact",
-  },
-},
-
   });
 
   shopify.webhooks.addHandlers({
-
-    CUSTOMERS_DATA_REQUEST: {
-    deliveryMethod: DeliveryMethod.Http,
-    callbackUrl: "/webhooks/customers/data_request",
-  },
-
-  CUSTOMERS_REDACT: {
-    deliveryMethod: DeliveryMethod.Http,
-    callbackUrl: "/webhooks/customers/redact",
-  },
-
-  SHOP_REDACT: {
-    deliveryMethod: DeliveryMethod.Http,
-    callbackUrl: "/webhooks/shop/redact",
-  },
-
   ORDERS_PAID: {
     deliveryMethod: DeliveryMethod.Http,
     callbackUrl: "/webhooks/orders/paid",
@@ -101,7 +70,22 @@ export function initShopify(app) {
     deliveryMethod: DeliveryMethod.Http,
     callbackUrl: "/webhooks/app/uninstalled",
   },
-  });
+
+  CUSTOMERS_DATA_REQUEST: {
+    deliveryMethod: DeliveryMethod.Http,
+    callbackUrl: "/webhooks/customers/data_request",
+  },
+
+  CUSTOMERS_REDACT: {
+    deliveryMethod: DeliveryMethod.Http,
+    callbackUrl: "/webhooks/customers/redact",
+  },
+
+  SHOP_REDACT: {
+    deliveryMethod: DeliveryMethod.Http,
+    callbackUrl: "/webhooks/shop/redact",
+  },
+});
 
   /* =========================================================
      AUTH START
