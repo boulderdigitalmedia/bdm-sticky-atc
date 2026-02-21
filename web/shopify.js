@@ -76,17 +76,8 @@ export function initShopify(app) {
   });
 
   shopify.webhooks.addHandlers({
-  ORDERS_PAID: {
-    deliveryMethod: DeliveryMethod.Http,
-    callbackUrl: "/webhooks/orders/paid",
-  },
 
-  APP_UNINSTALLED: {
-    deliveryMethod: DeliveryMethod.Http,
-    callbackUrl: "/webhooks/app/uninstalled",
-  },
-
-  CUSTOMERS_DATA_REQUEST: {
+    CUSTOMERS_DATA_REQUEST: {
     deliveryMethod: DeliveryMethod.Http,
     callbackUrl: "/webhooks/customers/data_request",
   },
@@ -99,6 +90,16 @@ export function initShopify(app) {
   SHOP_REDACT: {
     deliveryMethod: DeliveryMethod.Http,
     callbackUrl: "/webhooks/shop/redact",
+  },
+
+  ORDERS_PAID: {
+    deliveryMethod: DeliveryMethod.Http,
+    callbackUrl: "/webhooks/orders/paid",
+  },
+
+  APP_UNINSTALLED: {
+    deliveryMethod: DeliveryMethod.Http,
+    callbackUrl: "/webhooks/app/uninstalled",
   },
   });
 
