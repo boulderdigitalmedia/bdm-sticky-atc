@@ -152,19 +152,19 @@ console.log("💵 Revenue recorded:", revenue);
  */
 
 // Customers Data Request
-app.post("/webhooks/customers/data_request", verifyWebhook, async (req, res) => {
+app.post("/webhooks/customers/data_request", async (req, res) => {
   console.log("customers/data_request webhook received");
   res.status(200).send("ok");
 });
 
 // Customers Redact
-app.post("/webhooks/customers/redact", verifyWebhook, async (req, res) => {
+app.post("/webhooks/customers/redact", async (req, res) => {
   console.log("customers/redact webhook received");
   res.status(200).send("ok");
 });
 
 // Shop Redact
-app.post("/webhooks/shop/redact", verifyWebhook, async (req, res) => {
+app.post("/webhooks/shop/redact", async (req, res) => {
   console.log("shop/redact webhook received");
   res.status(200).send("ok");
 });
