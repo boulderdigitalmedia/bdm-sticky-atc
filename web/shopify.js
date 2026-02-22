@@ -52,7 +52,7 @@ export function initShopify(app) {
     scopes,
     hostName: appUrl.host,
     hostScheme: "https",
-    apiVersion: "2024-01",
+    apiVersion: "2025-04",
     isEmbeddedApp: true,
     restResources,
     sessionStorage: prismaSessionStorage(),
