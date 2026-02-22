@@ -5,16 +5,28 @@ export function verifyWebhook(req, res, next) {
     const hmacHeader = req.get("X-Shopify-Hmac-Sha256");
 
     if (!hmacHeader) {
-      return res.status(401).send("Missing HMAC header");
+      console.error("❌ Missing HMAC header");
+      return res.status(401).send("Unauthorized");
     }
 
+    const secret = process.env.SHOPIFY_API_SECRET;
+
+    // IMPORTANT: req.body must be RAW BUFFER
     const generatedHash = crypto
-      .createHmac("sha256", process.env.SHOPIFY_API_SECRET)
+      .createHmac("sha256", secret)
       .update(req.body)
       .digest("base64");
 
-    if (generatedHash !== hmacHeader) {
-      return res.status(401).send("Invalid webhook signature");
+    const hashBuffer = Buffer.from(generatedHash, "utf8");
+    const hmacBuffer = Buffer.from(hmacHeader, "utf8");
+
+    // Prevent timing attacks (Shopify requires this)
+    if (
+      hashBuffer.length !== hmacBuffer.length ||
+      !crypto.timingSafeEqual(hashBuffer, hmacBuffer)
+    ) {
+      console.error("❌ Invalid webhook signature");
+      return res.status(401).send("Unauthorized");
     }
 
     next();
