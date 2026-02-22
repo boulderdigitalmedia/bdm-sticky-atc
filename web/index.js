@@ -208,7 +208,8 @@ app.get("/__debug/conversions", async (req, res) => {
 /* =========================================================
    ⭐ EMBEDDED APP LOADER (FINAL FIX + BILLING ROUTE)
 ========================================================= */
-app.get("/*", async (req, res, next) => {
+app.use("/*", async (req, res, next) => {
+  if (req.method !== "GET") return next();
 
   const p = req.path || "";
 
