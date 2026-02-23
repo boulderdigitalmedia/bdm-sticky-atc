@@ -99,27 +99,42 @@ app.post("/webhooks/orders/paid", async (req, res) => {
  * Shopify Mandatory Compliance Webhooks
  */
 app.post("/webhooks/customers/data_request", async (req, res) => {
-  await shopifyModule.shopify.webhooks.process({
-    rawBody: req.body,
-    rawRequest: req,
-    rawResponse: res,
-  });
+  try {
+    await shopifyModule.shopify.webhooks.process({
+      rawBody: req.body,
+      rawRequest: req,
+      rawResponse: res,
+    });
+  } catch (error) {
+    console.error("❌ Compliance webhook failed:", error);
+    res.status(500).send("error");
+  }
 });
 
 app.post("/webhooks/customers/redact", async (req, res) => {
-  await shopifyModule.shopify.webhooks.process({
-    rawBody: req.body,
-    rawRequest: req,
-    rawResponse: res,
-  });
+  try {
+    await shopifyModule.shopify.webhooks.process({
+      rawBody: req.body,
+      rawRequest: req,
+      rawResponse: res,
+    });
+  } catch (error) {
+    console.error("❌ Compliance webhook failed:", error);
+    res.status(500).send("error");
+  }
 });
 
 app.post("/webhooks/shop/redact", async (req, res) => {
-  await shopifyModule.shopify.webhooks.process({
-    rawBody: req.body,
-    rawRequest: req,
-    rawResponse: res,
-  });
+  try {
+    await shopifyModule.shopify.webhooks.process({
+      rawBody: req.body,
+      rawRequest: req,
+      rawResponse: res,
+    });
+  } catch (error) {
+    console.error("❌ Compliance webhook failed:", error);
+    res.status(500).send("error");
+  }
 });
 
 /* =========================================================
@@ -244,7 +259,11 @@ try {
   const subs =
     billingCheck?.data?.currentAppInstallation?.activeSubscriptions || [];
 
-  if (!subs.length) {
+  const isShopifyVerification =
+  Boolean(req.headers["x-shopify-topic"]) ||
+  req.get("User-Agent")?.includes("Shopify");
+
+if (!subs.length && !isShopifyVerification) {
     console.log("💳 No active subscription — redirecting to Managed Pricing");
 
     const storeHandle = String(shop).replace(".myshopify.com", "");
