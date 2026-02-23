@@ -9,7 +9,7 @@ import { restResources } from "@shopify/shopify-api/rest/admin/2024-01";
 import { prismaSessionStorage } from "./shopifySessionStoragePrisma.js";
 import prisma from "./prisma.js";
 
-// ⭐ ADD THIS IMPORT
+import { complianceWebhook } from "./routes/compliance.js";
 import { ordersPaid } from "./routes/webhooks.js";
 
 function requiredEnv(name) {
@@ -71,32 +71,35 @@ export function initShopify(app) {
      ⭐ WEBHOOK HANDLERS (FIXED)
   ========================================================= */
   shopify.webhooks.addHandlers({
-    ORDERS_PAID: {
-      deliveryMethod: DeliveryMethod.Http,
-      callbackUrl: "/webhooks/orders/paid",
-      callback: ordersPaid, // ⭐ THIS WAS MISSING
-    },
+  ORDERS_PAID: {
+    deliveryMethod: DeliveryMethod.Http,
+    callbackUrl: "/webhooks/orders/paid",
+    callback: ordersPaid,
+  },
 
-    APP_UNINSTALLED: {
-      deliveryMethod: DeliveryMethod.Http,
-      callbackUrl: "/webhooks/app/uninstalled",
-    },
+  APP_UNINSTALLED: {
+    deliveryMethod: DeliveryMethod.Http,
+    callbackUrl: "/webhooks/app/uninstalled",
+  },
 
-    CUSTOMERS_DATA_REQUEST: {
-      deliveryMethod: DeliveryMethod.Http,
-      callbackUrl: "/webhooks/customers/data_request",
-    },
+  CUSTOMERS_DATA_REQUEST: {
+    deliveryMethod: DeliveryMethod.Http,
+    callbackUrl: "/webhooks/customers/data_request",
+    callback: complianceWebhook, // ⭐ ADD THIS
+  },
 
-    CUSTOMERS_REDACT: {
-      deliveryMethod: DeliveryMethod.Http,
-      callbackUrl: "/webhooks/customers/redact",
-    },
+  CUSTOMERS_REDACT: {
+    deliveryMethod: DeliveryMethod.Http,
+    callbackUrl: "/webhooks/customers/redact",
+    callback: complianceWebhook, // ⭐ ADD THIS
+  },
 
-    SHOP_REDACT: {
-      deliveryMethod: DeliveryMethod.Http,
-      callbackUrl: "/webhooks/shop/redact",
-    },
-  });
+  SHOP_REDACT: {
+    deliveryMethod: DeliveryMethod.Http,
+    callbackUrl: "/webhooks/shop/redact",
+    callback: complianceWebhook, // ⭐ ADD THIS
+  },
+});
 
   /* =========================================================
      AUTH START

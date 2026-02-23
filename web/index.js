@@ -98,23 +98,28 @@ app.post("/webhooks/orders/paid", async (req, res) => {
 /**
  * Shopify Mandatory Compliance Webhooks
  */
-
-// Customers Data Request
 app.post("/webhooks/customers/data_request", async (req, res) => {
-  console.log("customers/data_request webhook received");
-  res.status(200).send("ok");
+  await shopifyModule.shopify.webhooks.process({
+    rawBody: req.body,
+    rawRequest: req,
+    rawResponse: res,
+  });
 });
 
-// Customers Redact
 app.post("/webhooks/customers/redact", async (req, res) => {
-  console.log("customers/redact webhook received");
-  res.status(200).send("ok");
+  await shopifyModule.shopify.webhooks.process({
+    rawBody: req.body,
+    rawRequest: req,
+    rawResponse: res,
+  });
 });
 
-// Shop Redact
 app.post("/webhooks/shop/redact", async (req, res) => {
-  console.log("shop/redact webhook received");
-  res.status(200).send("ok");
+  await shopifyModule.shopify.webhooks.process({
+    rawBody: req.body,
+    rawRequest: req,
+    rawResponse: res,
+  });
 });
 
 /* =========================================================
