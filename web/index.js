@@ -92,6 +92,67 @@ app.post(
 
 
 /* =========================================================
+   WEBHOOK — RAW BODY
+========================================================= */
+app.post("/webhooks/orders/paid", async (req, res) => {
+  try {
+    const shopify = shopifyModule.shopify;
+
+    await shopify.webhooks.process({
+      rawBody: req.body,
+      rawRequest: req,
+      rawResponse: res,
+    });
+
+  } catch (error) {
+    console.error("❌ Webhook processing failed:", error);
+    res.status(500).send("error");
+  }
+});
+
+/**
+ * Shopify Mandatory Compliance Webhooks
+ */
+app.post("/webhooks/customers/data_request", async (req, res) => {
+  try {
+    await shopifyModule.shopify.webhooks.process({
+      rawBody: req.body,
+      rawRequest: req,
+      rawResponse: res,
+    });
+  } catch (error) {
+    console.error("❌ Compliance webhook failed:", error);
+    res.status(500).send("error");
+  }
+});
+
+app.post("/webhooks/customers/redact", async (req, res) => {
+  try {
+    await shopifyModule.shopify.webhooks.process({
+      rawBody: req.body,
+      rawRequest: req,
+      rawResponse: res,
+    });
+  } catch (error) {
+    console.error("❌ Compliance webhook failed:", error);
+    res.status(500).send("error");
+  }
+});
+
+app.post("/webhooks/shop/redact", async (req, res) => {
+  try {
+    await shopifyModule.shopify.webhooks.process({
+      rawBody: req.body,
+      rawRequest: req,
+      rawResponse: res,
+    });
+  } catch (error) {
+    console.error("❌ Compliance webhook failed:", error);
+    res.status(500).send("error");
+  }
+});
+
+/* =========================================================
    SHOPIFY INIT
 ========================================================= */
 shopifyModule.initShopify(app);
