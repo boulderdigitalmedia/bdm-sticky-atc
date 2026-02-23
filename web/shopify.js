@@ -5,7 +5,7 @@ import {
   shopifyApi,
   DeliveryMethod,
 } from "@shopify/shopify-api";
-import { restResources } from "@shopify/shopify-api/rest/admin/2024-10";
+import { restResources } from "@shopify/shopify-api/rest/admin/2024-01";
 import { prismaSessionStorage } from "./shopifySessionStoragePrisma.js";
 import prisma from "./prisma.js";
 
@@ -52,7 +52,7 @@ export function initShopify(app) {
     scopes,
     hostName: appUrl.host,
     hostScheme: "https",
-    apiVersion: "2025-04",
+    apiVersion: "2024-01",
     isEmbeddedApp: true,
     restResources,
     sessionStorage: prismaSessionStorage(),
