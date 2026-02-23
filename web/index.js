@@ -52,7 +52,6 @@ app.options("*", cors());
    BODY PARSING
 ========================================================= */
 // Shopify webhooks MUST use raw body for HMAC verification
-app.use("/webhooks", express.raw({ type: "*/*" }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
