@@ -5,7 +5,6 @@ import cors from "cors";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { verifyWebhook } from "./verifyWebhook.js";
 
 import prisma from "./prisma.js";
 import * as shopifyModule from "./shopify.js";
@@ -14,7 +13,6 @@ import settingsRouter from "./routes/settings.js";
 import trackRouter from "./routes/track.js";
 import stickyAnalyticsRouter from "./routes/stickyAnalytics.js";
 import attributionRouter from "./routes/attribution.js";
-import { ordersUpdated } from "./routes/webhooks.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -81,68 +79,18 @@ app.post(
 /* =========================================================
    WEBHOOK — RAW BODY
 ========================================================= */
-app.post("/webhooks/orders/paid", verifyWebhook, async (req, res) => {
+app.post("/webhooks/orders/paid", async (req, res) => {
   try {
-    console.log("🔥 ORDERS_PAID webhook received");
+    const shopify = shopifyModule.shopify;
 
-    const payload = JSON.parse(req.body.toString());
+    await shopify.webhooks.process({
+      rawBody: req.body,
+      rawRequest: req,
+      rawResponse: res,
+    });
 
-    const shop =
-  req.get("X-Shopify-Shop-Domain") ||
-  req.get("x-shopify-shop-domain") ||
-  payload.shop_domain ||
-  "";
-
-    console.log("💰 Paid order:", payload.id);
-
-    const revenue = Number(
-  payload.total_price ||
-  payload.current_total_price ||
-  0
-);
-
-    const attrs = Array.isArray(payload.note_attributes)
-  ? payload.note_attributes
-  : [];
-
-    const stickyAttr = attrs.find(
-      (a) => a?.name === "bdm_sticky_atc"
-    );
-
-    if (!stickyAttr) {
-      console.log("⛔ Not sticky ATC attributed — skipping");
-      return res.status(200).send("ok");
-    }
-
-    let stickyData = {};
-    try {
-      stickyData = JSON.parse(stickyAttr.value);
-    } catch {}
-
-    console.log("✅ Sticky ATC order detected:", stickyData);
-
-    
-await prisma.stickyConversion.upsert({
-  where: { id: `order_${payload.id}` },
-  update: {},
-  create: {
-    id: `order_${payload.id}`,
-    shop,
-    orderId: String(payload.id),
-    revenue,
-    currency: payload.currency || "USD",
-    occurredAt: new Date(payload.created_at),
-  },
-});
-
-console.log("💵 Revenue recorded:", revenue);
-
-    // 👉 call your existing logic here if needed
-    // await ordersUpdated(payload);
-
-    res.status(200).send("ok");
-  } catch (err) {
-    console.error("❌ ORDERS_PAID failed:", err);
+  } catch (error) {
+    console.error("❌ Webhook processing failed:", error);
     res.status(500).send("error");
   }
 });

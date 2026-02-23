@@ -5,56 +5,9 @@ import prisma from "../prisma.js";
 /* HELPERS */
 /* ────────────────────────────────────────────── */
 
-const generateId = () =>
-  crypto.randomUUID
-    ? crypto.randomUUID()
-    : crypto.randomBytes(16).toString("hex");
-
-function requiredEnv(name) {
-  const v = process.env[name];
-  if (!v) throw new Error(`Missing required env var: ${name}`);
-  return v;
-}
-
-function timingSafeEqual(a, b) {
-  const aBuf = Buffer.from(a);
-  const bBuf = Buffer.from(b);
-  if (aBuf.length !== bBuf.length) return false;
-  return crypto.timingSafeEqual(aBuf, bBuf);
-}
-
-/* ────────────────────────────────────────────── */
-/* SHOPIFY HMAC VERIFICATION */
-/* ────────────────────────────────────────────── */
-
-function verifyShopifyHmac(req) {
-  const hmacHeader =
-    req.get("X-Shopify-Hmac-Sha256") ||
-    req.get("x-shopify-hmac-sha256");
-
-  if (!hmacHeader || !Buffer.isBuffer(req.body)) {
-    return { ok: false };
-  }
-
-  const secret = requiredEnv("SHOPIFY_API_SECRET");
-
-  const digest = crypto
-    .createHmac("sha256", secret)
-    .update(req.body)
-    .digest("base64");
-
-  return timingSafeEqual(digest, hmacHeader)
-    ? { ok: true }
-    : { ok: false };
-}
-
-function parseWebhookBody(req) {
-  return JSON.parse(req.body.toString("utf8"));
-}
-
 // Extract sticky marker from order
 function getStickyMarkerFromOrder(order) {
-  // 🔥 NOTE ATTRIBUTES (most themes)
+  // NOTE ATTRIBUTES
   const na = order?.note_attributes;
 
   if (Array.isArray(na)) {
@@ -66,7 +19,7 @@ function getStickyMarkerFromOrder(order) {
     if (na.bdm_sticky_atc) return na.bdm_sticky_atc;
   }
 
-  // 🔥 NEW — ORDERS_PAID SAFE LOCATION
+  // CART ATTRIBUTES (safer for ORDERS_PAID)
   const ca = order?.cart_attributes;
 
   if (Array.isArray(ca)) {
@@ -87,30 +40,23 @@ function getStickyMarkerFromOrder(order) {
 }
 
 /* ────────────────────────────────────────────── */
-/* ORDERS_PAID WEBHOOK */
+/* ORDERS_PAID WEBHOOK — SHOPIFY v11 STYLE */
 /* ────────────────────────────────────────────── */
 
-export async function ordersUpdated(req, res) {
- const payload = JSON.parse(req.body.toString());
-
-if (payload.financial_status === "paid") {
-  console.log("💰 Order became PAID:", payload.id);
-
-  // your existing conversion logic here
-} 
+export async function ordersPaid(topic, shop, order) {
   console.log("🔥 WEBHOOK HIT", {
-    topic: req.get("X-Shopify-Topic"),
-    shopHeader: req.get("X-Shopify-Shop-Domain"),
+    topic,
+    shop,
     receivedAt: new Date().toISOString(),
   });
 
   try {
-    if (!verifyShopifyHmac(req).ok) {
-      console.log("❌ HMAC FAILED");
-      return res.status(401).send("Invalid webhook");
+    if (!order?.id) {
+      console.log("⚠️ Order missing ID");
+      return;
     }
 
-    const order = parseWebhookBody(req);
+    const orderId = order.id.toString();
 
     console.log("🧾 ORDER RECEIVED", {
       id: order?.id,
@@ -120,24 +66,13 @@ if (payload.financial_status === "paid") {
       note_attributes: order?.note_attributes,
     });
 
-    if (!order?.id) {
-      console.log("⚠️ Order missing ID");
-      return res.sendStatus(200);
-    }
-
-    const shop =
-      req.get("X-Shopify-Shop-Domain") ||
-      order.shop_domain;
-
-    const orderId = order.id.toString();
-
     const existing = await prisma.stickyConversion.findFirst({
       where: { shop, orderId },
     });
 
     if (existing) {
       console.log("⚠️ Conversion already exists", orderId);
-      return res.sendStatus(200);
+      return;
     }
 
     /* 1️⃣ Token-based attribution */
@@ -154,15 +89,9 @@ if (payload.financial_status === "paid") {
       if (attribution) {
         console.log("🎯 TOKEN MATCH FOUND");
 
-        console.log("💾 INSERTING stickyConversion (token)", {
-          shop,
-          orderId,
-          revenue: order.total_price,
-        });
-
         await prisma.stickyConversion.create({
           data: {
-            id: generateId(),
+            id: crypto.randomUUID(),
             shop,
             orderId,
             revenue: Number(order.total_price),
@@ -177,21 +106,27 @@ if (payload.financial_status === "paid") {
           data: {
             shop,
             event: "add_to_cart",
-            payload: { source: "bdm_sticky_atc", method: "token_match", orderId },
+            payload: {
+              source: "bdm_sticky_atc",
+              method: "token_match",
+              orderId,
+            },
           },
         });
 
         console.log("📊 analyticsEvent INSERTED (token)");
-        return res.sendStatus(200);
+        return;
       }
     }
 
     /* 2️⃣ Cart attribute attribution */
     const stickyRaw = getStickyMarkerFromOrder(order);
+
     console.log("🔍 STICKY MARKER RAW", stickyRaw);
 
     if (stickyRaw) {
       let sticky = null;
+
       try {
         sticky = JSON.parse(stickyRaw);
       } catch (e) {
@@ -201,15 +136,9 @@ if (payload.financial_status === "paid") {
       if (sticky?.source === "bdm_sticky_atc") {
         console.log("🎯 CART ATTRIBUTE MATCH");
 
-        console.log("💾 INSERTING stickyConversion (cart attr)", {
-          shop,
-          orderId,
-          revenue: order.total_price,
-        });
-
         await prisma.stickyConversion.create({
           data: {
-            id: generateId(),
+            id: crypto.randomUUID(),
             shop,
             orderId,
             revenue: Number(order.total_price),
@@ -229,7 +158,7 @@ if (payload.financial_status === "paid") {
         });
 
         console.log("📊 analyticsEvent INSERTED (cart attr)");
-        return res.sendStatus(200);
+        return;
       }
     }
 
@@ -250,7 +179,7 @@ if (payload.financial_status === "paid") {
 
       await prisma.stickyConversion.create({
         data: {
-          id: generateId(),
+          id: crypto.randomUUID(),
           shop,
           orderId,
           revenue: Number(order.total_price),
@@ -263,18 +192,23 @@ if (payload.financial_status === "paid") {
         data: {
           shop,
           event: "add_to_cart",
-          payload: { source: "bdm_sticky_atc", method: "fallback", orderId },
+          payload: {
+            source: "bdm_sticky_atc",
+            method: "fallback",
+            orderId,
+          },
         },
       });
 
-      console.log("✅ stickyConversion + analyticsEvent INSERTED (fallback)");
-      return res.sendStatus(200);
+      console.log(
+        "✅ stickyConversion + analyticsEvent INSERTED (fallback)"
+      );
+
+      return;
     }
 
     console.log("⚠️ NO ATTRIBUTION MATCH FOUND", orderId);
-    return res.sendStatus(200);
   } catch (err) {
     console.error("❌ Order webhook error:", err);
-    return res.sendStatus(500);
   }
 }

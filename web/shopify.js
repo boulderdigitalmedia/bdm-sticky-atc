@@ -9,6 +9,9 @@ import { restResources } from "@shopify/shopify-api/rest/admin/2024-01";
 import { prismaSessionStorage } from "./shopifySessionStoragePrisma.js";
 import prisma from "./prisma.js";
 
+// ⭐ ADD THIS IMPORT
+import { ordersPaid } from "./routes/webhooks.js";
+
 function requiredEnv(name) {
   const v = process.env[name];
   if (!v) throw new Error(`Missing required env var: ${name}`);
@@ -32,7 +35,6 @@ function topRedirectHtml(url) {
     </html>
   `;
 }
-
 
 export function initShopify(app) {
   const apiKey = requiredEnv("SHOPIFY_API_KEY");
@@ -61,36 +63,40 @@ export function initShopify(app) {
       sameSite: "none",
     },
     future: {
-    customerPrivacy: true,
-  },
+      customerPrivacy: true,
+    },
   });
 
+  /* =========================================================
+     ⭐ WEBHOOK HANDLERS (FIXED)
+  ========================================================= */
   shopify.webhooks.addHandlers({
-  ORDERS_PAID: {
-    deliveryMethod: DeliveryMethod.Http,
-    callbackUrl: "/webhooks/orders/paid",
-  },
+    ORDERS_PAID: {
+      deliveryMethod: DeliveryMethod.Http,
+      callbackUrl: "/webhooks/orders/paid",
+      callback: ordersPaid, // ⭐ THIS WAS MISSING
+    },
 
-  APP_UNINSTALLED: {
-    deliveryMethod: DeliveryMethod.Http,
-    callbackUrl: "/webhooks/app/uninstalled",
-  },
+    APP_UNINSTALLED: {
+      deliveryMethod: DeliveryMethod.Http,
+      callbackUrl: "/webhooks/app/uninstalled",
+    },
 
-  CUSTOMERS_DATA_REQUEST: {
-    deliveryMethod: DeliveryMethod.Http,
-    callbackUrl: "/webhooks/customers/data_request",
-  },
+    CUSTOMERS_DATA_REQUEST: {
+      deliveryMethod: DeliveryMethod.Http,
+      callbackUrl: "/webhooks/customers/data_request",
+    },
 
-  CUSTOMERS_REDACT: {
-    deliveryMethod: DeliveryMethod.Http,
-    callbackUrl: "/webhooks/customers/redact",
-  },
+    CUSTOMERS_REDACT: {
+      deliveryMethod: DeliveryMethod.Http,
+      callbackUrl: "/webhooks/customers/redact",
+    },
 
-  SHOP_REDACT: {
-    deliveryMethod: DeliveryMethod.Http,
-    callbackUrl: "/webhooks/shop/redact",
-  },
-});
+    SHOP_REDACT: {
+      deliveryMethod: DeliveryMethod.Http,
+      callbackUrl: "/webhooks/shop/redact",
+    },
+  });
 
   /* =========================================================
      AUTH START
@@ -103,7 +109,6 @@ export function initShopify(app) {
       const shop = shopify.utils.sanitizeShop(String(shopParam));
       if (!shop) return res.status(400).send("Invalid shop");
 
-      // Escape iframe BEFORE OAuth
       if (!req.query.embedded) {
         const redirectUrl = `/auth?shop=${encodeURIComponent(shop)}&embedded=1`;
         return res.send(topRedirectHtml(redirectUrl));
@@ -124,9 +129,6 @@ export function initShopify(app) {
 
   /* =========================================================
      AUTH CALLBACK
-     - store session
-     - register webhooks
-     - then go to billing subscribe endpoint (NO LOOPS)
   ========================================================= */
   app.get("/auth/callback", async (req, res) => {
     try {
@@ -139,29 +141,26 @@ export function initShopify(app) {
 
       console.log("🔑 OAuth session received:", session.shop);
 
-      // Force store session (you already proved this helps)
       await shopify.config.sessionStorage.storeSession(session);
       console.log("💾 Session stored:", session.id);
 
       try {
-  const response = await shopify.webhooks.register({ session });
+        const response = await shopify.webhooks.register({ session });
 
-  console.log("📡 WEBHOOK REGISTER RESULT");
-console.log(JSON.stringify(response, null, 2));
-
-} catch (e) {
-  console.error("⚠️ Webhook register failed:", e);
-}
+        console.log("📡 WEBHOOK REGISTER RESULT");
+        console.log(JSON.stringify(response, null, 2));
+      } catch (e) {
+        console.error("⚠️ Webhook register failed:", e);
+      }
 
       const host = req.query.host ? String(req.query.host) : null;
 
       const redirectUrl =
-  `/?shop=${encodeURIComponent(session.shop)}` +
-  (host ? `&host=${encodeURIComponent(host)}` : "") +
-  `&embedded=1`;
+        `/?shop=${encodeURIComponent(session.shop)}` +
+        (host ? `&host=${encodeURIComponent(host)}` : "") +
+        `&embedded=1`;
 
-return res.redirect(redirectUrl);
-
+      return res.redirect(redirectUrl);
     } catch (err) {
       console.error("❌ OAuth callback failed", err);
       return res.status(500).send("Auth failed");
