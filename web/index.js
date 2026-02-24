@@ -20,6 +20,8 @@ const __dirname = path.dirname(__filename);
 const app = express();
 app.set("trust proxy", true);
 
+app.use("/webhooks", express.raw({ type: "*/*" }));
+
 /* =========================================================
    ⭐ UNIVERSAL WEBHOOK PROCESSOR
 ========================================================= */
@@ -32,7 +34,8 @@ app.post("/webhooks/*", async (req, res) => {
     });
   } catch (error) {
     console.error("❌ Universal webhook failed:", error);
-    res.status(200).send("ok");
+  } finally {
+    if (!res.headersSent) res.sendStatus(200);
   }
 });
 
@@ -52,98 +55,10 @@ app.options("*", cors());
 /* =========================================================
    BODY PARSING
 ========================================================= */
-app.use("/webhooks", express.raw({ type: "*/*" }));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-/* =========================================================
-   APP UNINSTALLED WEBHOOK — SESSION CLEANUP
-========================================================= */
-app.post("/webhooks/app/uninstalled", async (req, res) => {
-  try {
-    const shop =
-      req.headers["x-shopify-shop-domain"] ||
-      req.headers["X-Shopify-Shop-Domain"];
-
-    console.log("🧹 APP_UNINSTALLED received for:", shop);
-
-    const shopify = shopifyModule.shopify;
-
-    if (shopify && shop) {
-      const sessions =
-        await shopify.config.sessionStorage.findSessionsByShop(shop);
-
-      for (const s of sessions) {
-        await shopify.config.sessionStorage.deleteSession(s.id);
-      }
-
-      console.log("🧹 Session deleted via Shopify storage:", shop);
-    }
-
-    res.status(200).send("ok");
-  } catch (err) {
-    console.error("❌ APP_UNINSTALLED cleanup failed:", err);
-    res.status(500).send("error");
-  }
-});
-
-/* =========================================================
-   WEBHOOK — RAW BODY
-========================================================= */
-app.post("/webhooks/orders/paid", async (req, res) => {
-  try {
-    await shopifyModule.shopify.webhooks.process({
-      rawBody: req.body,
-      rawRequest: req,
-      rawResponse: res,
-    });
-  } catch (error) {
-    console.error("❌ Webhook processing failed:", error);
-    res.status(500).send("error");
-  }
-});
-
-/**
- * Shopify Mandatory Compliance Webhooks
- */
-app.post("/webhooks/customers/data_request", async (req, res) => {
-  try {
-    await shopifyModule.shopify.webhooks.process({
-      rawBody: req.body,
-      rawRequest: req,
-      rawResponse: res,
-    });
-  } catch (error) {
-    console.error("❌ Compliance webhook failed:", error);
-    res.status(500).send("error");
-  }
-});
-
-app.post("/webhooks/customers/redact", async (req, res) => {
-  try {
-    await shopifyModule.shopify.webhooks.process({
-      rawBody: req.body,
-      rawRequest: req,
-      rawResponse: res,
-    });
-  } catch (error) {
-    console.error("❌ Compliance webhook failed:", error);
-    res.status(500).send("error");
-  }
-});
-
-app.post("/webhooks/shop/redact", async (req, res) => {
-  try {
-    await shopifyModule.shopify.webhooks.process({
-      rawBody: req.body,
-      rawRequest: req,
-      rawResponse: res,
-    });
-  } catch (error) {
-    console.error("❌ Compliance webhook failed:", error);
-    res.status(500).send("error");
-  }
-});
 
 /* =========================================================
    SHOPIFY INIT
@@ -185,6 +100,12 @@ app.get("/__debug/conversions", async (req, res) => {
 ========================================================= */
 app.use("/*", async (req, res, next) => {
   if (req.method !== "GET") return next();
+
+  // ⭐ Shopify iframe stabilization guard
+if (!req.query.host && req.query.embedded) {
+  console.log("⏳ Waiting for host param from Shopify...");
+  return res.status(200).send("Loading...");
+}
 
   const p = req.path || "";
 
@@ -233,15 +154,18 @@ app.use("/*", async (req, res, next) => {
   if (!session) {
     console.log("🔑 No session — escaping iframe to OAuth");
 
-    return res.status(200).send(`
-      <html>
-        <body>
-          <script>
-            window.top.location.href = "/auth?shop=${encodeURIComponent(shop)}";
-          </script>
-        </body>
-      </html>
-    `);
+    const host = String(req.query.host || "");
+
+return res.status(200).send(`
+  <html>
+    <body>
+      <script>
+        window.top.location.href =
+          "/auth?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}&embedded=1";
+      </script>
+    </body>
+  </html>
+`);
   }
 
   /* =========================================================
@@ -303,16 +227,18 @@ app.use("/*", async (req, res, next) => {
     if (isUnauthorized) {
       console.log("🔑 Access token invalid — forcing OAuth refresh");
 
-      return res.status(200).send(`
-        <html>
-          <body>
-            <script>
-              window.top.location.href =
-                "/auth?shop=${encodeURIComponent(shop)}";
-            </script>
-          </body>
-        </html>
-      `);
+      const host = String(req.query.host || "");
+
+return res.status(200).send(`
+  <html>
+    <body>
+      <script>
+        window.top.location.href =
+          "/auth?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}&embedded=1";
+      </script>
+    </body>
+  </html>
+`);
     }
   }
 
