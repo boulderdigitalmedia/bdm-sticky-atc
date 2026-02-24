@@ -1,6 +1,3 @@
-console.log("🚀 INDEX FILE LOADED");
-const app = express();
-app.set("trust proxy", true);
 /* =========================================================
    ⭐ UNIVERSAL WEBHOOK PROCESSOR (MOVE TO TOP)
 ========================================================= */
@@ -33,6 +30,10 @@ import attributionRouter from "./routes/attribution.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+console.log("🚀 INDEX FILE LOADED");
+const app = express();
+app.set("trust proxy", true);
 
 
 /* =========================================================
@@ -236,9 +237,25 @@ app.use("/*", async (req, res, next) => {
     session = Array.isArray(sessions)
       ? sessions.find((s) => !s.isOnline)
       : null;
-  } catch (e) {
-    console.error("❌ Session lookup failed:", e);
+  } 
+  catch (e) {
+  console.error("❌ Billing check failed:", e);
+
+  // ⭐ If token expired or unauthorized, force re-auth
+  if (e?.response?.code === 401) {
+    console.log("🔑 Session unauthorized — forcing OAuth refresh");
+
+    return res.status(200).send(`
+      <html>
+        <body>
+          <script>
+            window.top.location.href = "/auth?shop=${encodeURIComponent(shop)}";
+          </script>
+        </body>
+      </html>
+    `);
   }
+}
 
   if (!session) {
   console.log("🔑 No session — escaping iframe to OAuth");
