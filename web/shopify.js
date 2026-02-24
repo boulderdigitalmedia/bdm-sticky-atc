@@ -78,9 +78,25 @@ export function initShopify(app) {
   },
 
   APP_UNINSTALLED: {
-    deliveryMethod: DeliveryMethod.Http,
-    callbackUrl: "/webhooks/app/uninstalled",
+  deliveryMethod: DeliveryMethod.Http,
+  callbackUrl: "/webhooks/app/uninstalled",
+  callback: async (topic, shop, body) => {
+    console.log("🧹 APP_UNINSTALLED received:", shop);
+
+    try {
+      const sessions =
+        await shopify.config.sessionStorage.findSessionsByShop(shop);
+
+      for (const s of sessions) {
+        await shopify.config.sessionStorage.deleteSession(s.id);
+      }
+
+      console.log("🧹 Sessions removed:", shop);
+    } catch (e) {
+      console.error("❌ Failed to delete sessions:", e);
+    }
   },
+},
 
   CUSTOMERS_DATA_REQUEST: {
     deliveryMethod: DeliveryMethod.Http,
