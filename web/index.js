@@ -1,3 +1,22 @@
+import express from "express";
+import cors from "cors";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+import prisma from "./prisma.js";
+import * as shopifyModule from "./shopify.js";
+
+import settingsRouter from "./routes/settings.js";
+import trackRouter from "./routes/track.js";
+import stickyAnalyticsRouter from "./routes/stickyAnalytics.js";
+import attributionRouter from "./routes/attribution.js";
+
+console.log("🚀 INDEX FILE LOADED");
+
+const app = express();
+app.set("trust proxy", true);
+
 /* =========================================================
    ⭐ UNIVERSAL WEBHOOK PROCESSOR (MOVE TO TOP)
 ========================================================= */
@@ -14,26 +33,6 @@ app.post("/webhooks/*", async (req, res) => {
   }
 });
 
-import express from "express";
-import cors from "cors";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
-
-import prisma from "./prisma.js";
-import * as shopifyModule from "./shopify.js";
-
-import settingsRouter from "./routes/settings.js";
-import trackRouter from "./routes/track.js";
-import stickyAnalyticsRouter from "./routes/stickyAnalytics.js";
-import attributionRouter from "./routes/attribution.js";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-console.log("🚀 INDEX FILE LOADED");
-const app = express();
-app.set("trust proxy", true);
 
 
 /* =========================================================
