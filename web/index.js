@@ -14,6 +14,9 @@ import attributionRouter from "./routes/attribution.js";
 
 console.log("🚀 INDEX FILE LOADED");
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const app = express();
 app.set("trust proxy", true);
 
