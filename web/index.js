@@ -196,7 +196,12 @@ return res.status(200).send(`
   Boolean(req.query.hmac) &&
   Boolean(req.query.id_token);
 
-if (!subs.length && !isShopifyVerification && !isInstallValidation) {
+  const isValidator =
+  isShopifyVerification ||
+  req.query.id_token ||
+  req.query.charge_id;
+
+if (!subs.length && !isValidator) {
       console.log("💳 No active subscription — redirecting to Managed Pricing");
 
       const storeHandle = String(shop).replace(".myshopify.com", "");
