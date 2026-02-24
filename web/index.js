@@ -21,7 +21,7 @@ const app = express();
 app.set("trust proxy", true);
 
 /* =========================================================
-   ⭐ UNIVERSAL WEBHOOK PROCESSOR (MOVE TO TOP)
+   ⭐ UNIVERSAL WEBHOOK PROCESSOR
 ========================================================= */
 app.post("/webhooks/*", async (req, res) => {
   try {
@@ -35,8 +35,6 @@ app.post("/webhooks/*", async (req, res) => {
     res.status(200).send("ok");
   }
 });
-
-
 
 /* =========================================================
    CORS
@@ -54,7 +52,6 @@ app.options("*", cors());
 /* =========================================================
    BODY PARSING
 ========================================================= */
-// Shopify webhooks MUST use raw body for HMAC verification
 app.use("/webhooks", express.raw({ type: "*/*" }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -62,51 +59,44 @@ app.use(express.urlencoded({ extended: true }));
 /* =========================================================
    APP UNINSTALLED WEBHOOK — SESSION CLEANUP
 ========================================================= */
-app.post(
-  "/webhooks/app/uninstalled",
-  async (req, res) => {
-    try {
-      const shop =
-        req.headers["x-shopify-shop-domain"] ||
-        req.headers["X-Shopify-Shop-Domain"];
+app.post("/webhooks/app/uninstalled", async (req, res) => {
+  try {
+    const shop =
+      req.headers["x-shopify-shop-domain"] ||
+      req.headers["X-Shopify-Shop-Domain"];
 
-      console.log("🧹 APP_UNINSTALLED received for:", shop);
+    console.log("🧹 APP_UNINSTALLED received for:", shop);
 
-      const shopify = shopifyModule.shopify;
+    const shopify = shopifyModule.shopify;
 
-      if (shopify && shop) {
-        const sessions =
-          await shopify.config.sessionStorage.findSessionsByShop(shop);
+    if (shopify && shop) {
+      const sessions =
+        await shopify.config.sessionStorage.findSessionsByShop(shop);
 
-        for (const s of sessions) {
-          await shopify.config.sessionStorage.deleteSession(s.id);
-        }
-
-        console.log("🧹 Session deleted via Shopify storage:", shop);
+      for (const s of sessions) {
+        await shopify.config.sessionStorage.deleteSession(s.id);
       }
 
-      res.status(200).send("ok");
-    } catch (err) {
-      console.error("❌ APP_UNINSTALLED cleanup failed:", err);
-      res.status(500).send("error");
+      console.log("🧹 Session deleted via Shopify storage:", shop);
     }
-  }
-);
 
+    res.status(200).send("ok");
+  } catch (err) {
+    console.error("❌ APP_UNINSTALLED cleanup failed:", err);
+    res.status(500).send("error");
+  }
+});
 
 /* =========================================================
    WEBHOOK — RAW BODY
 ========================================================= */
 app.post("/webhooks/orders/paid", async (req, res) => {
   try {
-    const shopify = shopifyModule.shopify;
-
-    await shopify.webhooks.process({
+    await shopifyModule.shopify.webhooks.process({
       rawBody: req.body,
       rawRequest: req,
       rawResponse: res,
     });
-
   } catch (error) {
     console.error("❌ Webhook processing failed:", error);
     res.status(500).send("error");
@@ -169,7 +159,6 @@ app.use("/apps/bdm-sticky-atc/track", trackRouter);
 app.use("/apps/bdm-sticky-atc", stickyAnalyticsRouter);
 app.use("/attribution", attributionRouter);
 
-
 /* =========================================================
    STATIC FILES
 ========================================================= */
@@ -192,7 +181,7 @@ app.get("/__debug/conversions", async (req, res) => {
 });
 
 /* =========================================================
-   ⭐ EMBEDDED APP LOADER (FINAL FIX + BILLING ROUTE)
+   ⭐ EMBEDDED APP LOADER
 ========================================================= */
 app.use("/*", async (req, res, next) => {
   if (req.method !== "GET") return next();
@@ -223,8 +212,6 @@ app.use("/*", async (req, res, next) => {
     return res.status(500).send("Shopify not ready");
   }
 
-  const host = req.query.host ? String(req.query.host) : null;
-
   let shop = shopify.utils.sanitizeShop(String(req.query.shop));
   if (!shop) return res.status(400).send("Invalid shop");
 
@@ -239,13 +226,12 @@ app.use("/*", async (req, res, next) => {
     session = Array.isArray(sessions)
       ? sessions.find((s) => !s.isOnline)
       : null;
-  } 
-  catch (e) {
-  console.error("❌ Billing check failed:", e);
+  } catch (e) {
+    console.error("❌ Session lookup failed:", e);
+  }
 
-  // ⭐ If token expired or unauthorized, force re-auth
-  if (e?.response?.code === 401) {
-    console.log("🔑 Session unauthorized — forcing OAuth refresh");
+  if (!session) {
+    console.log("🔑 No session — escaping iframe to OAuth");
 
     return res.status(200).send(`
       <html>
@@ -257,78 +243,87 @@ app.use("/*", async (req, res, next) => {
       </html>
     `);
   }
-}
-
-  if (!session) {
-  console.log("🔑 No session — escaping iframe to OAuth");
-
-  return res.status(200).send(`
-    <html>
-      <body>
-        <script>
-          window.top.location.href = "/auth?shop=${encodeURIComponent(shop)}";
-        </script>
-      </body>
-    </html>
-  `);
-}
 
   /* =========================================================
-   💳 MANAGED PRICING CHECK
-========================================================= */
-try {
-  const client = new shopify.clients.Graphql({ session });
+     💳 MANAGED PRICING CHECK
+  ========================================================= */
+  try {
+    const client = new shopify.clients.Graphql({ session });
 
-  const billingCheck = await client.request(`
-    query {
-      currentAppInstallation {
-        activeSubscriptions {
-          id
-          status
+    const billingCheck = await client.request(`
+      query {
+        currentAppInstallation {
+          activeSubscriptions {
+            id
+            status
+          }
         }
       }
-    }
-  `);
-
-  const subs =
-    billingCheck?.data?.currentAppInstallation?.activeSubscriptions || [];
-
-  const isShopifyVerification =
-  Boolean(req.headers["x-shopify-topic"]) ||
-  req.get("User-Agent")?.includes("Shopify");
-
-if (!subs.length && !isShopifyVerification) {
-    console.log("💳 No active subscription — redirecting to Managed Pricing");
-
-    const storeHandle = String(shop).replace(".myshopify.com", "");
-    const appHandle = process.env.SHOPIFY_APP_HANDLE;
-
-    if (!appHandle) {
-      console.error("❌ Missing SHOPIFY_APP_HANDLE env var");
-      return res.status(500).send("Missing SHOPIFY_APP_HANDLE");
-    }
-
-    const pricingUrl =
-      `https://admin.shopify.com/store/${storeHandle}/charges/${appHandle}/pricing_plans`;
-
-    return res.status(200).send(`
-      <!doctype html>
-      <html>
-        <body>
-          <script>
-            window.top.location.href = ${JSON.stringify(pricingUrl)};
-          </script>
-        </body>
-      </html>
     `);
+
+    const subs =
+      billingCheck?.data?.currentAppInstallation?.activeSubscriptions || [];
+
+    const isShopifyVerification =
+      Boolean(req.headers["x-shopify-topic"]) ||
+      req.get("User-Agent")?.includes("Shopify");
+
+    if (!subs.length && !isShopifyVerification) {
+      console.log("💳 No active subscription — redirecting to Managed Pricing");
+
+      const storeHandle = String(shop).replace(".myshopify.com", "");
+      const appHandle = process.env.SHOPIFY_APP_HANDLE;
+
+      if (!appHandle) {
+        console.error("❌ Missing SHOPIFY_APP_HANDLE env var");
+        return res.status(500).send("Missing SHOPIFY_APP_HANDLE");
+      }
+
+      const pricingUrl =
+        `https://admin.shopify.com/store/${storeHandle}/charges/${appHandle}/pricing_plans`;
+
+      return res.status(200).send(`
+        <!doctype html>
+        <html>
+          <body>
+            <script>
+              window.top.location.href = ${JSON.stringify(pricingUrl)};
+            </script>
+          </body>
+        </html>
+      `);
+    }
+  } catch (e) {
+    console.error("❌ Billing check failed:", e);
+
+    const isUnauthorized =
+      e?.response?.code === 401 ||
+      e?.message?.includes("Unauthorized");
+
+    if (isUnauthorized) {
+      console.log("🔑 Access token invalid — forcing OAuth refresh");
+
+      return res.status(200).send(`
+        <html>
+          <body>
+            <script>
+              window.top.location.href =
+                "/auth?shop=${encodeURIComponent(shop)}";
+            </script>
+          </body>
+        </html>
+      `);
+    }
   }
-} catch (e) {
-  console.error("❌ Billing check failed:", e);
-}
 
   console.log("✅ Session found — loading SPA");
 
-  const indexPath = path.join(__dirname, "frontend", "dist", "index.html");
+  const indexPath = path.join(
+    __dirname,
+    "frontend",
+    "dist",
+    "index.html"
+  );
 
   const apiKey = process.env.SHOPIFY_API_KEY || "";
 
@@ -349,4 +344,3 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`✅ App running on port ${PORT}`);
 });
-
