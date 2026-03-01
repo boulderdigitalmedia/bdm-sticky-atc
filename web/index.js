@@ -20,24 +20,22 @@ const __dirname = path.dirname(__filename);
 const app = express();
 app.set("trust proxy", true);
 
-app.use("/webhooks", express.raw({ type: "*/*" }));
-
-/* =========================================================
-   ⭐ UNIVERSAL WEBHOOK PROCESSOR
-========================================================= */
-app.post("/webhooks/*", async (req, res) => {
-  try {
-    await shopifyModule.shopify.webhooks.process({
-      rawBody: req.body,
-      rawRequest: req,
-      rawResponse: res,
-    });
-  } catch (error) {
-    console.error("❌ Universal webhook failed:", error);
-  } finally {
-    if (!res.headersSent) res.sendStatus(200);
+app.post(
+  "/webhooks/*",
+  express.raw({ type: "*/*" }),
+  async (req, res) => {
+    try {
+      await shopifyModule.shopify.webhooks.process({
+        rawBody: req.body,
+        rawRequest: req,
+        rawResponse: res,
+      });
+    } catch (error) {
+      console.error("❌ Universal webhook failed:", error);
+      return res.status(401).send("Webhook Error");
+    }
   }
-});
+);
 
 /* =========================================================
    CORS
