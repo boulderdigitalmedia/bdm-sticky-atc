@@ -63,6 +63,22 @@ app.use(express.urlencoded({ extended: true }));
 ========================================================= */
 shopifyModule.initShopify(app);
 
+(async () => {
+  const shopify = shopifyModule.shopify;
+  const sessions = await shopify.config.sessionStorage.findSessionsByShop();
+
+  for (const session of sessions || []) {
+    if (!session.isOnline) {
+      try {
+        await shopify.webhooks.register({ session });
+        console.log("📡 Re-registered webhooks for", session.shop);
+      } catch (e) {
+        console.error("⚠️ Failed to register webhooks for", session.shop, e);
+      }
+    }
+  }
+})();
+
 /* =========================================================
    ROUTES
 ========================================================= */

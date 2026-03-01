@@ -6,18 +6,6 @@ embedded = true
 [webhooks]
 api_version = "2026-01"
 
-[[webhooks.subscriptions]]
-topics = ["CUSTOMERS_DATA_REQUEST"]
-uri = "/webhooks/customers/data_request"
-
-[[webhooks.subscriptions]]
-topics = ["CUSTOMERS_REDACT"]
-uri = "/webhooks/customers/redact"
-
-[[webhooks.subscriptions]]
-topics = ["SHOP_REDACT"]
-uri = "/webhooks/shop/redact"
-
 [access_scopes]
 scopes = "read_orders,read_products,write_script_tags,read_themes"
 optional_scopes = []
