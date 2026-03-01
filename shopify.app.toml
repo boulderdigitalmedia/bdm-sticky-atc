@@ -6,10 +6,17 @@ embedded = true
 [webhooks]
 api_version = "2026-01"
 
-[compliance]
-customer_data_request_url = "https://sticky-add-to-cart-bar-pro.onrender.com/webhooks/customers/data_request"
-customer_redact_url       = "https://sticky-add-to-cart-bar-pro.onrender.com/webhooks/customers/redact"
-shop_redact_url           = "https://sticky-add-to-cart-bar-pro.onrender.com/webhooks/shop/redact"
+[[webhooks.subscriptions]]
+topics = ["CUSTOMERS_DATA_REQUEST"]
+uri = "/webhooks/customers/data_request"
+
+[[webhooks.subscriptions]]
+topics = ["CUSTOMERS_REDACT"]
+uri = "/webhooks/customers/redact"
+
+[[webhooks.subscriptions]]
+topics = ["SHOP_REDACT"]
+uri = "/webhooks/shop/redact"
 
 [access_scopes]
 scopes = "read_orders,read_products,write_script_tags,read_themes"
