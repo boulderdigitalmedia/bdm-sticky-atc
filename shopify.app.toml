@@ -5,6 +5,7 @@ embedded = true
 
 [webhooks]
 api_version = "2024-01"
+privacy_compliance = true
 
 [access_scopes]
 scopes = "read_orders,read_products,write_script_tags,read_themes"
