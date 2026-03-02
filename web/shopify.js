@@ -5,7 +5,7 @@ import {
   shopifyApi,
   DeliveryMethod,
 } from "@shopify/shopify-api";
-import { restResources } from "@shopify/shopify-api/rest/admin/2024-01";
+import { restResources } from "@shopify/shopify-api/rest/admin/2026-01";
 import { prismaSessionStorage } from "./shopifySessionStoragePrisma.js";
 import prisma from "./prisma.js";
 
@@ -75,42 +75,36 @@ export function initShopify(app) {
   },
 
   APP_UNINSTALLED: {
-  deliveryMethod: DeliveryMethod.Http,
-  callbackUrl: "/webhooks/app/uninstalled",
-  callback: async (topic, shop, body) => {
-    console.log("🧹 APP_UNINSTALLED received:", shop);
-
-    try {
+    deliveryMethod: DeliveryMethod.Http,
+    callbackUrl: "/webhooks/app/uninstalled",
+    callback: async (topic, shop) => {
       const sessions =
         await shopify.config.sessionStorage.findSessionsByShop(shop);
 
       for (const s of sessions) {
         await shopify.config.sessionStorage.deleteSession(s.id);
       }
-
-      console.log("🧹 Sessions removed:", shop);
-    } catch (e) {
-      console.error("❌ Failed to delete sessions:", e);
-    }
+    },
   },
-},
 
-  CUSTOMERS_DATA_REQUEST: {
+  // 🔥 Explicit topic strings (THIS is the key)
+
+  "customers/data_request": {
     deliveryMethod: DeliveryMethod.Http,
     callbackUrl: "/webhooks/customers/data_request",
-    callback: complianceWebhook, // ⭐ ADD THIS
+    callback: complianceWebhook,
   },
 
-  CUSTOMERS_REDACT: {
+  "customers/redact": {
     deliveryMethod: DeliveryMethod.Http,
     callbackUrl: "/webhooks/customers/redact",
-    callback: complianceWebhook, // ⭐ ADD THIS
+    callback: complianceWebhook,
   },
 
-  SHOP_REDACT: {
+  "shop/redact": {
     deliveryMethod: DeliveryMethod.Http,
     callbackUrl: "/webhooks/shop/redact",
-    callback: complianceWebhook, // ⭐ ADD THIS
+    callback: complianceWebhook,
   },
 });
 
