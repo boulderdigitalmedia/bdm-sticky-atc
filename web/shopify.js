@@ -62,9 +62,6 @@ export function initShopify(app) {
       secure: true,
       sameSite: "none",
     },
-    future: {
-      customerPrivacy: true,
-    },
   });
 
   /* =========================================================
