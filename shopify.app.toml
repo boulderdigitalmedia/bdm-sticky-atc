@@ -7,9 +7,9 @@ embedded = true
 api_version = "2026-01"
 
 [webhooks.privacy_compliance]
-customer_data_request_url = "/webhooks/customers/data_request"
-customer_redact_url       = "/webhooks/customers/redact"
-shop_redact_url           = "/webhooks/shop/redact"
+customers_data_request_url = "/webhooks/customers/data_request"
+customers_redact_url       = "/webhooks/customers/redact"
+shop_redact_url            = "/webhooks/shop/redact"
 
 [access_scopes]
 scopes = "read_orders,read_products,write_script_tags,read_themes"
