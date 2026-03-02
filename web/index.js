@@ -221,8 +221,8 @@ return res.status(200).send(`
   req.query.hmac;
 
 if (isShopifyValidator) {
-  console.log("🧪 Allowing Shopify automated validation");
-  return next();
+  console.log("🧪 Shopify validation detected — responding 200");
+  return res.status(200).send("OK");
 }
 
 if (!subs.length && !isValidator) {
