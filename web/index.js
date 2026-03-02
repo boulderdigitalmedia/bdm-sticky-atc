@@ -26,7 +26,7 @@ app.post(
   async (req, res) => {
     try {
       await shopifyModule.shopify.webhooks.process({
-        rawBody: req.body,
+        rawBody: req.body.toString("utf8"),
         rawRequest: req,
         rawResponse: res,
       });
