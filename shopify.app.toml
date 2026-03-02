@@ -4,7 +4,7 @@ application_url = "https://sticky-add-to-cart-bar-pro.onrender.com"
 embedded = true
 
 [webhooks]
-api_version = "2026-01"
+api_version = "2024-01"
 
 [access_scopes]
 scopes = "read_orders,read_products,write_script_tags,read_themes"

@@ -5,7 +5,7 @@ import {
   shopifyApi,
   DeliveryMethod,
 } from "@shopify/shopify-api";
-import { restResources } from "@shopify/shopify-api/rest/admin/2026-01";
+import { restResources } from "@shopify/shopify-api/rest/admin/2024-01";
 import { prismaSessionStorage } from "./shopifySessionStoragePrisma.js";
 import prisma from "./prisma.js";
 
