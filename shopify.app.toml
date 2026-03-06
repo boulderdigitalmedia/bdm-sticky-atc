@@ -6,7 +6,7 @@ embedded = true
 [webhooks]
 api_version = "2026-01"
 
-[webhooks.privacy_compliance]
+[privacy_compliance]
 customer_data_request_url = "/webhooks/customers/data_request"
 customer_redact_url       = "/webhooks/customers/redact"
 shop_redact_url           = "/webhooks/shop/redact"
