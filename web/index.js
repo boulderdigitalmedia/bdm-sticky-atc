@@ -251,8 +251,9 @@ app.use("/*", async (req, res, next) => {
 
     // Allow validator requests to continue (DO NOT return)
     if (isShopifyValidator) {
-      console.log("🧪 Shopify validation detected — bypassing billing");
-    }
+  console.log("🧪 Shopify validation detected — responding OK");
+  return res.status(200).send("OK");
+}
 
     // Skip billing during Shopify validation
     if (!subs.length && !isValidator && !isShopifyVerification && !req.query.hmac) {
