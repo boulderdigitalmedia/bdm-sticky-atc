@@ -14,16 +14,16 @@ import attributionRouter from "./routes/attribution.js";
 
 console.log("🚀 INDEX FILE LOADED");
 
-app.use((req, res, next) => {
-  console.log("🌍 Incoming:", req.method, req.originalUrl);
-  next();
-});
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
 app.set("trust proxy", true);
+
+app.use((req, res, next) => {
+  console.log("🌍 Incoming:", req.method, req.originalUrl);
+  next();
+});
 
 app.post(
   "/webhooks/*",
