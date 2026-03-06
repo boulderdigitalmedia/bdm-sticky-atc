@@ -20,6 +20,12 @@ const __dirname = path.dirname(__filename);
 const app = express();
 app.set("trust proxy", true);
 
+// Shopify automated validation sometimes sends HEAD requests
+app.head("*", (req, res) => {
+  console.log("🧪 Shopify HEAD validation");
+  res.status(200).end();
+});
+
 app.use((req, res, next) => {
   console.log("🌍 Incoming:", req.method, req.originalUrl);
   next();
