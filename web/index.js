@@ -230,8 +230,9 @@ if (isShopifyValidator) {
   return res.status(200).send("OK");
 }
 
-if (!subs.length && !isValidator) {
-      console.log("💳 No active subscription — redirecting to Managed Pricing");
+// Skip billing during Shopify validation
+if (!subs.length && !isValidator && !isShopifyVerification) {
+  console.log("💳 No active subscription — redirecting to Managed Pricing");
 
       const storeHandle = String(shop).replace(".myshopify.com", "");
       const appHandle = process.env.SHOPIFY_APP_HANDLE;
