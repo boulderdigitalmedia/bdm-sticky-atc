@@ -20,16 +20,25 @@ const __dirname = path.dirname(__filename);
 const app = express();
 app.set("trust proxy", true);
 
-// Shopify automated validation sometimes sends HEAD requests
+/* =========================================================
+   SHOPIFY VALIDATION SUPPORT
+========================================================= */
+
+// Shopify sometimes sends HEAD requests during validation
 app.head("*", (req, res) => {
   console.log("🧪 Shopify HEAD validation");
   res.status(200).end();
 });
 
+// Temporary logging (safe to remove later)
 app.use((req, res, next) => {
   console.log("🌍 Incoming:", req.method, req.originalUrl);
   next();
 });
+
+/* =========================================================
+   WEBHOOK PROCESSOR
+========================================================= */
 
 app.post(
   "/webhooks/*",
@@ -51,6 +60,7 @@ app.post(
 /* =========================================================
    CORS
 ========================================================= */
+
 app.use(
   cors({
     origin: true,
@@ -59,6 +69,7 @@ app.use(
     credentials: true,
   })
 );
+
 app.options("*", cors());
 
 /* =========================================================
@@ -68,12 +79,13 @@ app.options("*", cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-
 /* =========================================================
    SHOPIFY INIT
 ========================================================= */
+
 shopifyModule.initShopify(app);
 
+// Re-register webhooks for stored sessions
 (async () => {
   const shopify = shopifyModule.shopify;
   const sessions = await shopify.config.sessionStorage.findSessionsByShop();
@@ -93,6 +105,7 @@ shopifyModule.initShopify(app);
 /* =========================================================
    ROUTES
 ========================================================= */
+
 app.use("/api/settings", settingsRouter);
 app.use("/api/track", trackRouter);
 app.use("/apps/bdm-sticky-atc/track", trackRouter);
@@ -102,7 +115,9 @@ app.use("/attribution", attributionRouter);
 /* =========================================================
    STATIC FILES
 ========================================================= */
+
 app.use("/web", express.static(path.join(__dirname, "public")));
+
 app.use(
   express.static(path.join(__dirname, "frontend", "dist"), {
     index: false,
@@ -112,6 +127,7 @@ app.use(
 /* =========================================================
    DEBUG ROUTE
 ========================================================= */
+
 app.get("/__debug/conversions", async (req, res) => {
   const rows = await prisma.stickyConversion.findMany({
     orderBy: { occurredAt: "desc" },
@@ -121,16 +137,17 @@ app.get("/__debug/conversions", async (req, res) => {
 });
 
 /* =========================================================
-   ⭐ EMBEDDED APP LOADER
+   EMBEDDED APP LOADER
 ========================================================= */
+
 app.use("/*", async (req, res, next) => {
   if (req.method !== "GET") return next();
 
-  // ⭐ Shopify iframe stabilization guard
-if (!req.query.host && req.query.embedded) {
-  console.log("⏳ Waiting for host param from Shopify...");
-  return res.status(200).send("Loading...");
-}
+  // Shopify iframe stabilization guard
+  if (!req.query.host && req.query.embedded) {
+    console.log("⏳ Waiting for host param from Shopify...");
+    return res.status(200).send("Loading...");
+  }
 
   const p = req.path || "";
 
@@ -181,21 +198,22 @@ if (!req.query.host && req.query.embedded) {
 
     const host = String(req.query.host || "");
 
-return res.status(200).send(`
-  <html>
-    <body>
-      <script>
-        window.top.location.href =
-          "/auth?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}&embedded=1";
-      </script>
-    </body>
-  </html>
-`);
+    return res.status(200).send(`
+      <html>
+        <body>
+          <script>
+            window.top.location.href =
+              "/auth?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}&embedded=1";
+          </script>
+        </body>
+      </html>
+    `);
   }
 
   /* =========================================================
-     💳 MANAGED PRICING CHECK
+     MANAGED PRICING CHECK
   ========================================================= */
+
   try {
     const client = new shopify.clients.Graphql({ session });
 
@@ -218,27 +236,27 @@ return res.status(200).send(`
       req.get("User-Agent")?.includes("Shopify");
 
     const isInstallValidation =
-  Boolean(req.query.hmac) &&
-  Boolean(req.query.id_token);
+      Boolean(req.query.hmac) &&
+      Boolean(req.query.id_token);
 
-  const isValidator =
-  isShopifyVerification ||
-  req.query.id_token ||
-  req.query.charge_id;
+    const isValidator =
+      isShopifyVerification ||
+      req.query.id_token ||
+      req.query.charge_id;
 
-  const isShopifyValidator =
-  Boolean(req.headers["x-shopify-topic"]) ||
-  req.get("User-Agent")?.includes("Shopify") ||
-  req.query.hmac;
+    const isShopifyValidator =
+      Boolean(req.headers["x-shopify-topic"]) ||
+      req.get("User-Agent")?.includes("Shopify") ||
+      req.query.hmac;
 
-if (isShopifyValidator) {
-  console.log("🧪 Shopify validation detected — responding 200");
-  return res.status(200).send("OK");
-}
+    // Allow validator requests to continue (DO NOT return)
+    if (isShopifyValidator) {
+      console.log("🧪 Shopify validation detected — bypassing billing");
+    }
 
-// Skip billing during Shopify validation
-if (!subs.length && !isValidator && !isShopifyVerification) {
-  console.log("💳 No active subscription — redirecting to Managed Pricing");
+    // Skip billing during Shopify validation
+    if (!subs.length && !isValidator && !isShopifyVerification && !req.query.hmac) {
+      console.log("💳 No active subscription — redirecting to Managed Pricing");
 
       const storeHandle = String(shop).replace(".myshopify.com", "");
       const appHandle = process.env.SHOPIFY_APP_HANDLE;
@@ -264,27 +282,6 @@ if (!subs.length && !isValidator && !isShopifyVerification) {
     }
   } catch (e) {
     console.error("❌ Billing check failed:", e);
-
-    const isUnauthorized =
-      e?.response?.code === 401 ||
-      e?.message?.includes("Unauthorized");
-
-    if (isUnauthorized) {
-      console.log("🔑 Access token invalid — forcing OAuth refresh");
-
-      const host = String(req.query.host || "");
-
-return res.status(200).send(`
-  <html>
-    <body>
-      <script>
-        window.top.location.href =
-          "/auth?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}&embedded=1";
-      </script>
-    </body>
-  </html>
-`);
-    }
   }
 
   console.log("✅ Session found — loading SPA");
@@ -311,7 +308,9 @@ return res.status(200).send(`
 /* =========================================================
    START SERVER
 ========================================================= */
+
 const PORT = process.env.PORT || 3000;
+
 app.listen(PORT, () => {
   console.log(`✅ App running on port ${PORT}`);
 });
