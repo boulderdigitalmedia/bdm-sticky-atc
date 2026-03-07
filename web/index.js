@@ -273,10 +273,10 @@ app.use("/*", async (req, res, next) => {
       req.get("User-Agent")?.includes("Shopify") ||
       req.query.hmac;
 
-    // Allow validator requests to continue (DO NOT return)
-    if (isShopifyValidator) {
-  console.log("🧪 Shopify validation detected — responding OK");
-  return res.status(200).send("OK");
+   // Only respond OK for HEAD requests (Shopify validator)
+if (req.method === "HEAD") {
+  console.log("🧪 Shopify HEAD validation");
+  return res.status(200).end();
 }
 
     // Skip billing during Shopify validation
