@@ -20,6 +20,30 @@ const __dirname = path.dirname(__filename);
 const app = express();
 app.set("trust proxy", true);
 
+import crypto from "crypto";
+
+app.post(
+  "/webhooks",
+  express.raw({ type: "*/*" }),
+  (req, res) => {
+    const hmac = req.headers["x-shopify-hmac-sha256"];
+    const secret = process.env.SHOPIFY_API_SECRET;
+
+    const digest = crypto
+      .createHmac("sha256", secret)
+      .update(req.body)
+      .digest("base64");
+
+    if (digest !== hmac) {
+      console.log("❌ Invalid webhook HMAC");
+      return res.status(401).send("Invalid webhook");
+    }
+
+    console.log("✅ Valid compliance webhook received");
+    return res.status(200).send("OK");
+  }
+);
+
 /* =========================================================
    SHOPIFY VALIDATION SUPPORT
 ========================================================= */
