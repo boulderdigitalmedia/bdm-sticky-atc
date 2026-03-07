@@ -131,9 +131,9 @@ shopifyModule.initShopify(app);
 ========================================================= */
 
 app.use("/api/settings", settingsRouter);
+app.use("/api/analytics", stickyAnalyticsRouter);
 app.use("/api/track", trackRouter);
 app.use("/apps/bdm-sticky-atc/track", trackRouter);
-app.use("/apps/bdm-sticky-atc", stickyAnalyticsRouter);
 app.use("/attribution", attributionRouter);
 
 /* =========================================================
