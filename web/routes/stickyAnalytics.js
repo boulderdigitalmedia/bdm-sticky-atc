@@ -4,7 +4,7 @@ import prisma from "../prisma.js";
 const router = express.Router();
 
 /**
- * Helpers
+ * Resolve shop safely
  */
 function getShop(req) {
   const shop =
@@ -16,7 +16,6 @@ function getShop(req) {
 
   const cleaned = String(shop).trim();
 
-  // Treat "unknown" the same as missing
   if (!cleaned || cleaned === "unknown") return "";
 
   return cleaned;
@@ -29,8 +28,8 @@ function daysAgoDate(days) {
 }
 
 /**
- * GET /apps/bdm-sticky-atc/summary?days=7
- * Dashboard analytics
+ * Dashboard Summary
+ * GET /api/analytics/summary?days=7
  */
 router.get("/summary", async (req, res) => {
   try {
@@ -43,15 +42,27 @@ router.get("/summary", async (req, res) => {
       createdAt: { gte: since },
     };
 
-    const [pageViews, addToCart] = await Promise.all([
+    /**
+     * Fetch event counts
+     */
+    const [pageViews, addToCartClicks] = await Promise.all([
       prisma.analyticsEvent.count({
         where: { ...whereBase, event: "page_view" },
       }),
+
       prisma.analyticsEvent.count({
-        where: { ...whereBase, event: "add_to_cart" },
+        where: {
+          ...whereBase,
+          event: {
+            in: ["add_to_cart", "sticky_atc_click"],
+          },
+        },
       }),
     ]);
 
+    /**
+     * Conversions
+     */
     const conversions = await prisma.stickyConversion.count({
       where: {
         ...(shop ? { shop } : {}),
@@ -59,6 +70,9 @@ router.get("/summary", async (req, res) => {
       },
     });
 
+    /**
+     * Revenue
+     */
     const revenueAgg = await prisma.stickyConversion.aggregate({
       where: {
         ...(shop ? { shop } : {}),
@@ -69,29 +83,34 @@ router.get("/summary", async (req, res) => {
 
     const revenue = Number(revenueAgg?._sum?.revenue || 0);
 
+    /**
+     * Add-to-cart rate
+     */
     const atcRate =
       pageViews > 0
-        ? Math.round((addToCart / pageViews) * 1000) / 10
+        ? Math.round((addToCartClicks / pageViews) * 1000) / 10
         : 0;
 
-    res.json({
+    return res.json({
       days,
       pageViews,
-      addToCart,
-      clicks: addToCart, // ✅ frontend expects this
+      addToCart: addToCartClicks,
+      clicks: addToCartClicks,
       atcRate,
       conversions,
       revenue,
     });
   } catch (err) {
-    console.error("[BDM summary] error", err);
-    res.status(500).json({ error: "Failed to load summary" });
+    console.error("[Analytics summary error]", err);
+    res.status(500).json({
+      error: "Failed to load summary",
+    });
   }
 });
 
 /**
- * Debug: recent events
- * GET /apps/bdm-sticky-atc/events?limit=50
+ * Debug endpoint
+ * GET /api/analytics/events
  */
 router.get("/events", async (req, res) => {
   try {
@@ -111,8 +130,10 @@ router.get("/events", async (req, res) => {
 
     res.json({ events });
   } catch (err) {
-    console.error("[BDM events] error", err);
-    res.status(500).json({ error: "Failed to load events" });
+    console.error("[Analytics events error]", err);
+    res.status(500).json({
+      error: "Failed to load events",
+    });
   }
 });
 
