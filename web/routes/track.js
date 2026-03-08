@@ -4,11 +4,41 @@ import prisma from "../prisma.js";
 const router = express.Router();
 
 /**
+ * Health check route
+ * Useful to confirm Shopify app proxy is working
+ */
+router.get("/test", (req, res) => {
+  res.set({
+    "Cache-Control": "no-store",
+  });
+
+  return res.status(200).json({
+    status: "tracking alive",
+    time: new Date().toISOString(),
+  });
+});
+
+/**
  * POST /apps/bdm-sticky-atc/track
  * Receives storefront analytics events and stores them in AnalyticsEvent.
  */
-router.post("/track", async (req, res) => {
-  // 🔎 DEBUG: confirm the route is being hit at all
+router.post("/", async (req, res) => {
+  // Prevent Shopify proxy caching
+  res.set({
+    "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+    "Pragma": "no-cache",
+    "Expires": "0",
+    "Surrogate-Control": "no-store",
+  });
+
+  const body = req.body || {};
+
+  console.log("[TRACK REQUEST]", {
+    body,
+    shop: req.headers["x-shopify-shop-domain"],
+  });
+
+  // 🔎 DEBUG: confirm route hit
   console.log("[TRACK] HIT", {
     path: req.originalUrl,
     method: req.method,
@@ -19,35 +49,30 @@ router.post("/track", async (req, res) => {
       origin: req.get("origin"),
       referer: req.get("referer"),
     },
-    body: req.body,
+    body,
   });
 
   try {
-    // --- Resolve shop safely ---
-    let shop = "";
+    /**
+     * Resolve shop safely
+     */
+    let shop =
+      req.query?.shop ||
+      req.get("x-shopify-shop-domain") ||
+      body.shop ||
+      "unknown";
 
-    if (req.query && req.query.shop) {
-      shop = req.query.shop;
-    } else if (req.get("X-Shopify-Shop-Domain")) {
-      shop = req.get("X-Shopify-Shop-Domain");
-    } else if (req.get("x-shopify-shop-domain")) {
-      shop = req.get("x-shopify-shop-domain");
-    } else if (req.body && req.body.shop) {
-      shop = req.body.shop;
-    }
+    shop = String(shop).trim();
 
-    shop = String(shop || "unknown").trim();
-
-    // --- Resolve event ---
-    const event =
-      req.body && req.body.event
-        ? String(req.body.event).trim()
-        : "";
+    /**
+     * Resolve event
+     */
+    const event = body?.event ? String(body.event).trim() : "";
 
     if (!event) {
       console.warn("[TRACK] Missing event name", {
         shop,
-        body: req.body,
+        body,
       });
 
       return res.status(200).json({
@@ -60,14 +85,14 @@ router.post("/track", async (req, res) => {
     console.log("[TRACK] INSERTING EVENT", {
       shop,
       event,
-      payloadKeys: Object.keys(req.body || {}),
+      payloadKeys: Object.keys(body || {}),
     });
 
     const record = await prisma.analyticsEvent.create({
       data: {
         shop,
         event,
-        payload: req.body || {},
+        payload: body,
       },
     });
 
@@ -81,7 +106,6 @@ router.post("/track", async (req, res) => {
 
     return res.status(200).json({ ok: true });
   } catch (err) {
-    // 🔴 DEBUG: DB or runtime error (currently invisible without this)
     console.error("[TRACK] ERROR", {
       message: err?.message,
       stack: err?.stack,
