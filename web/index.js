@@ -22,6 +22,10 @@ app.set("trust proxy", true);
 
 import crypto from "crypto";
 
+/* =========================================================
+   COMPLIANCE WEBHOOK
+========================================================= */
+
 app.post(
   "/webhooks",
   express.raw({ type: "*/*" }),
@@ -48,13 +52,15 @@ app.post(
    SHOPIFY VALIDATION SUPPORT
 ========================================================= */
 
-// Shopify sometimes sends HEAD requests during validation
 app.head("*", (req, res) => {
   console.log("🧪 Shopify HEAD validation");
   res.status(200).end();
 });
 
-// Temporary logging (safe to remove later)
+/* =========================================================
+   REQUEST LOGGER
+========================================================= */
+
 app.use((req, res, next) => {
   console.log("🌍 Incoming:", req.method, req.originalUrl);
   next();
@@ -109,7 +115,10 @@ app.use(express.urlencoded({ extended: true }));
 
 shopifyModule.initShopify(app);
 
-// Re-register webhooks for stored sessions
+/* =========================================================
+   RE-REGISTER WEBHOOKS
+========================================================= */
+
 (async () => {
   const shopify = shopifyModule.shopify;
   const sessions = await shopify.config.sessionStorage.findSessionsByShop();
@@ -132,8 +141,13 @@ shopifyModule.initShopify(app);
 
 app.use("/api/settings", settingsRouter);
 app.use("/api/analytics", stickyAnalyticsRouter);
+
+/* Shopify App Proxy Analytics Route */
+app.use("/track", trackRouter);
+
+/* Optional API access to tracking */
 app.use("/api/track", trackRouter);
-app.use("/apps/bdm-sticky-atc/track", trackRouter);
+
 app.use("/attribution", attributionRouter);
 
 /* =========================================================
@@ -167,7 +181,6 @@ app.get("/__debug/conversions", async (req, res) => {
 app.use("/*", async (req, res, next) => {
   if (req.method !== "GET") return next();
 
-  // Shopify iframe stabilization guard
   if (!req.query.host && req.query.embedded) {
     console.log("⏳ Waiting for host param from Shopify...");
     return res.status(200).send("Loading...");
@@ -180,6 +193,7 @@ app.use("/*", async (req, res, next) => {
     p.startsWith("/billing") ||
     p.startsWith("/webhooks") ||
     p.startsWith("/api") ||
+    p.startsWith("/track") ||
     p.startsWith("/__debug")
   ) {
     return next();
@@ -232,81 +246,6 @@ app.use("/*", async (req, res, next) => {
         </body>
       </html>
     `);
-  }
-
-  /* =========================================================
-     MANAGED PRICING CHECK
-  ========================================================= */
-
-  try {
-    const client = new shopify.clients.Graphql({ session });
-
-    const billingCheck = await client.request(`
-      query {
-        currentAppInstallation {
-          activeSubscriptions {
-            id
-            status
-          }
-        }
-      }
-    `);
-
-    const subs =
-      billingCheck?.data?.currentAppInstallation?.activeSubscriptions || [];
-
-    const isShopifyVerification =
-      Boolean(req.headers["x-shopify-topic"]) ||
-      req.get("User-Agent")?.includes("Shopify");
-
-    const isInstallValidation =
-      Boolean(req.query.hmac) &&
-      Boolean(req.query.id_token);
-
-    const isValidator =
-      isShopifyVerification ||
-      req.query.id_token ||
-      req.query.charge_id;
-
-    const isShopifyValidator =
-      Boolean(req.headers["x-shopify-topic"]) ||
-      req.get("User-Agent")?.includes("Shopify") ||
-      req.query.hmac;
-
-   // Only respond OK for HEAD requests (Shopify validator)
-if (req.method === "HEAD") {
-  console.log("🧪 Shopify HEAD validation");
-  return res.status(200).end();
-}
-
-    // Skip billing during Shopify validation
-    if (!subs.length && !isValidator && !isShopifyVerification && !req.query.hmac) {
-      console.log("💳 No active subscription — redirecting to Managed Pricing");
-
-      const storeHandle = String(shop).replace(".myshopify.com", "");
-      const appHandle = process.env.SHOPIFY_APP_HANDLE;
-
-      if (!appHandle) {
-        console.error("❌ Missing SHOPIFY_APP_HANDLE env var");
-        return res.status(500).send("Missing SHOPIFY_APP_HANDLE");
-      }
-
-      const pricingUrl =
-        `https://admin.shopify.com/store/${storeHandle}/charges/${appHandle}/pricing_plans`;
-
-      return res.status(200).send(`
-        <!doctype html>
-        <html>
-          <body>
-            <script>
-              window.top.location.href = ${JSON.stringify(pricingUrl)};
-            </script>
-          </body>
-        </html>
-      `);
-    }
-  } catch (e) {
-    console.error("❌ Billing check failed:", e);
   }
 
   console.log("✅ Session found — loading SPA");
