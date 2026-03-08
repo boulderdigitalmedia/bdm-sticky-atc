@@ -91,7 +91,7 @@ model StickyConversion {
   id            String   @id @default(cuid())
   shop          String
 
-  orderId       Int
+  orderId       String?
   checkoutToken String?
 
   revenue       Float
