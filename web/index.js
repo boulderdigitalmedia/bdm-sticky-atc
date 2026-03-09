@@ -3,6 +3,7 @@ import cors from "cors";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import crypto from "crypto";
 
 import prisma from "./prisma.js";
 import * as shopifyModule from "./shopify.js";
@@ -19,8 +20,6 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 app.set("trust proxy", true);
-
-import crypto from "crypto";
 
 /* =========================================================
    COMPLIANCE WEBHOOK
@@ -49,7 +48,7 @@ app.post(
 );
 
 /* =========================================================
-   SHOPIFY VALIDATION SUPPORT
+   SHOPIFY HEAD VALIDATION
 ========================================================= */
 
 app.head("*", (req, res) => {
@@ -114,13 +113,51 @@ app.use(express.urlencoded({ extended: true }));
 ========================================================= */
 
 shopifyModule.initShopify(app);
+const shopify = shopifyModule.shopify;
+
+/* =========================================================
+   🔐 OAUTH ROUTES (FIX)
+========================================================= */
+
+app.get("/auth", async (req, res) => {
+  return shopify.auth.begin({
+    shop: req.query.shop,
+    callbackPath: "/auth/callback",
+    isOnline: false,
+    rawRequest: req,
+    rawResponse: res,
+  });
+});
+
+app.get("/auth/callback", async (req, res) => {
+  try {
+    const session = await shopify.auth.callback({
+      rawRequest: req,
+      rawResponse: res,
+    });
+
+    console.log("✅ OAuth completed for:", session.shop);
+
+    await shopify.webhooks.register({ session });
+
+    res.redirect(`/?shop=${session.shop}&host=${req.query.host}`);
+  } catch (error) {
+    console.error("❌ OAuth callback failed:", error);
+    res.status(500).send("OAuth Error");
+  }
+});
+
+/* =========================================================
+   🔐 SESSION VALIDATION (FIX)
+========================================================= */
+
+app.use("/api/*", shopify.validateAuthenticatedSession());
 
 /* =========================================================
    RE-REGISTER WEBHOOKS
 ========================================================= */
 
 (async () => {
-  const shopify = shopifyModule.shopify;
   const sessions = await shopify.config.sessionStorage.findSessionsByShop();
 
   for (const session of sessions || []) {
@@ -129,7 +166,7 @@ shopifyModule.initShopify(app);
         await shopify.webhooks.register({ session });
         console.log("📡 Re-registered webhooks for", session.shop);
       } catch (e) {
-        console.error("⚠️ Failed to register webhooks for", session.shop, e);
+        console.error("⚠️ Failed webhook register:", session.shop, e);
       }
     }
   }
@@ -142,10 +179,10 @@ shopifyModule.initShopify(app);
 app.use("/api/settings", settingsRouter);
 app.use("/api/analytics", stickyAnalyticsRouter);
 
-/* Shopify App Proxy Analytics Route */
+/* Shopify App Proxy Tracking */
 app.use("/track", trackRouter);
 
-/* Optional API access to tracking */
+/* Optional API access */
 app.use("/api/track", trackRouter);
 
 app.use("/attribution", attributionRouter);
@@ -171,6 +208,7 @@ app.get("/__debug/conversions", async (req, res) => {
     orderBy: { occurredAt: "desc" },
     take: 5,
   });
+
   res.json(rows);
 });
 
@@ -182,7 +220,6 @@ app.use("/*", async (req, res, next) => {
   if (req.method !== "GET") return next();
 
   if (!req.query.host && req.query.embedded) {
-    console.log("⏳ Waiting for host param from Shopify...");
     return res.status(200).send("Loading...");
   }
 
@@ -190,7 +227,6 @@ app.use("/*", async (req, res, next) => {
 
   if (
     p.startsWith("/auth") ||
-    p.startsWith("/billing") ||
     p.startsWith("/webhooks") ||
     p.startsWith("/api") ||
     p.startsWith("/track") ||
@@ -199,24 +235,12 @@ app.use("/*", async (req, res, next) => {
     return next();
   }
 
-  console.log("📥 Loader hit:", req.originalUrl);
-
   if (!req.query.shop) {
-    console.log("⚠️ No shop param — ignoring non-Shopify request");
     return res.status(200).send("OK");
-  }
-
-  const shopify = shopifyModule.shopify;
-
-  if (!shopify) {
-    console.error("❌ Shopify not initialized");
-    return res.status(500).send("Shopify not ready");
   }
 
   let shop = shopify.utils.sanitizeShop(String(req.query.shop));
   if (!shop) return res.status(400).send("Invalid shop");
-
-  console.log("🔎 Checking offline session for:", shop);
 
   let session = null;
 
@@ -228,12 +252,10 @@ app.use("/*", async (req, res, next) => {
       ? sessions.find((s) => !s.isOnline)
       : null;
   } catch (e) {
-    console.error("❌ Session lookup failed:", e);
+    console.error("Session lookup failed:", e);
   }
 
   if (!session) {
-    console.log("🔑 No session — escaping iframe to OAuth");
-
     const host = String(req.query.host || "");
 
     return res.status(200).send(`
@@ -241,21 +263,14 @@ app.use("/*", async (req, res, next) => {
         <body>
           <script>
             window.top.location.href =
-              "/auth?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}&embedded=1";
+              "/auth?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}";
           </script>
         </body>
       </html>
     `);
   }
 
-  console.log("✅ Session found — loading SPA");
-
-  const indexPath = path.join(
-    __dirname,
-    "frontend",
-    "dist",
-    "index.html"
-  );
+  const indexPath = path.join(__dirname, "frontend", "dist", "index.html");
 
   const apiKey = process.env.SHOPIFY_API_KEY || "";
 
