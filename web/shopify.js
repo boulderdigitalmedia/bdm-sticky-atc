@@ -59,8 +59,13 @@ export function initShopify(app) {
   restResources,
   sessionStorage: prismaSessionStorage(),
 
-  future: {
-    unstable_managedPricingSupport: true,
+  billing: {
+    "conversion-pro": {
+      amount: 7.99,
+      currencyCode: "USD",
+      interval: "EVERY_30_DAYS",
+      trialDays: 7,
+    },
   },
 
   cookies: {
