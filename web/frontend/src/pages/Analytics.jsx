@@ -16,7 +16,7 @@ export default function Analytics() {
 
   useEffect(() => {
     fetchAnalytics()
-      .then(setData)
+      .then((res) => setData(res.summary || res))
       .catch(() => setData(null))
       .finally(() => setLoading(false));
   }, []);
@@ -49,10 +49,10 @@ export default function Analytics() {
               <MetricCard
                 title="Add-to-Cart Rate"
                 value={
-                  data?.atcRate != null
-                    ? `${data.atcRate.toFixed(2)}%`
-                    : "—"
-                }
+  data?.atcRate != null
+    ? `${Math.min(100, data.atcRate).toFixed(2)}%`
+    : "—"
+}
                 description="Sticky ATC clicks vs product views"
               />
 
