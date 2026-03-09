@@ -148,7 +148,7 @@ app.get("/auth/callback", async (req, res) => {
 
     const billingCheck = await billing.check({
       session,
-      plans: ["Pro"],
+      plans: ["conversion-pro"],
       isTest: true
     });
 
@@ -157,7 +157,7 @@ app.get("/auth/callback", async (req, res) => {
 
       const confirmationUrl = await billing.request({
         session,
-        plan: "Pro",
+        plan: "conversion-pro",
         isTest: true
       });
 
@@ -296,7 +296,7 @@ app.use("/*", async (req, res, next) => {
   try {
     const billingCheck = await shopify.billing.check({
       session,
-      plans: ["Pro"],
+      plans: ["conversion-pro"],
       isTest: true
     });
 
@@ -305,7 +305,7 @@ app.use("/*", async (req, res, next) => {
 
       const confirmationUrl = await shopify.billing.request({
         session,
-        plan: "Pro",
+        plan: "conversion-pro",
         isTest: true
       });
 
