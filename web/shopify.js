@@ -49,20 +49,25 @@ export function initShopify(app) {
     .filter(Boolean);
 
   shopify = shopifyApi({
-    apiKey,
-    apiSecretKey,
-    scopes,
-    hostName: appUrl.host,
-    hostScheme: "https",
-    apiVersion: "2026-01",
-    isEmbeddedApp: true,
-    restResources,
-    sessionStorage: prismaSessionStorage(),
-    cookies: {
-      secure: true,
-      sameSite: "none",
-    },
-  });
+  apiKey,
+  apiSecretKey,
+  scopes,
+  hostName: appUrl.host,
+  hostScheme: "https",
+  apiVersion: "2026-01",
+  isEmbeddedApp: true,
+  restResources,
+  sessionStorage: prismaSessionStorage(),
+
+  future: {
+    unstable_managedPricingSupport: true,
+  },
+
+  cookies: {
+    secure: true,
+    sameSite: "none",
+  },
+});
 
   /* =========================================================
      ⭐ WEBHOOK HANDLERS (FIXED)
