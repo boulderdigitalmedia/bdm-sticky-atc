@@ -289,31 +289,6 @@ app.use("/*", async (req, res, next) => {
     `);
   }
 
-  /* =========================================================
-     BILLING CHECK ADDED HERE (ONLY NEW CODE)
-  ========================================================= */
-
-  try {
-    const billingCheck = await shopify.billing.check({
-      session,
-      plans: ["conversion-pro"],
-      isTest: true
-    });
-
-    if (!billingCheck.hasActivePayment) {
-      console.log("💳 No active billing — redirecting to charge");
-
-      const confirmationUrl = await shopify.billing.request({
-        session,
-        plan: "conversion-pro",
-        isTest: true
-      });
-
-      return res.redirect(confirmationUrl);
-    }
-  } catch (err) {
-    console.error("Billing check failed:", err);
-  }
 
   /* ========================================================= */
 
