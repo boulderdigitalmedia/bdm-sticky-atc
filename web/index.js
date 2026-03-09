@@ -136,11 +136,42 @@ app.get("/auth/callback", async (req, res) => {
       rawResponse: res,
     });
 
-    console.log("✅ OAuth completed for:", session.shop);
+    console.log("🔑 OAuth session received:", session.shop);
 
     await shopify.webhooks.register({ session });
 
+    /* -------------------------
+       CHECK BILLING
+    -------------------------- */
+
+    const billing = shopify.billing;
+
+    const billingCheck = await billing.check({
+      session,
+      plans: ["Pro"], // MUST match Partner Dashboard plan name
+      isTest: true    // remove in production
+    });
+
+    if (!billingCheck.hasActivePayment) {
+      console.log("💳 No payment found — redirecting to charge");
+
+      const confirmationUrl = await billing.request({
+        session,
+        plan: "Pro",
+        isTest: true
+      });
+
+      return res.redirect(confirmationUrl);
+    }
+
+    console.log("💰 Billing already active");
+
+    /* -------------------------
+       LOAD APP
+    -------------------------- */
+
     res.redirect(`/?shop=${session.shop}&host=${req.query.host}`);
+
   } catch (error) {
     console.error("❌ OAuth callback failed:", error);
     res.status(500).send("OAuth Error");
