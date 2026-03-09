@@ -147,11 +147,6 @@ app.get("/auth/callback", async (req, res) => {
   }
 });
 
-/* =========================================================
-   🔐 SESSION VALIDATION (FIX)
-========================================================= */
-
-app.use("/api/*", shopify.validateAuthenticatedSession());
 
 /* =========================================================
    RE-REGISTER WEBHOOKS
