@@ -116,7 +116,7 @@ shopifyModule.initShopify(app);
 const shopify = shopifyModule.shopify;
 
 /* =========================================================
-   🔐 OAUTH ROUTES (FIX)
+   🔐 OAUTH ROUTES
 ========================================================= */
 
 app.get("/auth", async (req, res) => {
@@ -148,8 +148,8 @@ app.get("/auth/callback", async (req, res) => {
 
     const billingCheck = await billing.check({
       session,
-      plans: ["Pro"], // MUST match Partner Dashboard plan name
-      isTest: true    // remove in production
+      plans: ["Pro"],
+      isTest: true
     });
 
     if (!billingCheck.hasActivePayment) {
@@ -165,10 +165,6 @@ app.get("/auth/callback", async (req, res) => {
     }
 
     console.log("💰 Billing already active");
-
-    /* -------------------------
-       LOAD APP
-    -------------------------- */
 
     res.redirect(`/?shop=${session.shop}&host=${req.query.host}`);
 
@@ -205,10 +201,7 @@ app.get("/auth/callback", async (req, res) => {
 app.use("/api/settings", settingsRouter);
 app.use("/api/analytics", stickyAnalyticsRouter);
 
-/* Shopify App Proxy Tracking */
 app.use("/track", trackRouter);
-
-/* Optional API access */
 app.use("/api/track", trackRouter);
 
 app.use("/attribution", attributionRouter);
@@ -295,6 +288,34 @@ app.use("/*", async (req, res, next) => {
       </html>
     `);
   }
+
+  /* =========================================================
+     BILLING CHECK ADDED HERE (ONLY NEW CODE)
+  ========================================================= */
+
+  try {
+    const billingCheck = await shopify.billing.check({
+      session,
+      plans: ["Pro"],
+      isTest: true
+    });
+
+    if (!billingCheck.hasActivePayment) {
+      console.log("💳 No active billing — redirecting to charge");
+
+      const confirmationUrl = await shopify.billing.request({
+        session,
+        plan: "Pro",
+        isTest: true
+      });
+
+      return res.redirect(confirmationUrl);
+    }
+  } catch (err) {
+    console.error("Billing check failed:", err);
+  }
+
+  /* ========================================================= */
 
   const indexPath = path.join(__dirname, "frontend", "dist", "index.html");
 
