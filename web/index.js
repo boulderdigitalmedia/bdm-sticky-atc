@@ -115,65 +115,6 @@ app.use(express.urlencoded({ extended: true }));
 shopifyModule.initShopify(app);
 const shopify = shopifyModule.shopify;
 
-/* =========================================================
-   🔐 OAUTH ROUTES
-========================================================= */
-
-app.get("/auth", async (req, res) => {
-  return shopify.auth.begin({
-    shop: req.query.shop,
-    callbackPath: "/auth/callback",
-    isOnline: false,
-    rawRequest: req,
-    rawResponse: res,
-  });
-});
-
-app.get("/auth/callback", async (req, res) => {
-  try {
-    const session = await shopify.auth.callback({
-      rawRequest: req,
-      rawResponse: res,
-    });
-
-    console.log("🔑 OAuth session received:", session.shop);
-
-    await shopify.webhooks.register({ session });
-
-    /* -------------------------
-       CHECK BILLING
-    -------------------------- */
-
-    const billing = shopify.billing;
-
-    const billingCheck = await billing.check({
-      session,
-      plans: ["conversion-pro"],
-      isTest: true
-    });
-
-    if (!billingCheck.hasActivePayment) {
-      console.log("💳 No payment found — redirecting to charge");
-
-      const confirmationUrl = await billing.request({
-        session,
-        plan: "conversion-pro",
-        isTest: true
-      });
-
-      return res.redirect(confirmationUrl);
-    }
-
-    console.log("💰 Billing already active");
-
-    res.redirect(`/?shop=${session.shop}&host=${req.query.host}`);
-
-  } catch (error) {
-    console.error("❌ OAuth callback failed:", error);
-    res.status(500).send("OAuth Error");
-  }
-});
-
 
 /* =========================================================
    RE-REGISTER WEBHOOKS
