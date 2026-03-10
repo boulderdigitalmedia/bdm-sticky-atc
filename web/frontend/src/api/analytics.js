@@ -4,17 +4,12 @@ function getShop() {
 }
 
 export async function fetchAnalytics(days = 7) {
-  const shop = getShop();
-
-  const res = await fetch(
-    `/api/analytics/summary?days=${days}&shop=${shop}`,
-    {
-      credentials: "include",
-      headers: {
-        Accept: "application/json",
-      },
-    }
-  );
+ const res = await fetch(`/api/sticky-add-to-cart/summary?days=${days}`, {
+  credentials: "include",
+  headers: {
+    Accept: "application/json",
+  },
+});
 
   if (!res.ok) {
     throw new Error("Failed to load analytics");
