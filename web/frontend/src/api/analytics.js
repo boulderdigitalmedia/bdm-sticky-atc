@@ -1,15 +1,20 @@
-function getShop() {
-  const params = new URLSearchParams(window.location.search);
-  return params.get("shop");
+function getAppOrigin() {
+  if (window.__APP_ORIGIN__) return window.__APP_ORIGIN__;
+  return window.location.origin;
 }
 
 export async function fetchAnalytics(days = 7) {
- const res = await fetch(`/api/sticky-add-to-cart/summary?days=${days}`, {
-  credentials: "include",
-  headers: {
-    Accept: "application/json",
-  },
-});
+  const origin = getAppOrigin();
+
+  const res = await fetch(
+    `${origin}/api/sticky-add-to-cart/summary?days=${days}`,
+    {
+      credentials: "include",
+      headers: {
+        Accept: "application/json",
+      },
+    }
+  );
 
   if (!res.ok) {
     throw new Error("Failed to load analytics");
@@ -19,10 +24,10 @@ export async function fetchAnalytics(days = 7) {
 }
 
 export async function fetchAnalyticsEvents(limit = 50) {
-  const shop = getShop();
+  const origin = getAppOrigin();
 
   const res = await fetch(
-    `/api/analytics/events?limit=${limit}&shop=${shop}`,
+    `${origin}/api/sticky-add-to-cart/events?limit=${limit}`,
     {
       credentials: "include",
       headers: {
