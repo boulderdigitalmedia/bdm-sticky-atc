@@ -14,12 +14,18 @@ export default function Analytics() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchAnalytics()
-      .then((res) => setData(res.summary || res))
-      .catch(() => setData(null))
-      .finally(() => setLoading(false));
-  }, []);
+useEffect(() => {
+  fetchAnalytics()
+    .then((d) => {
+      console.log("📊 Analytics response:", d);
+      setData(d);
+    })
+    .catch((err) => {
+      console.error("❌ Analytics fetch failed:", err);
+      setData(null);
+    })
+    .finally(() => setLoading(false));
+}, []);
 
   if (loading) {
     return (
