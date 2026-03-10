@@ -13,30 +13,22 @@ export default function Dashboard() {
   const [summary, setSummary] = useState(null);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const shop = params.get("shop");
+  const load = async () => {
+    try {
+      const res = await fetch(`/api/sticky-add-to-cart/summary`);
 
-    if (!shop) {
-      console.warn("No shop param found");
-      return;
+      const data = await res.json();
+
+      console.log("Analytics response:", data);
+
+      setSummary(data);
+    } catch (err) {
+      console.error("Analytics failed:", err);
     }
+  };
 
-    const load = async () => {
-      try {
-        const res = await fetch(`/api/analytics/summary?shop=${shop}`);
-
-        const data = await res.json();
-
-        console.log("Analytics response:", data);
-
-        setSummary(data);
-      } catch (err) {
-        console.error("Analytics failed:", err);
-      }
-    };
-
-    load();
-  }, []);
+  load();
+}, []);
 
   const clicks = summary?.clicks ?? "—";
   const atcRate = summary?.atcRate != null ? `${summary.atcRate}%` : "—";
