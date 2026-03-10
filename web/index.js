@@ -3,7 +3,6 @@ import cors from "cors";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import crypto from "crypto";
 
 import prisma from "./prisma.js";
 import * as shopifyModule from "./shopify.js";
@@ -21,75 +20,28 @@ const __dirname = path.dirname(__filename);
 const app = express();
 app.set("trust proxy", true);
 
+app.use("/webhooks", express.raw({ type: "*/*" }));
+
 /* =========================================================
-   COMPLIANCE WEBHOOK
+   ⭐ UNIVERSAL WEBHOOK PROCESSOR
 ========================================================= */
-
-app.post(
-  "/webhooks",
-  express.raw({ type: "*/*" }),
-  (req, res) => {
-    const hmac = req.headers["x-shopify-hmac-sha256"];
-    const secret = process.env.SHOPIFY_API_SECRET;
-
-    const digest = crypto
-      .createHmac("sha256", secret)
-      .update(req.body)
-      .digest("base64");
-
-    if (digest !== hmac) {
-      console.log("❌ Invalid webhook HMAC");
-      return res.status(401).send("Invalid webhook");
-    }
-
-    console.log("✅ Valid compliance webhook received");
-    return res.status(200).send("OK");
+app.post("/webhooks/*", async (req, res) => {
+  try {
+    await shopifyModule.shopify.webhooks.process({
+      rawBody: req.body,
+      rawRequest: req,
+      rawResponse: res,
+    });
+  } catch (error) {
+    console.error("❌ Universal webhook failed:", error);
+  } finally {
+    if (!res.headersSent) res.sendStatus(200);
   }
-);
-
-/* =========================================================
-   SHOPIFY HEAD VALIDATION
-========================================================= */
-
-app.head("*", (req, res) => {
-  console.log("🧪 Shopify HEAD validation");
-  res.status(200).end();
 });
-
-/* =========================================================
-   REQUEST LOGGER
-========================================================= */
-
-app.use((req, res, next) => {
-  console.log("🌍 Incoming:", req.method, req.originalUrl);
-  next();
-});
-
-/* =========================================================
-   WEBHOOK PROCESSOR
-========================================================= */
-
-app.post(
-  "/webhooks/*",
-  express.raw({ type: "*/*" }),
-  async (req, res) => {
-    try {
-      await shopifyModule.shopify.webhooks.process({
-        rawBody: req.body.toString("utf8"),
-        rawRequest: req,
-        rawResponse: res,
-      });
-    } catch (error) {
-      console.error("❌ Universal webhook failed:", error);
-      return res.status(401).send("Webhook Error");
-    }
-  }
-);
 
 /* =========================================================
    CORS
 ========================================================= */
-
 app.use(
   cors({
     origin: true,
@@ -98,7 +50,6 @@ app.use(
     credentials: true,
   })
 );
-
 app.options("*", cors());
 
 /* =========================================================
@@ -108,51 +59,25 @@ app.options("*", cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+
 /* =========================================================
    SHOPIFY INIT
 ========================================================= */
-
 shopifyModule.initShopify(app);
-const shopify = shopifyModule.shopify;
-
-
-/* =========================================================
-   RE-REGISTER WEBHOOKS
-========================================================= */
-
-(async () => {
-  const sessions = await shopify.config.sessionStorage.findSessionsByShop();
-
-  for (const session of sessions || []) {
-    if (!session.isOnline) {
-      try {
-        await shopify.webhooks.register({ session });
-        console.log("📡 Re-registered webhooks for", session.shop);
-      } catch (e) {
-        console.error("⚠️ Failed webhook register:", session.shop, e);
-      }
-    }
-  }
-})();
 
 /* =========================================================
    ROUTES
 ========================================================= */
-
 app.use("/api/settings", settingsRouter);
-app.use("/api/analytics", stickyAnalyticsRouter);
-
-app.use("/track", trackRouter);
 app.use("/api/track", trackRouter);
-
+app.use("/apps/bdm-sticky-atc/track", trackRouter);
+app.use("/apps/bdm-sticky-atc", stickyAnalyticsRouter);
 app.use("/attribution", attributionRouter);
 
 /* =========================================================
    STATIC FILES
 ========================================================= */
-
 app.use("/web", express.static(path.join(__dirname, "public")));
-
 app.use(
   express.static(path.join(__dirname, "frontend", "dist"), {
     index: false,
@@ -162,45 +87,56 @@ app.use(
 /* =========================================================
    DEBUG ROUTE
 ========================================================= */
-
 app.get("/__debug/conversions", async (req, res) => {
   const rows = await prisma.stickyConversion.findMany({
     orderBy: { occurredAt: "desc" },
     take: 5,
   });
-
   res.json(rows);
 });
 
 /* =========================================================
-   EMBEDDED APP LOADER
+   ⭐ EMBEDDED APP LOADER
 ========================================================= */
-
 app.use("/*", async (req, res, next) => {
   if (req.method !== "GET") return next();
 
-  if (!req.query.host && req.query.embedded) {
-    return res.status(200).send("Loading...");
-  }
+  // ⭐ Shopify iframe stabilization guard
+if (!req.query.host && req.query.embedded) {
+  console.log("⏳ Waiting for host param from Shopify...");
+  return res.status(200).send("Loading...");
+}
 
   const p = req.path || "";
 
   if (
     p.startsWith("/auth") ||
+    p.startsWith("/billing") ||
     p.startsWith("/webhooks") ||
     p.startsWith("/api") ||
-    p.startsWith("/track") ||
     p.startsWith("/__debug")
   ) {
     return next();
   }
 
+  console.log("📥 Loader hit:", req.originalUrl);
+
   if (!req.query.shop) {
+    console.log("⚠️ No shop param — ignoring non-Shopify request");
     return res.status(200).send("OK");
+  }
+
+  const shopify = shopifyModule.shopify;
+
+  if (!shopify) {
+    console.error("❌ Shopify not initialized");
+    return res.status(500).send("Shopify not ready");
   }
 
   let shop = shopify.utils.sanitizeShop(String(req.query.shop));
   if (!shop) return res.status(400).send("Invalid shop");
+
+  console.log("🔎 Checking offline session for:", shop);
 
   let session = null;
 
@@ -212,28 +148,108 @@ app.use("/*", async (req, res, next) => {
       ? sessions.find((s) => !s.isOnline)
       : null;
   } catch (e) {
-    console.error("Session lookup failed:", e);
+    console.error("❌ Session lookup failed:", e);
   }
 
   if (!session) {
+    console.log("🔑 No session — escaping iframe to OAuth");
+
     const host = String(req.query.host || "");
 
-    return res.status(200).send(`
-      <html>
-        <body>
-          <script>
-            window.top.location.href =
-              "/auth?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}";
-          </script>
-        </body>
-      </html>
-    `);
+return res.status(200).send(`
+  <html>
+    <body>
+      <script>
+        window.top.location.href =
+          "/auth?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}&embedded=1";
+      </script>
+    </body>
+  </html>
+`);
   }
 
+  /* =========================================================
+     💳 MANAGED PRICING CHECK
+  ========================================================= */
+  try {
+    const client = new shopify.clients.Graphql({ session });
 
-  /* ========================================================= */
+    const billingCheck = await client.request(`
+      query {
+        currentAppInstallation {
+          activeSubscriptions {
+            id
+            status
+          }
+        }
+      }
+    `);
 
-  const indexPath = path.join(__dirname, "frontend", "dist", "index.html");
+    const subs =
+      billingCheck?.data?.currentAppInstallation?.activeSubscriptions || [];
+
+    const isShopifyVerification =
+      Boolean(req.headers["x-shopify-topic"]) ||
+      req.get("User-Agent")?.includes("Shopify");
+
+    if (!subs.length && !isShopifyVerification) {
+      console.log("💳 No active subscription — redirecting to Managed Pricing");
+
+      const storeHandle = String(shop).replace(".myshopify.com", "");
+      const appHandle = process.env.SHOPIFY_APP_HANDLE;
+
+      if (!appHandle) {
+        console.error("❌ Missing SHOPIFY_APP_HANDLE env var");
+        return res.status(500).send("Missing SHOPIFY_APP_HANDLE");
+      }
+
+      const pricingUrl =
+        `https://admin.shopify.com/store/${storeHandle}/charges/${appHandle}/pricing_plans`;
+
+      return res.status(200).send(`
+        <!doctype html>
+        <html>
+          <body>
+            <script>
+              window.top.location.href = ${JSON.stringify(pricingUrl)};
+            </script>
+          </body>
+        </html>
+      `);
+    }
+  } catch (e) {
+    console.error("❌ Billing check failed:", e);
+
+    const isUnauthorized =
+      e?.response?.code === 401 ||
+      e?.message?.includes("Unauthorized");
+
+    if (isUnauthorized) {
+      console.log("🔑 Access token invalid — forcing OAuth refresh");
+
+      const host = String(req.query.host || "");
+
+return res.status(200).send(`
+  <html>
+    <body>
+      <script>
+        window.top.location.href =
+          "/auth?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}&embedded=1";
+      </script>
+    </body>
+  </html>
+`);
+    }
+  }
+
+  console.log("✅ Session found — loading SPA");
+
+  const indexPath = path.join(
+    __dirname,
+    "frontend",
+    "dist",
+    "index.html"
+  );
 
   const apiKey = process.env.SHOPIFY_API_KEY || "";
 
@@ -250,9 +266,7 @@ app.use("/*", async (req, res, next) => {
 /* =========================================================
    START SERVER
 ========================================================= */
-
 const PORT = process.env.PORT || 3000;
-
 app.listen(PORT, () => {
   console.log(`✅ App running on port ${PORT}`);
 });
