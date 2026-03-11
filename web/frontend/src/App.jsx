@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React from "react";
 import { AppProvider } from "@shopify/polaris";
 import "@shopify/polaris/build/esm/styles.css";
 
@@ -6,12 +6,9 @@ function getParam(name) {
   return new URL(window.location.href).searchParams.get(name);
 }
 
-export default function App() {
+export default function App({ children }) {
   const shop = getParam("shop");
   const host = getParam("host");
-
-  // ❌ DO NOT redirect to /auth if host exists
-  // ❌ DO NOT redirect repeatedly
 
   // Opened directly (not in Shopify)
   if (!shop) {
@@ -29,18 +26,9 @@ export default function App() {
     return null;
   }
 
-  const appBridgeConfig = useMemo(
-    () => ({
-      apiKey: window.__SHOPIFY_API_KEY__,
-      host,
-      forceRedirect: true,
-    }),
-    [host]
-  );
-
   return (
     <AppProvider i18n={{}}>
-  {children}
-</AppProvider>
+      {children}
+    </AppProvider>
   );
 }
