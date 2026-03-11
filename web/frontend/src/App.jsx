@@ -1,5 +1,4 @@
 import React, { useMemo } from "react";
-import { Provider as AppBridgeProvider } from "@shopify/app-bridge-react";
 import { AppProvider } from "@shopify/polaris";
 import "@shopify/polaris/build/esm/styles.css";
 
@@ -41,12 +40,7 @@ export default function App() {
 
   return (
     <AppProvider i18n={{}}>
-      <AppBridgeProvider config={appBridgeConfig}>
-        <div style={{ padding: 24 }}>
-          <h2>Sticky Add To Cart Bar</h2>
-          <p>✅ Embedded app loaded correctly.</p>
-        </div>
-      </AppBridgeProvider>
-    </AppProvider>
+  {children}
+</AppProvider>
   );
 }
