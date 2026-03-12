@@ -16,9 +16,7 @@ export default function Dashboard() {
   useEffect(() => {
   const load = async () => {
     try {
-      const res = await fetch(
-        `${window.location.origin}/api/sticky-add-to-cart/summary`
-      );
+      const res = await fetch(`/api/analytics/summary`);
 
       const data = await res.json();
 
