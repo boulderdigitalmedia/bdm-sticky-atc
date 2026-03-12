@@ -2,7 +2,8 @@
   if (window.__BDM_STICKY_ATC_INIT__) return;
   window.__BDM_STICKY_ATC_INIT__ = true;
 
-  const TRACK_ENDPOINT = "/apps/bdm-sticky-atc/track";
+  const TRACK_ENDPOINT =
+  "https://sticky-add-to-cart-bar-pro.onrender.com/api/track";
 
   function track(event, payload = {}) {
     try {
