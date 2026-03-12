@@ -10,7 +10,8 @@ import { useEffect, useState } from "react";
 import AppStatusCard from "../components/AppStatusCard";
 
 export default function Dashboard() {
-  const [summary, setSummary] = useState(null);
+  console.log("Dashboard mounted");
+  const [summary, setSummary] = useState({});
 
   useEffect(() => {
   const load = async () => {
