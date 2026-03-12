@@ -15,8 +15,7 @@ export default function Dashboard() {
   useEffect(() => {
   const load = async () => {
     try {
-      const res = await fetch(`/api/sticky-add-to-cart/summary`);
-
+      const res = await fetch(`/apps/bdm-sticky-atc/summary`);
       const data = await res.json();
 
       console.log("Analytics response:", data);
