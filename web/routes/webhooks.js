@@ -5,7 +5,6 @@ import prisma from "../prisma.js";
 /* HELPERS */
 /* ────────────────────────────────────────────── */
 
-// Extract sticky marker from order
 function getStickyMarkerFromOrder(order) {
   const na = order?.note_attributes;
 
@@ -37,12 +36,11 @@ function getStickyMarkerFromOrder(order) {
 }
 
 /* ────────────────────────────────────────────── */
-/* ORDERS_PAID WEBHOOK — SHOPIFY v11 STYLE */
+/* ORDERS_PAID WEBHOOK */
 /* ────────────────────────────────────────────── */
 
 export async function ordersPaid(topic, shop, body) {
 
-  /* 🔥 FIX: normalize webhook body */
   let order = body;
 
   try {
@@ -73,11 +71,10 @@ export async function ordersPaid(topic, shop, body) {
     const orderId = order.id.toString();
 
     console.log("🧾 ORDER RECEIVED", {
-      id: order?.id,
-      total_price: order?.total_price,
-      currency: order?.currency,
-      attributes: order?.attributes,
-      note_attributes: order?.note_attributes,
+      id: order.id,
+      total_price: order.total_price,
+      currency: order.currency,
+      note_attributes: order.note_attributes,
     });
 
     const existing = await prisma.stickyConversion.findFirst({
@@ -89,7 +86,13 @@ export async function ordersPaid(topic, shop, body) {
       return;
     }
 
+    const checkoutToken =
+      order.checkout_token ||
+      order.cart_token ||
+      crypto.randomUUID();
+
     /* 2️⃣ Cart attribute attribution */
+
     const stickyRaw = getStickyMarkerFromOrder(order);
 
     console.log("🔍 STICKY MARKER RAW", stickyRaw);
@@ -104,6 +107,7 @@ export async function ordersPaid(topic, shop, body) {
       }
 
       if (sticky?.source === "bdm_sticky_atc") {
+
         console.log("🎯 CART ATTRIBUTE MATCH");
 
         await prisma.stickyConversion.create({
@@ -111,13 +115,14 @@ export async function ordersPaid(topic, shop, body) {
             id: crypto.randomUUID(),
             shop,
             orderId,
+            checkoutToken,
             revenue: Number(order.total_price),
             currency: order.currency,
             occurredAt: new Date(order.processed_at || order.created_at),
           },
         });
 
-        console.log("✅ stickyConversion INSERTED (cart attr)", orderId);
+        console.log("✅ stickyConversion INSERTED", orderId);
 
         await prisma.analyticsEvent.create({
           data: {
@@ -127,12 +132,14 @@ export async function ordersPaid(topic, shop, body) {
           },
         });
 
-        console.log("📊 analyticsEvent INSERTED (cart attr)");
+        console.log("📊 analyticsEvent INSERTED");
+
         return;
       }
     }
 
     /* 3️⃣ Fallback attribution */
+
     const recentAtc = await prisma.analyticsEvent.findFirst({
       where: {
         shop,
@@ -145,6 +152,7 @@ export async function ordersPaid(topic, shop, body) {
     });
 
     if (recentAtc) {
+
       console.log("🎯 FALLBACK MATCH FOUND");
 
       await prisma.stickyConversion.create({
@@ -152,6 +160,7 @@ export async function ordersPaid(topic, shop, body) {
           id: crypto.randomUUID(),
           shop,
           orderId,
+          checkoutToken,
           revenue: Number(order.total_price),
           currency: order.currency,
           occurredAt: new Date(order.processed_at || order.created_at),
@@ -170,14 +179,13 @@ export async function ordersPaid(topic, shop, body) {
         },
       });
 
-      console.log(
-        "✅ stickyConversion + analyticsEvent INSERTED (fallback)"
-      );
+      console.log("✅ stickyConversion + analyticsEvent INSERTED");
 
       return;
     }
 
     console.log("⚠️ NO ATTRIBUTION MATCH FOUND", orderId);
+
   } catch (err) {
     console.error("❌ Order webhook error:", err);
   }
