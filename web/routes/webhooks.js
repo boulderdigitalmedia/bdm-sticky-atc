@@ -49,12 +49,14 @@ export async function ordersPaid(topic, shop, body) {
     typeof body === "string"
       ? JSON.parse(body)
       : body;
+
   console.log("🔥 WEBHOOK HIT", {
     topic,
     shop,
     receivedAt: new Date().toISOString(),
   });
 
+  console.log("ORDER BODY:", order);
   try {
     if (!order?.id) {
       console.log("⚠️ Order missing ID");
