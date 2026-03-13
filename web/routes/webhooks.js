@@ -89,50 +89,6 @@ export async function ordersPaid(topic, shop, body) {
       return;
     }
 
-    /* 1️⃣ Token-based attribution */
-    const attributionToken =
-      order.checkout_token || order.cart_token;
-
-    if (attributionToken) {
-      console.log("🔑 CHECKOUT TOKEN FOUND", attributionToken);
-
-      const attribution = await prisma.stickyAttribution.findUnique({
-        where: { checkoutToken: attributionToken },
-      });
-
-      if (attribution) {
-        console.log("🎯 TOKEN MATCH FOUND");
-
-        await prisma.stickyConversion.create({
-          data: {
-            id: crypto.randomUUID(),
-            shop,
-            orderId,
-            revenue: Number(order.total_price),
-            currency: order.currency,
-            occurredAt: new Date(order.processed_at || order.created_at),
-          },
-        });
-
-        console.log("✅ stickyConversion INSERTED (token)", orderId);
-
-        await prisma.analyticsEvent.create({
-          data: {
-            shop,
-            event: "add_to_cart",
-            payload: {
-              source: "bdm_sticky_atc",
-              method: "token_match",
-              orderId,
-            },
-          },
-        });
-
-        console.log("📊 analyticsEvent INSERTED (token)");
-        return;
-      }
-    }
-
     /* 2️⃣ Cart attribute attribution */
     const stickyRaw = getStickyMarkerFromOrder(order);
 
