@@ -7,7 +7,6 @@ import prisma from "../prisma.js";
 
 // Extract sticky marker from order
 function getStickyMarkerFromOrder(order) {
-  // NOTE ATTRIBUTES
   const na = order?.note_attributes;
 
   if (Array.isArray(na)) {
@@ -19,7 +18,6 @@ function getStickyMarkerFromOrder(order) {
     if (na.bdm_sticky_atc) return na.bdm_sticky_atc;
   }
 
-  // CART ATTRIBUTES (safer for ORDERS_PAID)
   const ca = order?.cart_attributes;
 
   if (Array.isArray(ca)) {
@@ -31,7 +29,6 @@ function getStickyMarkerFromOrder(order) {
     if (ca.bdm_sticky_atc) return ca.bdm_sticky_atc;
   }
 
-  // legacy fallback
   if (order?.attributes?.bdm_sticky_atc) {
     return order.attributes.bdm_sticky_atc;
   }
@@ -45,10 +42,19 @@ function getStickyMarkerFromOrder(order) {
 
 export async function ordersPaid(topic, shop, body) {
 
-  const order =
-    typeof body === "string"
-      ? JSON.parse(body)
-      : body;
+  /* 🔥 FIX: normalize webhook body */
+  let order = body;
+
+  try {
+    if (Buffer.isBuffer(body)) {
+      order = JSON.parse(body.toString("utf8"));
+    } else if (typeof body === "string") {
+      order = JSON.parse(body);
+    }
+  } catch (e) {
+    console.error("❌ Failed to parse webhook body:", e);
+    return;
+  }
 
   console.log("🔥 WEBHOOK HIT", {
     topic,
@@ -57,6 +63,7 @@ export async function ordersPaid(topic, shop, body) {
   });
 
   console.log("ORDER BODY:", order);
+
   try {
     if (!order?.id) {
       console.log("⚠️ Order missing ID");
@@ -174,11 +181,11 @@ export async function ordersPaid(topic, shop, body) {
       where: {
         shop,
         event: "add_to_cart",
-        timestamp: {
+        createdAt: {
           gte: new Date(Date.now() - 1000 * 60 * 60 * 24),
         },
       },
-      orderBy: { timestamp: "desc" },
+      orderBy: { createdAt: "desc" },
     });
 
     if (recentAtc) {
