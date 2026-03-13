@@ -43,7 +43,12 @@ function getStickyMarkerFromOrder(order) {
 /* ORDERS_PAID WEBHOOK — SHOPIFY v11 STYLE */
 /* ────────────────────────────────────────────── */
 
-export async function ordersPaid(topic, shop, order) {
+export async function ordersPaid(topic, shop, body) {
+
+  const order =
+    typeof body === "string"
+      ? JSON.parse(body)
+      : body;
   console.log("🔥 WEBHOOK HIT", {
     topic,
     shop,
@@ -163,7 +168,7 @@ export async function ordersPaid(topic, shop, order) {
     }
 
     /* 3️⃣ Fallback attribution */
-    const recentAtc = await prisma.stickyEvent.findFirst({
+    const recentAtc = await prisma.analyticsEvent.findFirst({
       where: {
         shop,
         event: "add_to_cart",
