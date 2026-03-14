@@ -25,7 +25,7 @@ app.use("/webhooks", express.raw({ type: "*/*" }));
 /* =========================================================
    ⭐ UNIVERSAL WEBHOOK PROCESSOR
 ========================================================= */
-app.post("/webhooks", async (req, res) => {
+async function webhookHandler(req, res) {
   try {
     await shopifyModule.shopify.webhooks.process({
       rawBody: req.body,
@@ -37,7 +37,10 @@ app.post("/webhooks", async (req, res) => {
   } finally {
     if (!res.headersSent) res.sendStatus(200);
   }
-});
+}
+
+app.post("/webhooks", webhookHandler);
+app.post("/webhooks/*", webhookHandler);
 
 /* =========================================================
    CORS
