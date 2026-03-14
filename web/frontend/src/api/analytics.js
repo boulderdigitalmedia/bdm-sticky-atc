@@ -1,5 +1,5 @@
 import { createApp } from "@shopify/app-bridge";
-import { getSessionToken } from "@shopify/app-bridge-utils";
+import { getSessionToken } from "@shopify/app-bridge/utilities";
 
 function getAppOrigin() {
   if (window.__APP_ORIGIN__) return window.__APP_ORIGIN__;

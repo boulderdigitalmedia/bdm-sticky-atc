@@ -1,5 +1,16 @@
+declare global {
+  interface Window {
+    __SHOPIFY_API_KEY__: string;
+    __SHOPIFY_HOST__: string;
+    __APP_ORIGIN__?: string;
+    Shopify?: {
+      shop?: string;
+    };
+  }
+}
+
 import { createApp } from "@shopify/app-bridge";
-import { getSessionToken } from "@shopify/app-bridge-utils";
+import { getSessionToken } from "@shopify/app-bridge/utilities";
 
 const app = createApp({
   apiKey: window.__SHOPIFY_API_KEY__,
@@ -7,7 +18,7 @@ const app = createApp({
   forceRedirect: true,
 });
 
-export async function apiFetch(path) {
+export async function apiFetch(path: string) {
   const shop = window.Shopify?.shop;
 
   if (!shop) {
@@ -16,7 +27,7 @@ export async function apiFetch(path) {
 
   const join = path.includes("?") ? "&" : "?";
 
-  // ⭐ Get Shopify session token
+  // Get Shopify session token
   const token = await getSessionToken(app);
 
   return fetch(`${path}${join}shop=${shop}`, {
