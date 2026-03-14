@@ -1,10 +1,23 @@
+import { createApp } from "@shopify/app-bridge";
+import { getSessionToken } from "@shopify/app-bridge-utils";
+
 function getAppOrigin() {
   if (window.__APP_ORIGIN__) return window.__APP_ORIGIN__;
   return window.location.origin;
 }
 
+// Create App Bridge instance
+const app = createApp({
+  apiKey: window.__SHOPIFY_API_KEY__,
+  host: window.__SHOPIFY_HOST__,
+  forceRedirect: true,
+});
+
 export async function fetchAnalytics(days = 7) {
   const origin = getAppOrigin();
+
+  // ⭐ Get Shopify session token
+  const token = await getSessionToken(app);
 
   const res = await fetch(
     `${origin}/api/sticky-add-to-cart/summary?days=${days}`,
@@ -12,6 +25,7 @@ export async function fetchAnalytics(days = 7) {
       credentials: "include",
       headers: {
         Accept: "application/json",
+        Authorization: `Bearer ${token}`,
       },
     }
   );
@@ -26,12 +40,16 @@ export async function fetchAnalytics(days = 7) {
 export async function fetchAnalyticsEvents(limit = 50) {
   const origin = getAppOrigin();
 
+  // ⭐ Get Shopify session token
+  const token = await getSessionToken(app);
+
   const res = await fetch(
     `${origin}/api/sticky-add-to-cart/events?limit=${limit}`,
     {
       credentials: "include",
       headers: {
         Accept: "application/json",
+        Authorization: `Bearer ${token}`,
       },
     }
   );
