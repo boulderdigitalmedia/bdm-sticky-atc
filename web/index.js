@@ -256,12 +256,20 @@ return res.status(200).send(`
 
   const apiKey = process.env.SHOPIFY_API_KEY || "";
 
-  const html = fs
-    .readFileSync(indexPath, "utf8")
-    .replace(
-      "</head>",
-      `<script>window.__SHOPIFY_API_KEY__ = ${JSON.stringify(apiKey)};</script></head>`
-    );
+  const host = String(req.query.host || "");
+
+const html = fs
+  .readFileSync(indexPath, "utf8")
+  .replace(
+    "</head>",
+    `
+<script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
+<script>
+  window.__SHOPIFY_API_KEY__ = ${JSON.stringify(apiKey)};
+  window.__SHOPIFY_HOST__ = ${JSON.stringify(host)};
+</script>
+</head>`
+  );
 
   res.send(html);
 });
