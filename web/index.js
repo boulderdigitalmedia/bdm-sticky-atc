@@ -258,17 +258,28 @@ return res.status(200).send(`
 
   const host = String(req.query.host || "");
 
+const host = String(req.query.host || "");
+
 const html = fs
   .readFileSync(indexPath, "utf8")
   .replace(
-    "</head>",
+    "</body>",
     `
-<script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
 <script>
-  window.__SHOPIFY_API_KEY__ = ${JSON.stringify(apiKey)};
-  window.__SHOPIFY_HOST__ = ${JSON.stringify(host)};
+window.__SHOPIFY_API_KEY__ = ${JSON.stringify(apiKey)};
+window.__SHOPIFY_HOST__ = ${JSON.stringify(host)};
+
+// Load Shopify App Bridge safely after page load
+(function(){
+  if (!window.shopify) {
+    var s = document.createElement("script");
+    s.src = "https://cdn.shopify.com/shopifycloud/app-bridge.js";
+    s.async = true;
+    document.body.appendChild(s);
+  }
+})();
 </script>
-</head>`
+</body>`
   );
 
   res.send(html);
