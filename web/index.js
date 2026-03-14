@@ -25,7 +25,7 @@ app.use("/webhooks", express.raw({ type: "*/*" }));
 /* =========================================================
    ⭐ UNIVERSAL WEBHOOK PROCESSOR
 ========================================================= */
-app.post("/webhooks/*", async (req, res) => {
+app.post("/webhooks", async (req, res) => {
   try {
     await shopifyModule.shopify.webhooks.process({
       rawBody: req.body,
