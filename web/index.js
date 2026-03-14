@@ -256,8 +256,6 @@ return res.status(200).send(`
 
   const apiKey = process.env.SHOPIFY_API_KEY || "";
 
-  const host = String(req.query.host || "");
-
 const host = String(req.query.host || "");
 
 const html = fs
