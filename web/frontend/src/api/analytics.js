@@ -11,16 +11,23 @@ const app = createApp({
   forceRedirect: true,
 });
 
-function getShop() {
-  const params = new URLSearchParams(window.location.search);
-  return params.get("shop");
+// Decode JWT payload
+function parseJwt(token) {
+  const base64 = token.split(".")[1];
+  const json = atob(base64);
+  return JSON.parse(json);
+}
+
+async function getShopFromToken() {
+  const token = await getSessionToken(app);
+  const payload = parseJwt(token);
+  return payload.dest.replace("https://", "");
 }
 
 export async function fetchAnalytics(days = 7) {
   const origin = getAppOrigin();
-  const shop = getShop();
-
   const token = await getSessionToken(app);
+  const shop = await getShopFromToken();
 
   const res = await fetch(
     `${origin}/api/analytics/summary?days=${days}&shop=${shop}`,
@@ -42,9 +49,8 @@ export async function fetchAnalytics(days = 7) {
 
 export async function fetchAnalyticsEvents(limit = 50) {
   const origin = getAppOrigin();
-  const shop = getShop();
-
   const token = await getSessionToken(app);
+  const shop = await getShopFromToken();
 
   const res = await fetch(
     `${origin}/api/analytics/events?limit=${limit}&shop=${shop}`,
