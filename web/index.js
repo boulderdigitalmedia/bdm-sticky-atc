@@ -102,6 +102,9 @@ app.get("/__debug/conversions", async (req, res) => {
    ⭐ EMBEDDED APP LOADER
 ========================================================= */
 app.use("/*", async (req, res, next) => {
+  if (req.path.startsWith("/api")) {
+  return next();
+}
   if (req.method !== "GET") return next();
 
   // ⭐ Shopify iframe stabilization guard
