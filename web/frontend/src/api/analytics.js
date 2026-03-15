@@ -6,21 +6,25 @@ function getAppOrigin() {
   return window.location.origin;
 }
 
-// Create App Bridge instance
 const app = createApp({
   apiKey: window.__SHOPIFY_API_KEY__,
   host: window.__SHOPIFY_HOST__,
   forceRedirect: true,
 });
 
+function getShop() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("shop");
+}
+
 export async function fetchAnalytics(days = 7) {
   const origin = getAppOrigin();
+  const shop = getShop();
 
-  // ⭐ Get Shopify session token
   const token = await getSessionToken(app);
 
   const res = await fetch(
-    `${origin}/api/analytics/summary?days=${days}`,
+    `${origin}/api/analytics/summary?days=${days}&shop=${shop}`,
     {
       credentials: "include",
       headers: {
@@ -39,12 +43,12 @@ export async function fetchAnalytics(days = 7) {
 
 export async function fetchAnalyticsEvents(limit = 50) {
   const origin = getAppOrigin();
+  const shop = getShop();
 
-  // ⭐ Get Shopify session token
   const token = await getSessionToken(app);
 
   const res = await fetch(
-    `${origin}/api/analytics/events?limit=${limit}`,
+    `${origin}/api/analytics/events?limit=${limit}&shop=${shop}`,
     {
       credentials: "include",
       headers: {
