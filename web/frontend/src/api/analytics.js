@@ -2,8 +2,7 @@ import { createApp } from "@shopify/app-bridge";
 import { getSessionToken } from "@shopify/app-bridge/utilities";
 
 function getAppOrigin() {
-  if (window.__APP_ORIGIN__) return window.__APP_ORIGIN__;
-  return window.location.origin;
+  return window.__APP_ORIGIN__ || window.location.origin;
 }
 
 const app = createApp({
