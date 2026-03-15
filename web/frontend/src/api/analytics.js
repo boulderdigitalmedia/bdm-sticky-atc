@@ -20,7 +20,7 @@ export async function fetchAnalytics(days = 7) {
   const token = await getSessionToken(app);
 
   const res = await fetch(
-    `${origin}/api/sticky-add-to-cart/summary?days=${days}`,
+    `${origin}/api/analytics/summary?days=${days}`,
     {
       credentials: "include",
       headers: {
@@ -44,7 +44,7 @@ export async function fetchAnalyticsEvents(limit = 50) {
   const token = await getSessionToken(app);
 
   const res = await fetch(
-    `${origin}/api/sticky-add-to-cart/events?limit=${limit}`,
+    `${origin}/api/analytics/events?limit=${limit}`,
     {
       credentials: "include",
       headers: {
