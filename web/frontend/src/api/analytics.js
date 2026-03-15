@@ -6,48 +6,55 @@ function getAppOrigin() {
   return window.location.origin;
 }
 
-// Create a single App Bridge instance
-let app;
+// Create App Bridge instance
+const app = createApp({
+  apiKey: window.__SHOPIFY_API_KEY__,
+  host: window.__SHOPIFY_HOST__,
+  forceRedirect: true,
+});
 
-function getApp() {
-  if (!app) {
-    app = createApp({
-      apiKey: window.__SHOPIFY_API_KEY__,
-      host: window.__SHOPIFY_HOST__,
-      forceRedirect: true,
-    });
-  }
-  return app;
-}
+export async function fetchAnalytics(days = 7) {
+  const origin = getAppOrigin();
 
-async function authenticatedFetch(url) {
-  const token = await getSessionToken(getApp());
+  const token = await getSessionToken(app);
 
-  const res = await fetch(url, {
-    credentials: "include",
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-  });
+  const res = await fetch(
+    `${origin}/api/sticky-add-to-cart/summary?days=${days}`,
+    {
+      credentials: "include",
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
 
   if (!res.ok) {
-    throw new Error("Request failed");
+    throw new Error("Failed to load analytics");
   }
 
   return res.json();
 }
 
-export async function fetchAnalytics(days = 7) {
-  const origin = getAppOrigin();
-  return authenticatedFetch(
-    `${origin}/api/sticky-add-to-cart/summary?days=${days}`
-  );
-}
-
 export async function fetchAnalyticsEvents(limit = 50) {
   const origin = getAppOrigin();
-  return authenticatedFetch(
-    `${origin}/api/sticky-add-to-cart/events?limit=${limit}`
+
+  const token = await getSessionToken(app);
+
+  const res = await fetch(
+    `${origin}/api/sticky-add-to-cart/events?limit=${limit}`,
+    {
+      credentials: "include",
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    }
   );
+
+  if (!res.ok) {
+    throw new Error("Failed to load events");
+  }
+
+  return res.json();
 }
