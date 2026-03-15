@@ -101,7 +101,7 @@ app.get("/__debug/conversions", async (req, res) => {
 /* =========================================================
    ⭐ EMBEDDED APP LOADER
 ========================================================= */
-app.get("/*", async (req, res, next) => {
+app.get("*", async (req, res, next) => {
   if (req.path.startsWith("/api")) {
   return next();
 }
