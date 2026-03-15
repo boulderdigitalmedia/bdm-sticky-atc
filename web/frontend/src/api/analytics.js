@@ -6,57 +6,48 @@ function getAppOrigin() {
   return window.location.origin;
 }
 
-// Create App Bridge instance
-const app = createApp({
-  apiKey: window.__SHOPIFY_API_KEY__,
-  host: window.__SHOPIFY_HOST__,
-  forceRedirect: true,
-});
+// Create a single App Bridge instance
+let app;
 
-export async function fetchAnalytics(days = 7) {
-  const origin = getAppOrigin();
+function getApp() {
+  if (!app) {
+    app = createApp({
+      apiKey: window.__SHOPIFY_API_KEY__,
+      host: window.__SHOPIFY_HOST__,
+      forceRedirect: true,
+    });
+  }
+  return app;
+}
 
-  // ⭐ Get Shopify session token
-  const token = await getSessionToken(app);
+async function authenticatedFetch(url) {
+  const token = await getSessionToken(getApp());
 
-  const res = await fetch(
-    `${origin}/api/sticky-add-to-cart/summary?days=${days}`,
-    {
-      credentials: "include",
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-    }
-  );
+  const res = await fetch(url, {
+    credentials: "include",
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+  });
 
   if (!res.ok) {
-    throw new Error("Failed to load analytics");
+    throw new Error("Request failed");
   }
 
   return res.json();
 }
 
+export async function fetchAnalytics(days = 7) {
+  const origin = getAppOrigin();
+  return authenticatedFetch(
+    `${origin}/api/sticky-add-to-cart/summary?days=${days}`
+  );
+}
+
 export async function fetchAnalyticsEvents(limit = 50) {
   const origin = getAppOrigin();
-
-  // ⭐ Get Shopify session token
-  const token = await getSessionToken(app);
-
-  const res = await fetch(
-    `${origin}/api/sticky-add-to-cart/events?limit=${limit}`,
-    {
-      credentials: "include",
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-    }
+  return authenticatedFetch(
+    `${origin}/api/sticky-add-to-cart/events?limit=${limit}`
   );
-
-  if (!res.ok) {
-    throw new Error("Failed to load events");
-  }
-
-  return res.json();
 }
