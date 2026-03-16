@@ -62,7 +62,6 @@ app.options("*", cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-
 /* =========================================================
    SHOPIFY INIT
 ========================================================= */
@@ -76,16 +75,6 @@ app.use("/api/track", trackRouter);
 app.use("/apps/bdm-sticky-atc/track", trackRouter);
 app.use("/api/analytics", stickyAnalyticsRouter);
 app.use("/attribution", attributionRouter);
-
-/* =========================================================
-   STATIC FILES
-========================================================= */
-app.use("/web", express.static(path.join(__dirname, "public")));
-app.use(
-  express.static(path.join(__dirname, "frontend", "dist"), {
-    index: false,
-  })
-);
 
 /* =========================================================
    DEBUG ROUTE
@@ -103,15 +92,16 @@ app.get("/__debug/conversions", async (req, res) => {
 ========================================================= */
 app.get("*", async (req, res, next) => {
   if (req.path.startsWith("/api")) {
-  return next();
-}
+    return next();
+  }
+
   if (req.method !== "GET") return next();
 
   // ⭐ Shopify iframe stabilization guard
-if (!req.query.host && req.query.embedded) {
-  console.log("⏳ Waiting for host param from Shopify...");
-  return res.status(200).send("Loading...");
-}
+  if (!req.query.host && req.query.embedded) {
+    console.log("⏳ Waiting for host param from Shopify...");
+    return res.status(200).send("Loading...");
+  }
 
   const p = req.path || "";
 
@@ -162,16 +152,16 @@ if (!req.query.host && req.query.embedded) {
 
     const host = String(req.query.host || "");
 
-return res.status(200).send(`
-  <html>
-    <body>
-      <script>
-        window.top.location.href =
-          "/auth?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}&embedded=1";
-      </script>
-    </body>
-  </html>
-`);
+    return res.status(200).send(`
+      <html>
+        <body>
+          <script>
+            window.top.location.href =
+              "/auth?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}&embedded=1";
+          </script>
+        </body>
+      </html>
+    `);
   }
 
   /* =========================================================
@@ -235,37 +225,30 @@ return res.status(200).send(`
 
       const host = String(req.query.host || "");
 
-return res.status(200).send(`
-  <html>
-    <body>
-      <script>
-        window.top.location.href =
-          "/auth?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}&embedded=1";
-      </script>
-    </body>
-  </html>
-`);
+      return res.status(200).send(`
+        <html>
+          <body>
+            <script>
+              window.top.location.href =
+                "/auth?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}&embedded=1";
+            </script>
+          </body>
+        </html>
+      `);
     }
   }
 
   console.log("✅ Session found — loading SPA");
 
-  const indexPath = path.join(
-    __dirname,
-    "frontend",
-    "dist",
-    "index.html"
-  );
-
+  const indexPath = path.join(__dirname, "frontend", "dist", "index.html");
   const apiKey = process.env.SHOPIFY_API_KEY || "";
+  const host = String(req.query.host || "");
 
-const host = String(req.query.host || "");
-
-const html = fs
-  .readFileSync(indexPath, "utf8")
-  .replace(
-    "</body>",
-    `
+  const html = fs
+    .readFileSync(indexPath, "utf8")
+    .replace(
+      "</body>",
+      `
 <script>
 window.__SHOPIFY_API_KEY__ = ${JSON.stringify(apiKey)};
 window.__SHOPIFY_HOST__ = ${JSON.stringify(host)};
@@ -282,11 +265,20 @@ window.__APP_ORIGIN__ = ${JSON.stringify(process.env.APP_URL)};
 })();
 </script>
 </body>`
-  );
+    );
 
-  
   res.send(html);
 });
+
+/* =========================================================
+   STATIC FILES
+========================================================= */
+app.use("/web", express.static(path.join(__dirname, "public")));
+app.use(
+  express.static(path.join(__dirname, "frontend", "dist"), {
+    index: false,
+  })
+);
 
 /* =========================================================
    START SERVER
