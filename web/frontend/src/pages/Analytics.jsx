@@ -6,6 +6,7 @@ import {
   InlineGrid,
   BlockStack,
   Spinner,
+  Banner,
 } from "@shopify/polaris";
 import { useEffect, useState } from "react";
 import { fetchAnalytics } from "../api/analytics";
@@ -13,24 +14,35 @@ import { fetchAnalytics } from "../api/analytics";
 export default function Analytics() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-useEffect(() => {
-  fetchAnalytics()
-    .then((d) => {
-      console.log("📊 Analytics response:", d);
-      setData(d);
-    })
-    .catch((err) => {
-      console.error("❌ Analytics fetch failed:", err);
-      setData(null);
-    })
-    .finally(() => setLoading(false));
-}, []);
+  useEffect(() => {
+    fetchAnalytics()
+      .then((d) => {
+        console.log("📊 Analytics response:", d);
+        setData(d);
+      })
+      .catch((err) => {
+        console.error("❌ Analytics fetch failed:", err);
+        setError(err.message || "Failed to load analytics");
+      })
+      .finally(() => setLoading(false));
+  }, []);
 
   if (loading) {
     return (
       <Page title="Analytics">
         <Spinner accessibilityLabel="Loading analytics" />
+      </Page>
+    );
+  }
+
+  if (error) {
+    return (
+      <Page title="Analytics">
+        <Banner tone="critical" title="Failed to load analytics">
+          <p>{error}</p>
+        </Banner>
       </Page>
     );
   }
@@ -55,10 +67,10 @@ useEffect(() => {
               <MetricCard
                 title="Add-to-Cart Rate"
                 value={
-  data?.atcRate != null
-    ? `${Math.min(100, data.atcRate).toFixed(2)}%`
-    : "—"
-}
+                  data?.atcRate != null
+                    ? `${Math.min(100, data.atcRate).toFixed(2)}%`
+                    : "—"
+                }
                 description="Sticky ATC clicks vs product views"
               />
 
