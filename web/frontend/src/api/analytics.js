@@ -11,23 +11,33 @@ const app = createApp({
   forceRedirect: true,
 });
 
-// Decode JWT payload
+// Decode JWT payload safely
 function parseJwt(token) {
-  const base64 = token.split(".")[1];
-  const json = atob(base64);
-  return JSON.parse(json);
+  try {
+    const base64 = token.split(".")[1];
+    const json = atob(base64);
+    return JSON.parse(json);
+  } catch (e) {
+    console.error("Failed to parse JWT", e);
+    return null;
+  }
 }
 
-async function getShopFromToken() {
+// Get token + shop in one call
+async function getAuthContext() {
   const token = await getSessionToken(app);
   const payload = parseJwt(token);
-  return payload.dest.replace("https://", "");
+
+  const shop = payload?.dest
+    ? payload.dest.replace("https://", "")
+    : null;
+
+  return { token, shop };
 }
 
 export async function fetchAnalytics(days = 7) {
   const origin = getAppOrigin();
-  const token = await getSessionToken(app);
-  const shop = await getShopFromToken();
+  const { token, shop } = await getAuthContext();
 
   const res = await fetch(
     `${origin}/api/analytics/summary?days=${days}&shop=${shop}`,
@@ -49,8 +59,7 @@ export async function fetchAnalytics(days = 7) {
 
 export async function fetchAnalyticsEvents(limit = 50) {
   const origin = getAppOrigin();
-  const token = await getSessionToken(app);
-  const shop = await getShopFromToken();
+  const { token, shop } = await getAuthContext();
 
   const res = await fetch(
     `${origin}/api/analytics/events?limit=${limit}&shop=${shop}`,
