@@ -15,7 +15,7 @@ export default function Dashboard() {
   const [summary, setSummary] = useState({});
 
   useEffect(() => {
-    fetchAnalytics()
+    fetchAnalytics(30)
       .then((data) => {
         console.log("Analytics response:", data);
         setSummary(data);
