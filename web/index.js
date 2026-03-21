@@ -263,7 +263,9 @@ app.get("*", async (req, res, next) => {
 <script>
 window.__SHOPIFY_API_KEY__ = ${JSON.stringify(apiKey)};
 window.__SHOPIFY_HOST__ = ${JSON.stringify(host)};
-window.__APP_ORIGIN__ = ${JSON.stringify(process.env.APP_URL)};
+window.__APP_ORIGIN__ = ${JSON.stringify(
+  process.env.APP_URL || `${req.protocol}://${req.get('host')}`
+)};
 
 // Load Shopify App Bridge safely after page load
 (function(){
