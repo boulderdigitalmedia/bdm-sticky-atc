@@ -59,7 +59,6 @@ app.options("*", cors());
 /* =========================================================
    BODY PARSING
 ========================================================= */
-
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -67,6 +66,16 @@ app.use(express.urlencoded({ extended: true }));
    SHOPIFY INIT
 ========================================================= */
 shopifyModule.initShopify(app);
+
+/* =========================================================
+   STATIC FILES (must be before catch-all)
+========================================================= */
+app.use("/web", express.static(path.join(__dirname, "public")));
+app.use(
+  express.static(path.join(__dirname, "frontend", "dist"), {
+    index: false,
+  })
+);
 
 /* =========================================================
    ROUTES
@@ -90,7 +99,7 @@ app.get("/__debug/conversions", async (req, res) => {
 });
 
 /* =========================================================
-   ⭐ EMBEDDED APP LOADER
+   ⭐ EMBEDDED APP LOADER (catch-all must be last)
 ========================================================= */
 app.get("*", async (req, res, next) => {
   if (req.path.startsWith("/api")) {
@@ -271,16 +280,6 @@ window.__APP_ORIGIN__ = ${JSON.stringify(process.env.APP_URL)};
 
   res.send(html);
 });
-
-/* =========================================================
-   STATIC FILES
-========================================================= */
-app.use("/web", express.static(path.join(__dirname, "public")));
-app.use(
-  express.static(path.join(__dirname, "frontend", "dist"), {
-    index: false,
-  })
-);
 
 /* =========================================================
    START SERVER
