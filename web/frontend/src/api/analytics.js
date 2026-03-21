@@ -5,11 +5,13 @@ function getAppOrigin() {
   return window.__APP_ORIGIN__ || window.location.origin;
 }
 
-const app = createApp({
-  apiKey: window.__SHOPIFY_API_KEY__,
-  host: window.__SHOPIFY_HOST__,
-  forceRedirect: true,
-});
+function getApp() {
+  return createApp({
+    apiKey: window.__SHOPIFY_API_KEY__,
+    host: window.__SHOPIFY_HOST__,
+    forceRedirect: true,
+  });
+}
 
 // Decode JWT payload safely
 function parseJwt(token) {
@@ -25,7 +27,7 @@ function parseJwt(token) {
 
 // Get token + shop in one call
 async function getAuthContext() {
-  const token = await getSessionToken(app);
+  const token = await getSessionToken(getApp());
   const payload = parseJwt(token);
 
   const shop = payload?.dest

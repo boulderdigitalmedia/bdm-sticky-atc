@@ -2,8 +2,7 @@
 import express from "express";
 import { PrismaClient } from "@prisma/client";
 
-const prisma = new PrismaClient();
-const router = express.Router();
+import prisma from "../prisma.js";
 
 /**
  * GET /api/sticky/summary
@@ -25,7 +24,7 @@ router.get("/summary", async (req, res) => {
       qtyAgg,
       variantCounts,
     ] = await Promise.all([
-      prisma.StickyEvent.count({
+      prisma.stickyEvent.count({
         where: { shopDomain, type: "impression" },
       }),
       prisma.StickyEvent.count({
