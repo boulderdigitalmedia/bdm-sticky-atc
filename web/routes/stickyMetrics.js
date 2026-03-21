@@ -1,8 +1,8 @@
 // web/routes/stickyMetrics.js
 import express from "express";
-import { PrismaClient } from "@prisma/client";
-
 import prisma from "../prisma.js";
+
+const router = express.Router();
 
 /**
  * GET /api/sticky/summary
