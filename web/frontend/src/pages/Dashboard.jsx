@@ -4,26 +4,34 @@ import {
   Card,
   Text,
   InlineGrid,
-  BlockStack
+  BlockStack,
+  InlineStack,
+  ButtonGroup,
+  Button,
 } from "@shopify/polaris";
 import { useEffect, useState } from "react";
 import AppStatusCard from "../components/AppStatusCard";
 import { fetchAnalytics } from "../api/analytics";
 
+const DAY_OPTIONS = [7, 30, 90];
+
 export default function Dashboard() {
-  console.log("Dashboard mounted");
   const [summary, setSummary] = useState({});
+  const [days, setDays] = useState(30);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    fetchAnalytics(30)
+    setLoading(true);
+    fetchAnalytics(days)
       .then((data) => {
         console.log("Analytics response:", data);
         setSummary(data);
       })
       .catch((err) => {
         console.error("Analytics failed:", err);
-      });
-  }, []);
+      })
+      .finally(() => setLoading(false));
+  }, [days]);
 
   const clicks = summary?.clicks ?? "—";
   const atcRate = summary?.atcRate != null ? `${summary.atcRate}%` : "—";
@@ -40,23 +48,42 @@ export default function Dashboard() {
         <Layout.Section>
           <Card>
             <BlockStack gap="300">
-              <Text variant="headingMd">Performance Overview</Text>
+              <InlineStack align="space-between">
+                <Text variant="headingMd">Performance Overview</Text>
+                <ButtonGroup variant="segmented">
+                  {DAY_OPTIONS.map((d) => (
+                    <Button
+                      key={d}
+                      pressed={days === d}
+                      onClick={() => setDays(d)}
+                    >
+                      {d}d
+                    </Button>
+                  ))}
+                </ButtonGroup>
+              </InlineStack>
 
               <InlineGrid columns={3} gap="400">
 
                 <BlockStack>
                   <Text variant="headingXs">Sticky ATC Clicks</Text>
-                  <Text variant="heading2xl">{clicks}</Text>
+                  <Text variant="heading2xl">
+                    {loading ? "..." : clicks}
+                  </Text>
                 </BlockStack>
 
                 <BlockStack>
                   <Text variant="headingXs">Add-to-Cart Rate</Text>
-                  <Text variant="heading2xl">{atcRate}</Text>
+                  <Text variant="heading2xl">
+                    {loading ? "..." : atcRate}
+                  </Text>
                 </BlockStack>
 
                 <BlockStack>
                   <Text variant="headingXs">Revenue Influenced</Text>
-                  <Text variant="heading2xl">{revenue}</Text>
+                  <Text variant="heading2xl">
+                    {loading ? "..." : revenue}
+                  </Text>
                 </BlockStack>
 
               </InlineGrid>
