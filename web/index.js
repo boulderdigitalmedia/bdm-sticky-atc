@@ -11,6 +11,7 @@ import settingsRouter from "./routes/settings.js";
 import trackRouter from "./routes/track.js";
 import stickyAnalyticsRouter from "./routes/stickyAnalytics.js";
 import attributionRouter from "./routes/attribution.js";
+import stickyMetricsRouter from "./routes/stickyMetrics.js";
 
 console.log("🚀 INDEX FILE LOADED");
 
