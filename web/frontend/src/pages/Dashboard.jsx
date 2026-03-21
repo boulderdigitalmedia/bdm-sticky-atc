@@ -8,28 +8,22 @@ import {
 } from "@shopify/polaris";
 import { useEffect, useState } from "react";
 import AppStatusCard from "../components/AppStatusCard";
+import { fetchAnalytics } from "../api/analytics";
 
 export default function Dashboard() {
   console.log("Dashboard mounted");
   const [summary, setSummary] = useState({});
 
   useEffect(() => {
-  const load = async () => {
-    try {
-      const res = await fetch(`/api/analytics/summary`);
-
-      const data = await res.json();
-
-      console.log("Analytics response:", data);
-
-      setSummary(data);
-    } catch (err) {
-      console.error("Analytics failed:", err);
-    }
-  };
-
-  load();
-}, []);
+    fetchAnalytics()
+      .then((data) => {
+        console.log("Analytics response:", data);
+        setSummary(data);
+      })
+      .catch((err) => {
+        console.error("Analytics failed:", err);
+      });
+  }, []);
 
   const clicks = summary?.clicks ?? "—";
   const atcRate = summary?.atcRate != null ? `${summary.atcRate}%` : "—";
