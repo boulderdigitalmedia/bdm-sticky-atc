@@ -272,8 +272,8 @@ window.__APP_ORIGIN__ = ${JSON.stringify(
   if (!window.shopify) {
     var s = document.createElement("script");
     s.src = "https://cdn.shopify.com/shopifycloud/app-bridge.js";
-    s.async = true;
-    document.body.appendChild(s);
+    s.setAttribute("data-api-key", ${JSON.stringify(apiKey)});
+    document.head.appendChild(s);
   }
 })();
 </script>
