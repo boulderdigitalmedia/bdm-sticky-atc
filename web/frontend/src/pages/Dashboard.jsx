@@ -41,7 +41,6 @@ export default function Dashboard() {
   return (
     <Page title="Dashboard">
       <Layout>
-
         <Layout.Section>
           <Card>
             <BlockStack gap="300">
