@@ -258,6 +258,11 @@ app.get("*", async (req, res, next) => {
   const html = fs
     .readFileSync(indexPath, "utf8")
     .replace(
+      "<head>",
+      `<head>
+<script src="https://cdn.shopify.com/shopifycloud/app-bridge.js" data-api-key="${apiKey}"></script>`
+    )
+    .replace(
       "</body>",
       `
 <script>
@@ -266,16 +271,6 @@ window.__SHOPIFY_HOST__ = ${JSON.stringify(host)};
 window.__APP_ORIGIN__ = ${JSON.stringify(
   process.env.APP_URL || `${req.protocol}://${req.get('host')}`
 )};
-
-// Load Shopify App Bridge safely after page load
-(function(){
-  if (!window.shopify) {
-    var s = document.createElement("script");
-    s.src = "https://cdn.shopify.com/shopifycloud/app-bridge.js";
-    s.setAttribute("data-api-key", ${JSON.stringify(apiKey)});
-    document.head.appendChild(s);
-  }
-})();
 </script>
 </body>`
     );

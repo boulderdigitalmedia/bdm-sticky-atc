@@ -3,6 +3,9 @@ name = "Sticky Add-To-Cart Bar Pro"
 application_url = "https://sticky-add-to-cart-bar-pro.onrender.com"
 embedded = true
 
+[build]
+dev_store_url = "bdm-sandbox.myshopify.com"
+
 [webhooks]
 api_version = "2026-01"
 
