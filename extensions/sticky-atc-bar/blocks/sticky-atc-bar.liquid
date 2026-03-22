@@ -74,7 +74,7 @@
 </script>
 
 {{ 'sticky-atc-bar.css' | asset_url | stylesheet_tag }}
-{{ 'sticky-atc-bar.js' | asset_url | script_tag }}
+<script src="{{ 'sticky-atc-bar.js' | asset_url }}" defer></script>
 
 {% schema %}
 {

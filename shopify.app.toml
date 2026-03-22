@@ -28,3 +28,8 @@ redirect_urls = [
 url = "https://sticky-add-to-cart-bar-pro.onrender.com"
 subpath = "bdm-sticky-atc"
 prefix = "apps"
+
+[[extensions]]
+type = "theme"
+handle = "sticky-atc-bar"
+uid = "1ce1ff9d-dec9-257f-dc46-969008c929b71f8a67d2"
