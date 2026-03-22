@@ -41,9 +41,6 @@ export default function Dashboard() {
   return (
     <Page title="Dashboard">
       <Layout>
-        <Layout.Section>
-          <AppStatusCard />
-        </Layout.Section>
 
         <Layout.Section>
           <Card>
