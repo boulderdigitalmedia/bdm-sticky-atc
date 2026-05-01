@@ -63,6 +63,8 @@ model ShopSettings {
   includePages    String?
   excludePages    String?
 
+  onboardingComplete Boolean @default(false)
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }
@@ -100,7 +102,6 @@ model StickyConversion {
   occurredAt    DateTime
   createdAt     DateTime @default(now())
 
-  // Named compound unique index (required for findUnique)
   @@unique([shop, orderId], name: "shop_orderId")
 
   @@index([shop])
