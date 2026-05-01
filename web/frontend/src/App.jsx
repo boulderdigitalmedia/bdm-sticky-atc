@@ -24,12 +24,7 @@ function AppRoutes() {
   useEffect(() => {
     const s = getShop();
     setShop(s);
-
-    if (!s) {
-      setOnboardingDone(true);
-      return;
-    }
-
+    if (!s) { setOnboardingDone(true); return; }
     fetch(`/api/settings?shop=${encodeURIComponent(s)}`)
       .then((r) => r.json())
       .then((data) => setOnboardingDone(!!data?.onboardingComplete))
@@ -46,8 +41,9 @@ function AppRoutes() {
     <>
       <ReviewPrompt shop={shop} />
       <Routes>
-        <Route path="/" element={<Dashboard />} />
+        <Route path="/"          element={<Dashboard />} />
         <Route path="/analytics" element={<Analytics />} />
+        <Route path="/setup"     element={<Onboarding isSetupPage={true} />} />
       </Routes>
     </>
   );
