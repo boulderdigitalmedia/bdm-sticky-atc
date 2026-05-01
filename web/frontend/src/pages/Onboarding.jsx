@@ -27,7 +27,7 @@ const SETUP_STEPS = [
     number: 1,
     title: "Open Theme Editor",
     description:
-      "Click the button below to open your Theme Editor. It will take you directly to the App Embeds section.",
+      "Click the button below to open your Theme Editor. It will take you directly to the App Embeds section. Then click the circle to mark this step complete.",
     action: "Open Theme Editor →",
     isLink: true,
   },
@@ -35,13 +35,13 @@ const SETUP_STEPS = [
     number: 2,
     title: "Enable the App Embed",
     description:
-      'In the Theme Editor, click the puzzle piece icon (⊞) labelled "App embeds" in the left sidebar. Find "Sticky Add To Cart Bar" and toggle it ON.',
+      'In the Theme Editor, click the puzzle piece icon (⊞) labelled "App embeds" in the left sidebar. Find "Sticky Add To Cart Bar" and toggle it ON. Then click the circle ② to mark complete.',
   },
   {
     number: 3,
     title: "Save your theme",
     description:
-      'Click "Save" in the top right of the Theme Editor. The sticky bar is now live on all your product pages.',
+      'Click "Save" in the top right of the Theme Editor. The sticky bar is now live on all your product pages. Then click the circle ③ to mark complete.',
   },
 ];
 
@@ -160,6 +160,11 @@ export default function Onboarding({ onComplete, isSetupPage = false }) {
         {/* ── INSTALLATION ── */}
         <BlockStack gap="300">
           <Text variant="headingLg" as="h2">Installation</Text>
+          <Banner tone="warning">
+            <Text variant="bodyMd">
+              <strong>👆 Click each numbered circle</strong> after completing the step to mark it done and unlock the "Go to Dashboard" button.
+            </Text>
+          </Banner>
           <Card>
             <BlockStack gap="0">
               {SETUP_STEPS.map((step, i) => {
@@ -178,12 +183,13 @@ export default function Onboarding({ onComplete, isSetupPage = false }) {
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
-                            background: done ? "#008060" : "#f1f1f1",
-                            color: done ? "#fff" : "#6d7175",
+                            background: done ? "#008060" : "#e3f1ec",
+                            color: done ? "#fff" : "#008060",
                             fontWeight: 700,
                             fontSize: 15,
                             cursor: "pointer",
-                            transition: "background 0.2s",
+                            border: done ? "2px solid #008060" : "2px dashed #008060",
+                            transition: "all 0.2s",
                           }}
                           onClick={() => toggleStep(step.number)}
                           title="Click to mark complete"
