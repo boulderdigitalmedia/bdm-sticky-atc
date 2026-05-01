@@ -12,6 +12,7 @@ import trackRouter from "./routes/track.js";
 import stickyAnalyticsRouter from "./routes/stickyAnalytics.js";
 import attributionRouter from "./routes/attribution.js";
 import stickyMetricsRouter from "./routes/stickyMetrics.js";
+import reviewStatusRouter from "./routes/reviewStatus.js";
 
 console.log("🚀 INDEX FILE LOADED");
 
@@ -86,6 +87,7 @@ app.use("/apps/bdm-sticky-atc/track", trackRouter);
 app.use("/api/analytics", stickyAnalyticsRouter);
 app.use("/api/sticky", stickyMetricsRouter);
 app.use("/attribution", attributionRouter);
+app.use("/api/review-status", reviewStatusRouter);
 
 /* =========================================================
    DEBUG ROUTE

@@ -1,51 +1,55 @@
 import React, { useEffect, useState } from "react";
 import { AppProvider } from "@shopify/polaris";
 import "@shopify/polaris/build/esm/styles.css";
-import { Routes, Route, useNavigate } from "react-router-dom";
+import { Routes, Route } from "react-router-dom";
 
 import Dashboard from "./pages/Dashboard.jsx";
 import Analytics from "./pages/Analytics.jsx";
 import Onboarding from "./pages/Onboarding.jsx";
+import ReviewPrompt from "./components/ReviewPrompt.jsx";
+
+function getShop() {
+  return (
+    window.__SHOPIFY_SHOP__ ||
+    new URLSearchParams(window.location.search).get("shop") ||
+    window.Shopify?.shop ||
+    null
+  );
+}
 
 function AppRoutes() {
-  const [onboardingDone, setOnboardingDone] = useState(null); // null = loading
-  const navigate = useNavigate();
+  const [onboardingDone, setOnboardingDone] = useState(null);
+  const [shop, setShop] = useState(null);
 
   useEffect(() => {
-    const shop =
-      window.__SHOPIFY_SHOP__ ||
-      new URLSearchParams(window.location.search).get("shop") ||
-      window.Shopify?.shop;
+    const s = getShop();
+    setShop(s);
 
-    if (!shop) {
-      setOnboardingDone(true); // can't check, skip
+    if (!s) {
+      setOnboardingDone(true);
       return;
     }
 
-    fetch(`/api/settings?shop=${encodeURIComponent(shop)}`)
+    fetch(`/api/settings?shop=${encodeURIComponent(s)}`)
       .then((r) => r.json())
-      .then((data) => {
-        setOnboardingDone(!!data?.onboardingComplete);
-      })
-      .catch(() => setOnboardingDone(true)); // on error, skip onboarding
+      .then((data) => setOnboardingDone(!!data?.onboardingComplete))
+      .catch(() => setOnboardingDone(true));
   }, []);
 
-  if (onboardingDone === null) {
-    // Loading state — Polaris SkeletonPage would be ideal but keep it simple
-    return null;
-  }
+  if (onboardingDone === null) return null;
 
   if (!onboardingDone) {
-    return (
-      <Onboarding onComplete={() => setOnboardingDone(true)} />
-    );
+    return <Onboarding onComplete={() => setOnboardingDone(true)} />;
   }
 
   return (
-    <Routes>
-      <Route path="/" element={<Dashboard />} />
-      <Route path="/analytics" element={<Analytics />} />
-    </Routes>
+    <>
+      <ReviewPrompt shop={shop} />
+      <Routes>
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/analytics" element={<Analytics />} />
+      </Routes>
+    </>
   );
 }
 

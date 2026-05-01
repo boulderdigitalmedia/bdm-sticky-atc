@@ -1,0 +1,1 @@
+ALTER TABLE "ShopSettings" ADD COLUMN IF NOT EXISTS "reviewPromptShown" BOOLEAN NOT NULL DEFAULT false;

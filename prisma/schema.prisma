@@ -58,12 +58,13 @@ model ShopSettings {
   bgColor         String   @default("#000000")
   textColor       String   @default("#ffffff")
 
-  position        String   @default("bottom") // bottom | top
+  position        String   @default("bottom")
 
   includePages    String?
   excludePages    String?
 
   onboardingComplete Boolean @default(false)
+  reviewPromptShown  Boolean @default(false)
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
