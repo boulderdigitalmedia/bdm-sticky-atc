@@ -215,12 +215,32 @@ app.get("*", async (req, res, next) => {
       const pricingUrl =
         `https://admin.shopify.com/store/${storeHandle}/charges/${appHandle}/pricing_plans`;
 
+      // Chrome popup blocker FIX:
+      // window.top.location.href inside an iframe is treated as a popup
+      // by Chrome and blocked. We use a combination of:
+      // 1. <meta http-equiv="refresh"> — works without JS, not blocked
+      // 2. A visible "Click here" link as fallback for the merchant
+      // 3. window.top.location.href as a tertiary JS attempt
+      // This matches Shopify's own recommended pattern for billing redirects.
       return res.status(200).send(`
         <!doctype html>
         <html>
+          <head>
+            <meta http-equiv="refresh" content="0;url=${pricingUrl}">
+            <style>
+              body { font-family: -apple-system, sans-serif; display: flex;
+                     align-items: center; justify-content: center;
+                     height: 100vh; margin: 0; flex-direction: column; gap: 12px; }
+              a { color: #008060; font-size: 16px; }
+            </style>
+          </head>
           <body>
+            <p>Redirecting to billing...</p>
+            <a href="${pricingUrl}">Click here if you are not redirected</a>
             <script>
-              window.top.location.href = ${JSON.stringify(pricingUrl)};
+              try { window.top.location.href = ${JSON.stringify(pricingUrl)}; } catch(e) {
+                window.location.href = ${JSON.stringify(pricingUrl)};
+              }
             </script>
           </body>
         </html>

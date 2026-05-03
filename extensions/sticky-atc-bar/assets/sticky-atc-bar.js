@@ -456,19 +456,35 @@
         quantity: currentQty
       });
 
+      // Mobile FIX: on mobile Dawn may not render cart-drawer in the DOM
+      // until after first interaction. We search more broadly and also
+      // handle the case where Dawn uses a cart-notification instead.
       const drawer =
         document.querySelector("cart-drawer") ||
         document.getElementById("CartDrawer")?.closest("cart-drawer") ||
+        document.getElementById("CartDrawer") ||
         null;
 
-      if (drawer) {
+      const cartNotification =
+        document.querySelector("cart-notification") ||
+        document.getElementById("cart-notification") ||
+        null;
+
+      if (drawer || cartNotification) {
         atcBtn.disabled = true;
 
         const fd = new FormData();
         fd.append("id", variantInput.value);
         fd.append("quantity", currentQty);
-        // FIX #2: request sections in the ATC call itself — no second fetch needed
-        fd.append("sections", "cart-drawer,cart-icon-bubble");
+
+        // Request all possible section IDs — Dawn uses different ones
+        // depending on theme settings (drawer vs notification popup)
+        const sectionIds = [
+          "cart-drawer",
+          "cart-notification",
+          "cart-icon-bubble",
+        ].join(",");
+        fd.append("sections", sectionIds);
         fd.append("sections_url", window.location.pathname);
 
         let addData = null;
@@ -486,15 +502,37 @@
           return;
         }
 
-        // FIX #2: sections come back in the add response, not a separate fetch
         const sectionsData = addData?.sections || {};
 
+        // Update cart icon bubble
         if (sectionsData["cart-icon-bubble"]) {
           const bubble = document.getElementById("cart-icon-bubble");
           if (bubble) bubble.innerHTML = sectionsData["cart-icon-bubble"];
         }
 
-        if (sectionsData["cart-drawer"]) {
+        // Mobile FIX: handle cart-notification (Dawn's mobile cart popup)
+        if (sectionsData["cart-notification"] && cartNotification) {
+          try {
+            const doc = new DOMParser().parseFromString(
+              sectionsData["cart-notification"], "text/html"
+            );
+            const freshInner =
+              doc.querySelector("cart-notification")?.innerHTML ||
+              doc.getElementById("cart-notification")?.innerHTML;
+            if (freshInner) cartNotification.innerHTML = freshInner;
+          } catch {}
+
+          if (typeof cartNotification.renderContents === "function") {
+            cartNotification.renderContents(addData);
+          } else {
+            cartNotification.classList.add("active");
+            cartNotification.setAttribute("open", "");
+            cartNotification.dispatchEvent(new Event("open", { bubbles: true }));
+          }
+        }
+
+        // Update drawer HTML
+        if (sectionsData["cart-drawer"] && drawer) {
           try {
             const doc = new DOMParser().parseFromString(
               sectionsData["cart-drawer"], "text/html"
@@ -508,14 +546,20 @@
           } catch {}
         }
 
-        // FIX #4: use Dawn's own open() so focus-trap and aria attrs are set correctly
-        if (typeof drawer.open === "function") {
-          drawer.open();
-        } else {
-          drawer.classList.add("active");
-          drawer.setAttribute("open", "");
-          drawer.setAttribute("aria-hidden", "false");
-          drawer.dispatchEvent(new Event("open", { bubbles: true }));
+        // Open the drawer — mobile FIX: wait one frame after innerHTML
+        // update so Dawn's connectedCallback has time to re-register
+        // before open() is called, otherwise the drawer opens empty
+        if (drawer) {
+          requestAnimationFrame(() => {
+            if (typeof drawer.open === "function") {
+              drawer.open();
+            } else {
+              drawer.classList.add("active");
+              drawer.setAttribute("open", "");
+              drawer.setAttribute("aria-hidden", "false");
+              drawer.dispatchEvent(new Event("open", { bubbles: true }));
+            }
+          });
         }
 
         document.dispatchEvent(new CustomEvent("cart:updated"));
