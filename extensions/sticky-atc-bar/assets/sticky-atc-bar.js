@@ -526,7 +526,12 @@
           // Replace drawer innerHTML with fresh section HTML
           const doc = new DOMParser().parseFromString(drawerHtml, "text/html");
           const freshDrawer = doc.querySelector("cart-drawer");
-          if (freshDrawer) activeDrawer.innerHTML = freshDrawer.innerHTML;
+          if (freshDrawer) {
+            activeDrawer.innerHTML = freshDrawer.innerHTML;
+            // Remove is-empty class — Dawn sets this when cart is empty
+            // and doesn't remove it when we bypass renderContents
+            activeDrawer.classList.remove("is-empty");
+          }
         }
 
         // Open drawer after DOM is fully updated
