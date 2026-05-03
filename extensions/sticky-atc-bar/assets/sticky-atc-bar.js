@@ -500,45 +500,58 @@
           return;
         }
 
-        // Dawn's renderContents(parsedState) handles BOTH updating the DOM
-        // AND opening the drawer internally. Do NOT call open() separately
-        // or it triggers a double focus-trap that causes the querySelectorAll null error.
-        if (typeof activeDrawer.renderContents === "function") {
-          activeDrawer.renderContents(parsedState);
-        } else {
-          // Non-Dawn fallback: surgical DOM patching to preserve listeners
-          const sectionsData = parsedState?.sections || {};
-          const sectionKey = activeDrawer.tagName.toLowerCase() === "cart-drawer"
-            ? "cart-drawer" : "cart-notification";
-          const sectionHtml = sectionsData[sectionKey];
+        // Temporarily disconnect the MutationObserver during renderContents
+        // to prevent it from interfering with Dawn's internal open() call
+        __bdm_observer.disconnect();
 
-          if (sectionHtml) {
-            const doc = new DOMParser().parseFromString(sectionHtml, "text/html");
-            [
-              ".cart-drawer__form",
-              ".cart-drawer__footer",
-              "#CartDrawer-CartItems",
-              ".cart-items",
-              ".totals",
-              ".cart-drawer__warnings",
-            ].forEach(sel => {
-              const fresh = doc.querySelector(sel);
-              const existing = activeDrawer.querySelector(sel);
-              if (fresh && existing) existing.innerHTML = fresh.innerHTML;
+        requestAnimationFrame(() => {
+          if (typeof activeDrawer.renderContents === "function") {
+            activeDrawer.renderContents(parsedState);
+          } else {
+            // Non-Dawn fallback: surgical DOM patching to preserve listeners
+            const sectionsData = parsedState?.sections || {};
+            const sectionKey = activeDrawer.tagName.toLowerCase() === "cart-drawer"
+              ? "cart-drawer" : "cart-notification";
+            const sectionHtml = sectionsData[sectionKey];
+
+            if (sectionHtml) {
+              const doc = new DOMParser().parseFromString(sectionHtml, "text/html");
+              [
+                ".cart-drawer__form",
+                ".cart-drawer__footer",
+                "#CartDrawer-CartItems",
+                ".cart-items",
+                ".totals",
+                ".cart-drawer__warnings",
+              ].forEach(sel => {
+                const fresh = doc.querySelector(sel);
+                const existing = activeDrawer.querySelector(sel);
+                if (fresh && existing) existing.innerHTML = fresh.innerHTML;
+              });
+            }
+
+            requestAnimationFrame(() => {
+              if (typeof activeDrawer.open === "function") {
+                activeDrawer.open();
+              } else {
+                activeDrawer.classList.add("active");
+                activeDrawer.setAttribute("open", "");
+                activeDrawer.setAttribute("aria-hidden", "false");
+                activeDrawer.dispatchEvent(new Event("open", { bubbles: true }));
+              }
             });
           }
 
-          requestAnimationFrame(() => {
-            if (typeof activeDrawer.open === "function") {
-              activeDrawer.open();
-            } else {
-              activeDrawer.classList.add("active");
-              activeDrawer.setAttribute("open", "");
-              activeDrawer.setAttribute("aria-hidden", "false");
-              activeDrawer.dispatchEvent(new Event("open", { bubbles: true }));
-            }
-          });
-        }
+          // Reconnect observer after Dawn has finished its open sequence
+          setTimeout(() => {
+            __bdm_observer.observe(document.documentElement, {
+              subtree: true,
+              childList: true,
+              attributes: true,
+              attributeFilter: ["class", "style", "open", "aria-hidden"],
+            });
+          }, 500);
+        });
 
         // Update cart icon bubble separately
         const bubble = document.getElementById("cart-icon-bubble");
