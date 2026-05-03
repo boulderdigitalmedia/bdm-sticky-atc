@@ -456,115 +456,94 @@
         quantity: currentQty
       });
 
-      // Mobile FIX: on mobile Dawn may not render cart-drawer in the DOM
-      // until after first interaction. We search more broadly and also
-      // handle the case where Dawn uses a cart-notification instead.
-      const drawer =
+      const activeDrawer =
         document.querySelector("cart-drawer") ||
-        document.getElementById("CartDrawer")?.closest("cart-drawer") ||
+        document.querySelector("cart-notification") ||
         document.getElementById("CartDrawer") ||
         null;
 
-      const cartNotification =
-        document.querySelector("cart-notification") ||
-        document.getElementById("cart-notification") ||
-        null;
-
-      if (drawer || cartNotification) {
+      if (activeDrawer) {
         atcBtn.disabled = true;
 
-        const fd = new FormData();
-        fd.append("id", variantInput.value);
-        fd.append("quantity", currentQty);
-        fd.append("sections", "cart-drawer,cart-notification,cart-icon-bubble");
-        fd.append("sections_url", window.location.pathname);
+        // Use Dawn's own getSectionsToRender() to get correct dynamic
+        // section IDs (e.g. template--xxxxx__cart-drawer). This is the
+        // exact same approach Dawn's product-form.js uses internally.
+        let sectionIds;
+        if (typeof activeDrawer.getSectionsToRender === "function") {
+          sectionIds = activeDrawer.getSectionsToRender().map(s => s.section || s.id);
+        } else {
+          sectionIds = ["cart-drawer", "cart-notification", "cart-icon-bubble"];
+        }
 
-        let addData = null;
+        const body = JSON.stringify({
+          id: variantInput.value,
+          quantity: currentQty,
+          sections: sectionIds,
+          sections_url: window.location.pathname,
+        });
+
+        let parsedState = null;
         try {
           const res = await fetch("/cart/add.js", {
             method: "POST",
-            body: fd,
-            headers: { Accept: "application/json" }
+            body,
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
           });
           atcBtn.disabled = false;
           if (!res.ok) return;
-          addData = await res.json();
+          parsedState = await res.json();
         } catch {
           atcBtn.disabled = false;
           return;
         }
 
-        const sectionsData = addData?.sections || {};
+        // Dawn's renderContents(parsedState) expects the raw /cart/add.js
+        // response — sections HTML is already embedded in parsedState.sections.
+        // This mirrors exactly how Dawn's own product-form.js calls it.
+        if (typeof activeDrawer.renderContents === "function") {
+          activeDrawer.renderContents(parsedState);
+        } else {
+          // Non-Dawn fallback: surgical DOM patching to preserve listeners
+          const sectionsData = parsedState?.sections || {};
+          const sectionKey = activeDrawer.tagName.toLowerCase() === "cart-drawer"
+            ? "cart-drawer" : "cart-notification";
+          const sectionHtml = sectionsData[sectionKey];
 
-        // Update cart icon bubble count
-        if (sectionsData["cart-icon-bubble"]) {
-          const bubble = document.getElementById("cart-icon-bubble");
-          if (bubble) bubble.innerHTML = sectionsData["cart-icon-bubble"];
-        }
-
-        // KEY FIX: Never replace drawer.innerHTML directly — this breaks
-        // Dawn's custom element lifecycle and leaves the cart visually empty.
-        // Instead use Dawn's own renderContents() which handles the full
-        // update cycle including re-attaching event listeners.
-        // Only fall back to innerHTML if renderContents doesn't exist
-        // (non-Dawn themes).
-
-        const activeDrawer = drawer || cartNotification;
-
-        // Dawn 8 renderContents() expects parsedState (the cart JSON)
-        // AND the sections HTML. We fetch the cart JSON separately so
-        // renderContents gets both pieces it needs to fully re-render.
-        try {
-          const cartRes = await fetch("/cart.js", { credentials: "same-origin" });
-          const cartJson = cartRes.ok ? await cartRes.json() : null;
-
-          if (cartJson && typeof activeDrawer.renderContents === "function") {
-            // Dawn 8 signature: renderContents(parsedState, sections)
-            // Some Dawn versions merge sections into parsedState.sections
-            cartJson.sections = sectionsData;
-            activeDrawer.renderContents(cartJson);
-          } else {
-            // Fallback: patch each named section individually using
-            // Dawn's getSectionInnerHTML helper if available, otherwise
-            // use querySelector to find and replace just the inner nodes
-            // without wiping the custom element's root (which kills listeners)
-            const sectionKey = drawer ? "cart-drawer" : "cart-notification";
-            const sectionHtml = sectionsData[sectionKey];
-
-            if (sectionHtml) {
-              const doc = new DOMParser().parseFromString(sectionHtml, "text/html");
-
-              // Replace individual sections inside the drawer instead of
-              // replacing the entire innerHTML — this preserves event listeners
-              const selectors = [
-                ".cart-drawer__form",
-                ".cart-drawer__footer",
-                "#CartDrawer-CartItems",
-                ".cart-items",
-                ".totals",
-                ".cart-drawer__warnings",
-              ];
-
-              selectors.forEach(sel => {
-                const fresh = doc.querySelector(sel);
-                const existing = activeDrawer.querySelector(sel);
-                if (fresh && existing) existing.innerHTML = fresh.innerHTML;
-              });
-            }
-
-            // Open the drawer using Dawn's method or fallback
-            requestAnimationFrame(() => {
-              if (typeof activeDrawer.open === "function") {
-                activeDrawer.open();
-              } else {
-                activeDrawer.classList.add("active");
-                activeDrawer.setAttribute("open", "");
-                activeDrawer.setAttribute("aria-hidden", "false");
-                activeDrawer.dispatchEvent(new Event("open", { bubbles: true }));
-              }
+          if (sectionHtml) {
+            const doc = new DOMParser().parseFromString(sectionHtml, "text/html");
+            [
+              ".cart-drawer__form",
+              ".cart-drawer__footer",
+              "#CartDrawer-CartItems",
+              ".cart-items",
+              ".totals",
+              ".cart-drawer__warnings",
+            ].forEach(sel => {
+              const fresh = doc.querySelector(sel);
+              const existing = activeDrawer.querySelector(sel);
+              if (fresh && existing) existing.innerHTML = fresh.innerHTML;
             });
           }
-        } catch {}
+
+          requestAnimationFrame(() => {
+            if (typeof activeDrawer.open === "function") {
+              activeDrawer.open();
+            } else {
+              activeDrawer.classList.add("active");
+              activeDrawer.setAttribute("open", "");
+              activeDrawer.setAttribute("aria-hidden", "false");
+              activeDrawer.dispatchEvent(new Event("open", { bubbles: true }));
+            }
+          });
+        }
+
+        // Update cart icon bubble separately
+        const bubble = document.getElementById("cart-icon-bubble");
+        const bubbleHtml = parsedState?.sections?.["cart-icon-bubble"];
+        if (bubble && bubbleHtml) bubble.innerHTML = bubbleHtml;
 
         document.dispatchEvent(new CustomEvent("cart:updated"));
         document.dispatchEvent(new CustomEvent("cart:refresh"));
