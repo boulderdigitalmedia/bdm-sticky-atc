@@ -500,49 +500,47 @@
           return;
         }
 
-        // Temporarily disconnect the MutationObserver during renderContents
-        // to prevent it from interfering with Dawn's internal open() call
+        // Disconnect observer to prevent interference during drawer update
         __bdm_observer.disconnect();
 
+        const sectionsData = parsedState?.sections || {};
+        const drawerHtml = sectionsData["cart-drawer"];
+        const bubbleHtml = sectionsData["cart-icon-bubble"];
+
+        // Update cart icon bubble
+        if (bubbleHtml) {
+          const bubble = document.getElementById("cart-icon-bubble");
+          if (bubble) bubble.innerHTML = bubbleHtml;
+        }
+
+        // Patch trapFocus to guard null container (Dawn bug on empty→full cart)
+        if (window.trapFocus) {
+          const origTF = window.trapFocus;
+          window.trapFocus = function(container, elementToFocus) {
+            if (!container) return;
+            return origTF(container, elementToFocus);
+          };
+        }
+
+        if (drawerHtml) {
+          // Replace drawer innerHTML with fresh section HTML
+          const doc = new DOMParser().parseFromString(drawerHtml, "text/html");
+          const freshDrawer = doc.querySelector("cart-drawer");
+          if (freshDrawer) activeDrawer.innerHTML = freshDrawer.innerHTML;
+        }
+
+        // Open drawer after DOM is fully updated
         requestAnimationFrame(() => {
-          if (typeof activeDrawer.renderContents === "function") {
-            activeDrawer.renderContents(parsedState);
+          if (typeof activeDrawer.open === "function") {
+            activeDrawer.open();
           } else {
-            // Non-Dawn fallback: surgical DOM patching to preserve listeners
-            const sectionsData = parsedState?.sections || {};
-            const sectionKey = activeDrawer.tagName.toLowerCase() === "cart-drawer"
-              ? "cart-drawer" : "cart-notification";
-            const sectionHtml = sectionsData[sectionKey];
-
-            if (sectionHtml) {
-              const doc = new DOMParser().parseFromString(sectionHtml, "text/html");
-              [
-                ".cart-drawer__form",
-                ".cart-drawer__footer",
-                "#CartDrawer-CartItems",
-                ".cart-items",
-                ".totals",
-                ".cart-drawer__warnings",
-              ].forEach(sel => {
-                const fresh = doc.querySelector(sel);
-                const existing = activeDrawer.querySelector(sel);
-                if (fresh && existing) existing.innerHTML = fresh.innerHTML;
-              });
-            }
-
-            requestAnimationFrame(() => {
-              if (typeof activeDrawer.open === "function") {
-                activeDrawer.open();
-              } else {
-                activeDrawer.classList.add("active");
-                activeDrawer.setAttribute("open", "");
-                activeDrawer.setAttribute("aria-hidden", "false");
-                activeDrawer.dispatchEvent(new Event("open", { bubbles: true }));
-              }
-            });
+            activeDrawer.classList.add("active");
+            activeDrawer.setAttribute("open", "");
+            activeDrawer.setAttribute("aria-hidden", "false");
+            activeDrawer.dispatchEvent(new Event("open", { bubbles: true }));
           }
 
-          // Reconnect observer after Dawn has finished its open sequence
+          // Reconnect observer after drawer is open
           setTimeout(() => {
             __bdm_observer.observe(document.documentElement, {
               subtree: true,
@@ -550,13 +548,8 @@
               attributes: true,
               attributeFilter: ["class", "style", "open", "aria-hidden"],
             });
-          }, 500);
+          }, 600);
         });
-
-        // Update cart icon bubble separately
-        const bubble = document.getElementById("cart-icon-bubble");
-        const bubbleHtml = parsedState?.sections?.["cart-icon-bubble"];
-        if (bubble && bubbleHtml) bubble.innerHTML = bubbleHtml;
 
         document.dispatchEvent(new CustomEvent("cart:updated"));
         document.dispatchEvent(new CustomEvent("cart:refresh"));
