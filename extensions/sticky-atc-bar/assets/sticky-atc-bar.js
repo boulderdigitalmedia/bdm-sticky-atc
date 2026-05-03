@@ -500,9 +500,9 @@
           return;
         }
 
-        // Dawn's renderContents(parsedState) expects the raw /cart/add.js
-        // response — sections HTML is already embedded in parsedState.sections.
-        // This mirrors exactly how Dawn's own product-form.js calls it.
+        // Dawn's renderContents(parsedState) handles BOTH updating the DOM
+        // AND opening the drawer internally. Do NOT call open() separately
+        // or it triggers a double focus-trap that causes the querySelectorAll null error.
         if (typeof activeDrawer.renderContents === "function") {
           activeDrawer.renderContents(parsedState);
         } else {
