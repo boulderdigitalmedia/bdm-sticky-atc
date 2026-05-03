@@ -476,15 +476,7 @@
         const fd = new FormData();
         fd.append("id", variantInput.value);
         fd.append("quantity", currentQty);
-
-        // Request all possible section IDs — Dawn uses different ones
-        // depending on theme settings (drawer vs notification popup)
-        const sectionIds = [
-          "cart-drawer",
-          "cart-notification",
-          "cart-icon-bubble",
-        ].join(",");
-        fd.append("sections", sectionIds);
+        fd.append("sections", "cart-drawer,cart-notification,cart-icon-bubble");
         fd.append("sections_url", window.location.pathname);
 
         let addData = null;
@@ -504,63 +496,75 @@
 
         const sectionsData = addData?.sections || {};
 
-        // Update cart icon bubble
+        // Update cart icon bubble count
         if (sectionsData["cart-icon-bubble"]) {
           const bubble = document.getElementById("cart-icon-bubble");
           if (bubble) bubble.innerHTML = sectionsData["cart-icon-bubble"];
         }
 
-        // Mobile FIX: handle cart-notification (Dawn's mobile cart popup)
-        if (sectionsData["cart-notification"] && cartNotification) {
-          try {
-            const doc = new DOMParser().parseFromString(
-              sectionsData["cart-notification"], "text/html"
-            );
-            const freshInner =
-              doc.querySelector("cart-notification")?.innerHTML ||
-              doc.getElementById("cart-notification")?.innerHTML;
-            if (freshInner) cartNotification.innerHTML = freshInner;
-          } catch {}
+        // KEY FIX: Never replace drawer.innerHTML directly — this breaks
+        // Dawn's custom element lifecycle and leaves the cart visually empty.
+        // Instead use Dawn's own renderContents() which handles the full
+        // update cycle including re-attaching event listeners.
+        // Only fall back to innerHTML if renderContents doesn't exist
+        // (non-Dawn themes).
 
-          if (typeof cartNotification.renderContents === "function") {
-            cartNotification.renderContents(addData);
+        const activeDrawer = drawer || cartNotification;
+
+        // Dawn 8 renderContents() expects parsedState (the cart JSON)
+        // AND the sections HTML. We fetch the cart JSON separately so
+        // renderContents gets both pieces it needs to fully re-render.
+        try {
+          const cartRes = await fetch("/cart.js", { credentials: "same-origin" });
+          const cartJson = cartRes.ok ? await cartRes.json() : null;
+
+          if (cartJson && typeof activeDrawer.renderContents === "function") {
+            // Dawn 8 signature: renderContents(parsedState, sections)
+            // Some Dawn versions merge sections into parsedState.sections
+            cartJson.sections = sectionsData;
+            activeDrawer.renderContents(cartJson);
           } else {
-            cartNotification.classList.add("active");
-            cartNotification.setAttribute("open", "");
-            cartNotification.dispatchEvent(new Event("open", { bubbles: true }));
-          }
-        }
+            // Fallback: patch each named section individually using
+            // Dawn's getSectionInnerHTML helper if available, otherwise
+            // use querySelector to find and replace just the inner nodes
+            // without wiping the custom element's root (which kills listeners)
+            const sectionKey = drawer ? "cart-drawer" : "cart-notification";
+            const sectionHtml = sectionsData[sectionKey];
 
-        // Update drawer HTML
-        if (sectionsData["cart-drawer"] && drawer) {
-          try {
-            const doc = new DOMParser().parseFromString(
-              sectionsData["cart-drawer"], "text/html"
-            );
-            const freshInner =
-              doc.querySelector("cart-drawer")?.innerHTML ||
-              doc.getElementById("CartDrawer")?.innerHTML ||
-              doc.querySelector('[id*="CartDrawer"]')?.innerHTML ||
-              doc.querySelector('[class*="cart-drawer"]')?.innerHTML;
-            if (freshInner) drawer.innerHTML = freshInner;
-          } catch {}
-        }
+            if (sectionHtml) {
+              const doc = new DOMParser().parseFromString(sectionHtml, "text/html");
 
-        // Open the drawer — mobile FIX: wait one frame after innerHTML
-        // update so Dawn's connectedCallback has time to re-register
-        // before open() is called, otherwise the drawer opens empty
-        if (drawer) {
-          requestAnimationFrame(() => {
-            if (typeof drawer.open === "function") {
-              drawer.open();
-            } else {
-              drawer.classList.add("active");
-              drawer.setAttribute("open", "");
-              drawer.setAttribute("aria-hidden", "false");
-              drawer.dispatchEvent(new Event("open", { bubbles: true }));
+              // Replace individual sections inside the drawer instead of
+              // replacing the entire innerHTML — this preserves event listeners
+              const selectors = [
+                ".cart-drawer__form",
+                ".cart-drawer__footer",
+                "#CartDrawer-CartItems",
+                ".cart-items",
+                ".totals",
+                ".cart-drawer__warnings",
+              ];
+
+              selectors.forEach(sel => {
+                const fresh = doc.querySelector(sel);
+                const existing = activeDrawer.querySelector(sel);
+                if (fresh && existing) existing.innerHTML = fresh.innerHTML;
+              });
             }
-          });
-        }
+
+            // Open the drawer using Dawn's method or fallback
+            requestAnimationFrame(() => {
+              if (typeof activeDrawer.open === "function") {
+                activeDrawer.open();
+              } else {
+                activeDrawer.classList.add("active");
+                activeDrawer.setAttribute("open", "");
+                activeDrawer.setAttribute("aria-hidden", "false");
+                activeDrawer.dispatchEvent(new Event("open", { bubbles: true }));
+              }
+            });
+          }
+        } catch {}
 
         document.dispatchEvent(new CustomEvent("cart:updated"));
         document.dispatchEvent(new CustomEvent("cart:refresh"));
