@@ -29,8 +29,12 @@ router.get("/", async (req, res) => {
     const since = new Date(Date.now() - MS);
 
     const [clicks, conversions, revenue] = await Promise.all([
-      prisma.stickyAtcEvent.count({
-        where: { shop, createdAt: { gte: since } },
+      prisma.analyticsEvent.count({
+        where: {
+          shop,
+          createdAt: { gte: since },
+          event: { in: ["add_to_cart", "sticky_atc_click"] },
+        },
       }),
       prisma.stickyConversion.count({
         where: { shop, occurredAt: { gte: since } },
