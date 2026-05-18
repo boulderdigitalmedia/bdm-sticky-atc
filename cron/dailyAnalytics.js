@@ -7,8 +7,8 @@ async function run() {
   const start = new Date(end.getTime() - 24 * 60 * 60 * 1000);
 
   // Get all shops with events yesterday
-  const shops = await prisma.stickyEvent.findMany({
-    where: { timestamp: { gte: start, lt: end } },
+  const shops = await prisma.analyticsEvent.findMany({
+    where: { createdAt: { gte: start, lt: end } },
     select: { shop: true },
     distinct: ["shop"]
   });
@@ -17,8 +17,16 @@ async function run() {
     const shop = s.shop;
 
     const [pageViews, addToCart, conversionsAgg, conversionsCount] = await Promise.all([
-      prisma.stickyEvent.count({ where: { shop, event: "page_view", timestamp: { gte: start, lt: end } } }),
-      prisma.stickyEvent.count({ where: { shop, event: "add_to_cart", timestamp: { gte: start, lt: end } } }),
+      prisma.analyticsEvent.count({
+        where: { shop, event: "page_view", createdAt: { gte: start, lt: end } }
+      }),
+      prisma.analyticsEvent.count({
+        where: {
+          shop,
+          event: { in: ["add_to_cart", "sticky_atc_click"] },
+          createdAt: { gte: start, lt: end }
+        }
+      }),
       prisma.stickyConversion.aggregate({ where: { shop, occurredAt: { gte: start, lt: end } }, _sum: { revenue: true } }),
       prisma.stickyConversion.count({ where: { shop, occurredAt: { gte: start, lt: end } } })
     ]);
