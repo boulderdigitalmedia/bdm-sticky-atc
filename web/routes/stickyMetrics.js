@@ -5,85 +5,87 @@ import prisma from "../prisma.js";
 const router = express.Router();
 
 /**
+ * Resolve shop the same way stickyAnalytics.js does, so this route
+ * works whether the caller passes ?shop=, an X-Shopify-Shop-Domain
+ * header, or a body { shop }.
+ */
+function getShop(req) {
+  const shop =
+    req.query.shop ||
+    req.get("X-Shopify-Shop-Domain") ||
+    req.get("x-shopify-shop-domain") ||
+    (req.body && req.body.shop) ||
+    "";
+
+  const cleaned = String(shop).trim();
+  if (!cleaned || cleaned === "unknown") return "";
+  return cleaned;
+}
+
+/**
  * GET /api/sticky/summary
- * Returns summary stats for the current shop
+ *
+ * Returns summary stats for the current shop. The JSON shape is kept
+ * backwards-compatible with the original implementation so any existing
+ * caller continues to work, but the numbers are now derived from the
+ * current AnalyticsEvent schema. `avgQuantity` and `topVariants` are no
+ * longer tracked at the event level, so they return safe empty values.
  */
 router.get("/summary", async (req, res) => {
   try {
-    const session = res.locals.shopify?.session;
-    if (!session) {
-      return res.status(401).json({ error: "No Shopify session" });
-    }
+    const shop = getShop(req);
+    const whereBase = shop ? { shop } : {};
 
-    const shopDomain = session.shop;
-
-    const [
-      impressions,
-      atcClicks,
-      addToCartEvents,
-      qtyAgg,
-      variantCounts,
-    ] = await Promise.all([
-      prisma.stickyEvent.count({
-        where: { shopDomain, type: "impression" },
+    const [impressions, atcClicks, addToCartEvents] = await Promise.all([
+      prisma.analyticsEvent.count({
+        where: { ...whereBase, event: "page_view" },
       }),
-      prisma.StickyEvent.count({
-        where: { shopDomain, type: "atc_click" },
+      prisma.analyticsEvent.count({
+        where: { ...whereBase, event: "sticky_atc_click" },
       }),
-      prisma.StickyEvent.count({
-        where: { shopDomain, type: "add_to_cart" },
-      }),
-      prisma.StickyEvent.aggregate({
-        where: { shopDomain, type: "add_to_cart" },
-        _sum: { quantity: true },
-      }),
-      prisma.StickyEvent.groupBy({
-        by: ["variantId"],
+      prisma.analyticsEvent.count({
         where: {
-          shopDomain,
-          type: "add_to_cart",
-          variantId: { not: "" },
+          ...whereBase,
+          event: { in: ["add_to_cart", "sticky_atc_click"] },
         },
-        _count: { _all: true },
       }),
     ]);
 
-    const totalQty = qtyAgg._sum.quantity || 0;
     const conversionRate =
       impressions > 0 ? addToCartEvents / impressions : null;
-    const avgQuantity =
-      addToCartEvents > 0 ? totalQty / addToCartEvents : null;
 
     return res.json({
-      shopDomain,
+      shopDomain: shop,
       impressions,
       atcClicks,
       addToCartEvents,
-      conversionRate,      // add_to_cart / impressions
-      avgQuantity,         // items per add_to_cart event
-      topVariants: variantCounts
-        .sort((a, b) => b._count._all - a._count._all)
-        .slice(0, 10),
+      conversionRate,
+      avgQuantity: null,
+      topVariants: [],
     });
   } catch (err) {
-    console.error("Sticky metrics error:", err);
+    console.error("Sticky metrics summary error:", err);
     return res.status(500).json({ error: "Server error" });
   }
 });
 
 /**
  * GET /api/sticky/daily
- * Returns daily summary data ordered by date
+ *
+ * Returns daily rollup rows from the StickyMetricsDaily table
+ * (the cron at cron/dailyAnalytics.js populates this).
  */
 router.get("/daily", async (req, res) => {
   try {
-    const data = await prisma.stickyDailySummary.findMany({
+    const shop = getShop(req);
+    const data = await prisma.stickyMetricsDaily.findMany({
+      where: shop ? { shop } : undefined,
       orderBy: { date: "asc" },
     });
 
     res.json(data);
   } catch (err) {
-    console.error("Failed to fetch daily analytics", err);
+    console.error("Failed to fetch daily analytics:", err);
     res.status(500).json({ error: true });
   }
 });
