@@ -1,48 +1,14 @@
-import crypto from "crypto";
-import prisma from "../prisma.js";
+// DEPRECATED — do not import.
+//
+// The active ORDERS_PAID webhook handler is `ordersPaid` in
+// web/routes/webhooks.js, which is what web/shopify.js registers with
+// Shopify. This file previously held an older implementation that wrote
+// to a `stickyEvent` model that no longer exists in the schema.
+//
+// Kept as a no-op (rather than deleted) so any stale import path or
+// build-tool glob does not break a deploy. Safe to delete once you've
+// confirmed nothing references this module.
 
-const generateId = () =>
-  crypto.randomUUID
-    ? crypto.randomUUID()
-    : crypto.randomBytes(16).toString("hex");
-
-export async function ordersPaidHandler(shop, payload) {
-  if (!shop || !payload?.id) return;
-
-  const orderId = String(payload.id);
-  const currency = payload.currency;
-  const occurredAt = new Date(payload.processed_at);
-
-  const revenue =
-    typeof payload.total_price === "string"
-      ? parseFloat(payload.total_price)
-      : payload.total_price;
-
-  // 1️⃣ Write conversion record
-  await prisma.stickyConversion.create({
-    data: {
-      id: generateId(),
-      shop,
-      orderId,
-      revenue,
-      currency,
-      occurredAt,
-    },
-  });
-
-  // 2️⃣ Optional: write per-product events
-  for (const item of payload.line_items || []) {
-    await prisma.stickyEvent.create({
-      data: {
-        id: generateId(),
-        shop,
-        event: "purchase",
-        productId: item.product_id ? String(item.product_id) : null,
-        variantId: item.variant_id ? String(item.variant_id) : null,
-        quantity: item.quantity,
-        price: item.price ? Number(item.price) : null,
-        timestamp: occurredAt,
-      },
-    });
-  }
+export async function ordersPaidHandler() {
+  // intentionally empty
 }
